@@ -66,6 +66,25 @@ update_test() ->
               {ok, _, [{<<"2">>}]} = pgsql:squery(C, "select count(*) from test_table1 where value = 'foo'")
       end).
 
+create_and_drop_table_test() ->
+    with_rollback(
+      fun(C) ->
+              {ok, [], []} = pgsql:squery(C, "create table test_table3 (id int4)"),
+              {ok, [#column{type = int4}], []} = pgsql:squery(C, "select * from test_table3"),
+              {ok, [], []} = pgsql:squery(C, "drop table test_table3")
+      end).
+
+cursor_test() ->
+    with_connection(
+      fun(C) ->
+              {ok, [], []} = pgsql:squery(C, "begin"),
+              {ok, [], []} = pgsql:squery(C, "declare c cursor for select id from test_table1"),
+              {ok, 2} = pgsql:squery(C, "move forward 2 from c"),
+              {ok, 1} = pgsql:squery(C, "move backward 1 from c"),
+              {ok, _Cols, [{<<"2">>}]} = pgsql:squery(C, "fetch next from c"),
+              {ok, [], []} = pgsql:squery(C, "close c")
+              end).
+
 multiple_result_test() ->
     with_connection(
       fun(C) ->
@@ -219,7 +238,7 @@ describe_error_test() ->
               {ok, S} = pgsql:parse(C, "select * from test_table1"),
               {ok, S} = pgsql:describe(C, statement, ""),
               ok = pgsql:sync(C)
-      
+
       end).
 
 portal_test() ->
