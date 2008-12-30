@@ -24,7 +24,7 @@ connect(Host, Username, Opts) ->
 connect(Host, Username, Password, Opts) ->
     {ok, C} = pgsql_connection:start_link(),
     pgsql_connection:connect(C, Host, Username, Password, Opts).
-    
+
 close(C) when is_pid(C) ->
     catch pgsql_connection:stop(C),
     ok.
@@ -119,13 +119,13 @@ receive_result(C) ->
     receive
         {pgsql, C, done} -> R
     end.
-            
+
 receive_results(C, Results) ->
     case receive_result(C, [], []) of
         done -> lists:reverse(Results);
         R    -> receive_results(C, [R | Results])
     end.
-            
+
 receive_result(C, Cols, Rows) ->
     receive
         {pgsql, C, {columns, Cols2}} ->
@@ -135,7 +135,10 @@ receive_result(C, Cols, Rows) ->
         {pgsql, C, {error, _E} = Error} ->
             Error;
         {pgsql, C, {complete, {_Type, Count}}} ->
-            {ok, Count};
+            case Rows of
+                [] -> {ok, Count};
+                _L -> {ok, Count, Cols, lists:reverse(Rows)}
+            end;
         {pgsql, C, {complete, _Type}} ->
             {ok, Cols, lists:reverse(Rows)};
         {pgsql, C, {notice, _N}} ->
@@ -158,7 +161,10 @@ receive_extended_result(C, Rows) ->
         {pgsql, C, suspended} ->
             {partial, lists:reverse(Rows)};
         {pgsql, C, {complete, {_Type, Count}}} ->
-            {ok, Count};
+            case Rows of
+                [] -> {ok, Count};
+                _L -> {ok, Count, lists:reverse(Rows)}
+            end;
         {pgsql, C, {complete, _Type}} ->
             {ok, lists:reverse(Rows)};
         {pgsql, C, {notice, _N}} ->

@@ -506,7 +506,7 @@ decode_complete(Bin) ->
         ["UPDATE", Rows]       -> {update, list_to_integer(Rows)};
         ["DELETE", Rows]       -> {delete, list_to_integer(Rows)};
         ["MOVE", Rows]         -> {move, list_to_integer(Rows)};
-        ["FETCH", _Rows]       -> fetch;
+        ["FETCH", Rows]        -> {fetch, list_to_integer(Rows)};
         [Type | _Rest]         -> lower_atom(Type)
     end.
 

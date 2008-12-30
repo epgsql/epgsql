@@ -48,15 +48,6 @@ insert_test() ->
               {ok, 1} = pgsql:squery(C, "insert into test_table1 (id, value) values (3, 'three')")
       end).
 
-delete_test() ->
-    with_rollback(
-      fun(C) ->
-              {ok, 1} = pgsql:squery(C, "insert into test_table1 (id, value) values (3, 'three')"),
-              {ok, 1} = pgsql:squery(C, "insert into test_table1 (id, value) values (4, 'four')"),
-              {ok, 2} = pgsql:squery(C, "delete from test_table1 where id > 2"),
-              {ok, _, [{<<"2">>}]} = pgsql:squery(C, "select count(*) from test_table1")
-      end).
-
 update_test() ->
     with_rollback(
       fun(C) ->
@@ -64,6 +55,15 @@ update_test() ->
               {ok, 1} = pgsql:squery(C, "insert into test_table1 (id, value) values (4, 'four')"),
               {ok, 2} = pgsql:squery(C, "update test_table1 set value = 'foo' where id > 2"),
               {ok, _, [{<<"2">>}]} = pgsql:squery(C, "select count(*) from test_table1 where value = 'foo'")
+      end).
+
+delete_test() ->
+    with_rollback(
+      fun(C) ->
+              {ok, 1} = pgsql:squery(C, "insert into test_table1 (id, value) values (3, 'three')"),
+              {ok, 1} = pgsql:squery(C, "insert into test_table1 (id, value) values (4, 'four')"),
+              {ok, 2} = pgsql:squery(C, "delete from test_table1 where id > 2"),
+              {ok, _, [{<<"2">>}]} = pgsql:squery(C, "select count(*) from test_table1")
       end).
 
 create_and_drop_table_test() ->
@@ -81,9 +81,9 @@ cursor_test() ->
               {ok, [], []} = pgsql:squery(C, "declare c cursor for select id from test_table1"),
               {ok, 2} = pgsql:squery(C, "move forward 2 from c"),
               {ok, 1} = pgsql:squery(C, "move backward 1 from c"),
-              {ok, _Cols, [{<<"2">>}]} = pgsql:squery(C, "fetch next from c"),
+              {ok, 1, _Cols, [{<<"2">>}]} = pgsql:squery(C, "fetch next from c"),
               {ok, [], []} = pgsql:squery(C, "close c")
-              end).
+      end).
 
 multiple_result_test() ->
     with_connection(
@@ -115,6 +115,23 @@ extended_sync_error_test() ->
               {ok, _Cols, [{<<"one">>}]} = pgsql:equery(C, "select value from test_table1 where id = $1", [1])
       end).
 
+returning_from_insert_test() ->
+    with_rollback(
+      fun(C) ->
+              {ok, 1, _Cols, [{3}]} = pgsql:equery(C, "insert into test_table1 (id) values (3) returning id")
+      end).
+
+returning_from_update_test() ->
+    with_rollback(
+      fun(C) ->
+              {ok, 2, _Cols, [{1}, {2}]} = pgsql:equery(C, "update test_table1 set value = 'hi' returning id")
+      end).
+
+returning_from_delete_test() ->
+    with_rollback(
+      fun(C) ->
+              {ok, 2, _Cols, [{1}, {2}]} = pgsql:equery(C, "delete from test_table1 returning id")
+      end).
 
 parse_test() ->
     with_connection(
@@ -250,6 +267,15 @@ portal_test() ->
               {partial, [{<<"two">>}]} = pgsql:execute(C, S, 1),
               {ok, []} = pgsql:execute(C, S,1),
               ok = pgsql:close(C, S),
+              ok = pgsql:sync(C)
+      end).
+
+returning_test() ->
+    with_rollback(
+      fun(C) ->
+              {ok, S} = pgsql:parse(C, "update test_table1 set value = $1 returning id"),
+              ok = pgsql:bind(C, S, ["foo"]),
+              {ok, 2, [{1}, {2}]} = pgsql:execute(C, S),
               ok = pgsql:sync(C)
       end).
 
