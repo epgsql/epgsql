@@ -148,8 +148,8 @@ auth({$R, <<3:?int32>>}, State) ->
 
 %% AuthenticationMD5Password
 auth({$R, <<5:?int32, Salt:4/binary>>}, State) ->
-    Digest1 = hex(crypto:md5([get(password), get(username)])),
-    Str = ["md5", hex(crypto:md5([Digest1, Salt])), 0],
+    Digest1 = hex(erlang:md5([get(password), get(username)])),
+    Str = ["md5", hex(erlang:md5([Digest1, Salt])), 0],
     send(State, $p, Str),
     {next_state, auth, State};
 

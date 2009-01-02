@@ -382,7 +382,6 @@ encode_binary_format_test() ->
 %% -- run all tests --
 
 run_tests() ->
-    crypto:start(),
     Files = filelib:wildcard("test_ebin/*tests.beam"),
     Mods = [list_to_atom(filename:basename(F, ".beam")) || F <- Files],
     eunit:test(Mods, []).
