@@ -198,8 +198,7 @@ initializing({$Z, <<Status:8>>}, State) ->
     gen_fsm:reply(State#state.reply_to, {ok, self()}),
     {next_state, ready, State#state{txstatus = Status}}.
 
-ready(Data, State) ->
-    error_logger:info_msg("unexpected msg when ready: ~p~n", Data),
+ready(_Msg, State) ->
     {next_state, ready, State}.
 
 %% execute simple query
