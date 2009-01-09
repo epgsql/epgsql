@@ -579,9 +579,8 @@ encode_parameters([P | T], Count, Formats, Values) ->
 encode_parameter({Type, Value}) ->
     case pgsql_binary:encode(Type, Value) of
         Bin when is_binary(Bin) -> {1, Bin};
-        {error, unsupported}    -> {0, Value}
+        {error, unsupported}    -> encode_parameter(Value)
     end;
-encode_parameter(null)                 -> {1, pgsql_binary:encode(null, null)};
 encode_parameter(A) when is_atom(A)    -> {0, encode_list(atom_to_list(A))};
 encode_parameter(B) when is_binary(B)  -> {0, <<(byte_size(B)):?int32, B/binary>>};
 encode_parameter(I) when is_integer(I) -> {0, encode_list(integer_to_list(I))};

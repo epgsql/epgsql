@@ -379,6 +379,21 @@ encode_binary_format_test() ->
               {ok, 1} = pgsql:equery(C, "insert into test_table2 (c_varchar) values ($1)", ["hi"])
       end).
 
+text_format_test() ->
+    with_connection(
+      fun(C) ->
+              Select = fun(Type, V) ->
+                               V2 = list_to_binary(V),
+                               Query = "select $1::" ++ Type,
+                               {ok, _Cols, [{V2}]} = pgsql:equery(C, Query, [V]),
+                               {ok, _Cols, [{V2}]} = pgsql:equery(C, Query, [V2])
+                       end,
+              Select("timestamp", "2000-01-02 03:04:05"),
+              Select("date", "2000-01-02"),
+              Select("time", "03:04:05"),
+              Select("numeric", "123456")
+      end).
+
 %% -- run all tests --
 
 run_tests() ->
