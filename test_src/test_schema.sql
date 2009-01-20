@@ -39,7 +39,13 @@ CREATE TABLE test_table2 (
   c_float8 float8,
   c_bytea bytea,
   c_text text,
-  c_varchar varchar(64));
+  c_varchar varchar(64),
+  c_date date,
+  c_time time,
+  c_timetz timetz,
+  c_timestamp timestamp,
+  c_timestamptz timestamptz,
+  c_interval interval);
 
 CREATE LANGUAGE plpgsql;
 

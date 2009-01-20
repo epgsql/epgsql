@@ -331,53 +331,24 @@ parameter_set_test() ->
               {ok, _Cols, [{<<"02.01.2000">>}]} = pgsql:squery(C, "select '2000-01-02'::date")
       end).
 
-decode_binary_format_test() ->
-    with_connection(
-      fun(C) ->
-              {ok, [#column{type = unknown}], [{null}]} = pgsql:equery(C, "select null"),
-              {ok, [#column{type = bool}], [{true}]} = pgsql:equery(C, "select true"),
-              {ok, [#column{type = bool}], [{false}]} = pgsql:equery(C, "select false"),
-              {ok, [#column{type = bpchar}], [{$A}]} = pgsql:equery(C, "select 'A'::char"),
-              {ok, [#column{type = int2}], [{1}]} = pgsql:equery(C, "select 1::int2"),
-              {ok, [#column{type = int2}], [{-1}]} = pgsql:equery(C, "select -1::int2"),
-              {ok, [#column{type = int4}], [{1}]} = pgsql:equery(C, "select 1::int4"),
-              {ok, [#column{type = int4}], [{-1}]} = pgsql:equery(C, "select -1::int4"),
-              {ok, [#column{type = int8}], [{1}]} = pgsql:equery(C, "select 1::int8"),
-              {ok, [#column{type = int8}], [{-1}]} = pgsql:equery(C, "select -1::int8"),
-              {ok, [#column{type = float4}], [{1.0}]} = pgsql:equery(C, "select 1.0::float4"),
-              {ok, [#column{type = float4}], [{-1.0}]} = pgsql:equery(C, "select -1.0::float4"),
-              {ok, [#column{type = float8}], [{1.0}]} = pgsql:equery(C, "select 1.0::float8"),
-              {ok, [#column{type = float8}], [{-1.0}]} = pgsql:equery(C, "select -1.0::float8"),
-              {ok, [#column{type = bytea}], [{<<1, 2>>}]} = pgsql:equery(C, "select E'\001\002'::bytea"),
-              {ok, [#column{type = text}], [{<<"hi">>}]} = pgsql:equery(C, "select 'hi'::text"),
-              {ok, [#column{type = varchar}], [{<<"hi">>}]} = pgsql:equery(C, "select 'hi'::varchar"),
-              {ok, [#column{type = record}], [{{1, null, <<"hi">>}}]} = pgsql:equery(C, "select (1, null, 'hi')")
-      end).
-
-encode_binary_format_test() ->
-    with_connection(
-      fun(C) ->
-              {ok, 1} = pgsql:equery(C, "insert into test_table2 (c_bool) values ($1)", [null]),
-              {ok, 1} = pgsql:equery(C, "insert into test_table2 (c_bool) values ($1)", [true]),
-              {ok, 1} = pgsql:equery(C, "insert into test_table2 (c_bool) values ($1)", [false]),
-              {ok, 1} = pgsql:equery(C, "insert into test_table2 (c_char) values ($1)", [$A]),
-              {ok, 1} = pgsql:equery(C, "insert into test_table2 (c_int2) values ($1)", [1]),
-              {ok, 1} = pgsql:equery(C, "insert into test_table2 (c_int2) values ($1)", [-1]),
-              {ok, 1} = pgsql:equery(C, "insert into test_table2 (c_int4) values ($1)", [1]),
-              {ok, 1} = pgsql:equery(C, "insert into test_table2 (c_int4) values ($1)", [-1]),
-              {ok, 1} = pgsql:equery(C, "insert into test_table2 (c_int8) values ($1)", [1]),
-              {ok, 1} = pgsql:equery(C, "insert into test_table2 (c_int8) values ($1)", [-1]),
-              {ok, 1} = pgsql:equery(C, "insert into test_table2 (c_float4) values ($1)", [1.0]),
-              {ok, 1} = pgsql:equery(C, "insert into test_table2 (c_float4) values ($1)", [-1.0]),
-              {ok, 1} = pgsql:equery(C, "insert into test_table2 (c_float8) values ($1)", [1.0]),
-              {ok, 1} = pgsql:equery(C, "insert into test_table2 (c_float8) values ($1)", [-1.0]),
-              {ok, 1} = pgsql:equery(C, "insert into test_table2 (c_bytea) values ($1)", [<<1, 2>>]),
-              {ok, 1} = pgsql:equery(C, "insert into test_table2 (c_bytea) values ($1)", [[1, 2]]),
-              {ok, 1} = pgsql:equery(C, "insert into test_table2 (c_text) values ($1)", [<<"hi">>]),
-              {ok, 1} = pgsql:equery(C, "insert into test_table2 (c_text) values ($1)", ["hi"]),
-              {ok, 1} = pgsql:equery(C, "insert into test_table2 (c_varchar) values ($1)", [<<"hi">>]),
-              {ok, 1} = pgsql:equery(C, "insert into test_table2 (c_varchar) values ($1)", ["hi"])
-      end).
+type_test() ->
+    check_type(bool, "true", true, [true, false]),
+    check_type(bpchar, "'A'", $A, [1, $1, 255], "c_char"),
+    check_type(int2, "1", 1, [0, 256, -32768, +32767]),
+    check_type(int4, "1", 1, [0, 512, -2147483648, +2147483647]),
+    check_type(int8, "1", 1, [0, 1024, -9223372036854775808, +9223372036854775807]),
+    check_type(float4, "1.0", 1.0, [0.0, 1.23456, -1.23456]),
+    check_type(float8, "1.0", 1.0, [0.0, 1.23456789012345, -1.23456789012345]),
+    check_type(bytea, "E'\001\002'", <<1,2>>, [<<>>, <<0,128,255>>]),
+    check_type(text, "'hi'", <<"hi">>, [<<"">>, <<"hi">>]),
+    check_type(varchar, "'hi'", <<"hi">>, [<<"">>, <<"hi">>]),
+    check_type(date, "'2008-01-02'", {2008,1,2}, [{-4712,1,1}, {5874897,1,1}]),
+    check_type(time, "'00:01:02'", {0,1,2.0}, [{0,0,0.0}, {24,0,0.0}]),
+    check_type(timetz, "'00:01:02-01'", {{0,1,2.0},1*60*60}, [{{0,0,0.0},0}, {{24,0,0.0},-13*60*60}]),
+    check_type(timestamp, "'2008-01-02 03:04:05'", {{2008,1,2},{3,4,5.0}},
+               [{{-4712,1,1},{0,0,0.0}}, {{5874897,12,31}, {23,59,59.0}}]),
+    check_type(interval, "'1 hour 2 minutes 3.1 seconds'", {{1,2,3.1},0,0},
+               [{{0,0,0.0},0,-178000000 * 12}, {{0,0,0.0},0,178000000 * 12}]).
 
 text_format_test() ->
     with_connection(
@@ -388,9 +359,7 @@ text_format_test() ->
                                {ok, _Cols, [{V2}]} = pgsql:equery(C, Query, [V]),
                                {ok, _Cols, [{V2}]} = pgsql:equery(C, Query, [V2])
                        end,
-              Select("timestamp", "2000-01-02 03:04:05"),
-              Select("date", "2000-01-02"),
-              Select("time", "03:04:05"),
+              Select("inet", "127.0.0.1"),
               Select("numeric", "123456")
       end).
 
@@ -428,6 +397,34 @@ with_rollback(F) ->
                       pgsql:squery(C, "rollback")
                   end
       end).
+
+check_type(Type, In, Out, Values) ->
+    Column = "c_" ++ atom_to_list(Type),
+    check_type(Type, In, Out, Values, Column).
+
+check_type(Type, In, Out, Values, Column) ->
+    with_connection(
+      fun(C) ->
+              Select = io_lib:format("select ~s::~w", [In, Type]),
+              {ok, [#column{type = Type}], [{Out}]} = pgsql:equery(C, Select),
+              Sql = io_lib:format("insert into test_table2 (~s) values ($1) returning ~s", [Column, Column]),
+              {ok, #statement{columns = [#column{type = Type}]} = S} = pgsql:parse(C, Sql),
+              Insert = fun(V) ->
+                               pgsql:bind(C, S, [V]),
+                               {ok, 1, [{V2}]} = pgsql:execute(C, S),
+                               case compare(Type, V, V2) of
+                                   true  -> ok;
+                                   false -> ?debugFmt("~p =/= ~p~n", [V, V2]), ?assert(false)
+                               end,
+                               ok = pgsql:sync(C)
+                       end,
+              lists:foreach(Insert, [null | Values])
+      end).
+
+compare(_Type, null, null) -> true;
+compare(float4, V1, V2)    -> abs(V2 - V1) < 0.000001;
+compare(float8, V1, V2)    -> abs(V2 - V1) < 0.000000000000001;
+compare(_Type, V1, V2)     -> V1 =:= V2.
 
 %% flush mailbox
 flush() ->

@@ -31,7 +31,9 @@ Erlang PostgreSQL Database Client
   the unnamed prepared statement and portal. PostgreSQL's binary format
   is used to return integers as Erlang integers, floats as floats,
   bytea/text/varchar columns as binaries, bools as true/false, etc.
-  For details see pgsql_binary.erl.
+
+  For details see pgsql_binary.erl and the Data Representation section
+  below.
 
 * Parse/Bind/Execute
 
@@ -56,3 +58,22 @@ Erlang PostgreSQL Database Client
   ok = pgsql:close(C, Statement).
   ok = pgsql:close(C, statement | portal, Name).
   ok = pgsql:sync(C).
+
+* Data Representation
+
+  null        = null
+  bool        = true | false
+  char        = $A
+  intX        = 1
+  floatX      = 1.0
+  date        = {Year, Month, Day}
+  time        = {Hour, Minute, Second.Microsecond}
+  timetz      = {time, Timezone}
+  timestamp   = {date, time}
+  timestamptz = {date, time}
+  interval    = {time, Days, Months}
+  text        = <<"a">>
+  varchar     = <<"a">>
+  bytea       = <<1, 2>>
+
+  record      = {int2, time, text, ...} (decode only)

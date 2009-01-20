@@ -15,6 +15,9 @@ encode(int4, N)     -> <<4:?int32, N:1/big-signed-unit:32>>;
 encode(int8, N)     -> <<8:?int32, N:1/big-signed-unit:64>>;
 encode(float4, N)   -> <<4:?int32, N:1/big-float-unit:32>>;
 encode(float8, N)   -> <<8:?int32, N:1/big-float-unit:64>>;
+encode(Type, B) when Type == time; Type == timetz          -> pgsql_datetime:encode(Type, B);
+encode(Type, B) when Type == date; Type == timestamp       -> pgsql_datetime:encode(Type, B);
+encode(Type, B) when Type == timestamptz; Type == interval -> pgsql_datetime:encode(Type, B);
 encode(bytea, B) when is_binary(B)   -> <<(byte_size(B)):?int32, B/binary>>;
 encode(text, B) when is_binary(B)    -> <<(byte_size(B)):?int32, B/binary>>;
 encode(varchar, B) when is_binary(B) -> <<(byte_size(B)):?int32, B/binary>>;
@@ -30,7 +33,10 @@ decode(int8, <<N:1/big-signed-unit:64>>)    -> N;
 decode(float4, <<N:1/big-float-unit:32>>)   -> N;
 decode(float8, <<N:1/big-float-unit:64>>)   -> N;
 decode(record, <<_:?int32, Rest/binary>>)   -> list_to_tuple(decode_record(Rest, []));
-decode(_Other, Bin)                         -> Bin.
+decode(Type, B) when Type == time; Type == timetz          -> pgsql_datetime:decode(Type, B);
+decode(Type, B) when Type == date; Type == timestamp       -> pgsql_datetime:decode(Type, B);
+decode(Type, B) when Type == timestamptz; Type == interval -> pgsql_datetime:decode(Type, B);
+decode(_Other, Bin) -> Bin.
 
 decode_record(<<>>, Acc) ->
     lists:reverse(Acc);
@@ -51,4 +57,10 @@ supports(bytea)   -> true;
 supports(text)    -> true;
 supports(varchar) -> true;
 supports(record)  -> true;
-supports(_Type)   -> false.
+supports(date)    -> true;
+supports(time)    -> true;
+supports(timetz)  -> true;
+supports(timestamp)   -> true;
+supports(timestamptz) -> true;
+supports(interval)    -> true;
+supports(_Type)       -> false.
