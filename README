@@ -14,6 +14,7 @@ Erlang PostgreSQL Database Client
 * Simple Query
 
   {ok, Columns, Rows} = pgsql:squery(C, Sql).
+  {error, #error{}}   = pgsql:squery(C, InvalidSql).
 
   Columns       - list of column records, see pgsql.hrl for definition.
   Rows          - list of tuples, one for each row.
@@ -23,17 +24,24 @@ Erlang PostgreSQL Database Client
 
 * Extended Query
 
-  {ok, Columns, Rows} = pgsql:equery(C, Sql, [Parameters]).
+  {ok, Columns, Rows}        = pgsql:equery(C, "select ...", [Parameters]).
+  {ok, Count}                = pgsql:equery(C, "update ...", [Parameters]).
+  {ok, Count, Columns, Rows} = pgsql:equery(C, "insert ... returning ...", [Parameters]).
+
+  {error, #error{}}          = pgsql:equery(C, "invalid SQL", [Parameters]).
 
   Parameters    - list of values to be bound to $1, $2, $3, etc.
 
   The extended query protocol combines parse, bind, and execute using
-  the unnamed prepared statement and portal. PostgreSQL's binary format
-  is used to return integers as Erlang integers, floats as floats,
-  bytea/text/varchar columns as binaries, bools as true/false, etc.
+  the unnamed prepared statement and portal. A "select" statement returns
+  {ok, Columns, Rows}, "insert/update/delete" returns {ok, Count} or
+  {ok, Count, Columns, Rows} when a "returning" clause is present. When
+  an error occurs, all statements result in {error, #error{}}.
 
-  For details see pgsql_binary.erl and the Data Representation section
-  below.
+  PostgreSQL's binary format is used to return integers as Erlang
+  integers, floats as floats, bytea/text/varchar columns as binaries,
+  bools as true/false, etc. For details see pgsql_binary.erl and the
+  Data Representation section below.
 
 * Parse/Bind/Execute
 
@@ -43,12 +51,14 @@ Erlang PostgreSQL Database Client
   ParameterTypes  - optional list of PostgreSQL types for each parameter.
 
   For valid type names see pgsql_types.erl.
-  
+
   ok = pgsql:bind(C, Statement, [PortalName], ParameterValues).
 
   PortalName- optional name for the result portal.
-  
+
   {ok | partial, Rows} = pgsql:execute(C, Statement, [PortalName], [MaxRows]).
+  {ok, Count}          = pgsql:execute(C, Statement, [PortalName]).
+  {ok, Count, Rows}    = pgsql:execute(C, Statement, [PortalName]).
 
   PortalName      - optional portal name used in bind/4.
   MaxRows         - maximum number of rows to return (0 for all rows).
@@ -58,6 +68,8 @@ Erlang PostgreSQL Database Client
   ok = pgsql:close(C, Statement).
   ok = pgsql:close(C, statement | portal, Name).
   ok = pgsql:sync(C).
+
+  All functions return {error, #error{}} when an error occurs.
 
 * Data Representation
 
