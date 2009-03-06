@@ -3,11 +3,15 @@
 -- this script should be run as the same user the tests will be run as,
 -- so that the test for connecting as the 'current user' succeeds
 --
--- the following lines must be added to pg_hba.conf for the relevant
--- auth tests to succeed:
+-- the following lines must be added to pg_hba.conf for all tests to
+-- succeed:
 --
+-- host    epgsql_test_db1 epgsql_test             127.0.0.1/32    trust
 -- host    epgsql_test_db1 epgsql_test_md5         127.0.0.1/32    md5
 -- host    epgsql_test_db1 epgsql_test_cleartext   127.0.0.1/32    password
+--
+-- any 'trust all' must be commented out for the invalid password test
+-- to succeed.
 
 
 CREATE USER epgsql_test;
@@ -65,7 +69,7 @@ begin
 end
 $$ language plpgsql;
 
-GRANT ALL ON TABLE test_table1 TO epgsql_test1;
-GRANT ALL ON TABLE test_table2 TO epgsql_test1;
-GRANT ALL ON FUNCTION insert_test1(integer, text) TO epgsql_test1;
-GRANT ALL ON FUNCTION do_nothing() TO epgsql_test1;
+GRANT ALL ON TABLE test_table1 TO epgsql_test;
+GRANT ALL ON TABLE test_table2 TO epgsql_test;
+GRANT ALL ON FUNCTION insert_test1(integer, text) TO epgsql_test;
+GRANT ALL ON FUNCTION do_nothing() TO epgsql_test;

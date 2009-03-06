@@ -193,9 +193,14 @@ initializing({$E, Bin}, State) ->
 
 %% ReadyForQuery
 initializing({$Z, <<Status:8>>}, State) ->
+    #state{parameters = Parameters, reply_to = Reply_To} = State,
     erase(username),
     erase(password),
-    gen_fsm:reply(State#state.reply_to, {ok, self()}),
+    case lists:keysearch(<<"integer_datetimes">>, 1, Parameters) of
+        {value, {_, <<"on">>}}  -> put(datetime_mod, pgsql_idatetime);
+        {value, {_, <<"off">>}} -> put(datetime_mod, pgsql_fdatetime)
+    end,
+    gen_fsm:reply(Reply_To, {ok, self()}),
     {next_state, ready, State#state{txstatus = Status}}.
 
 ready(_Msg, State) ->

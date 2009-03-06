@@ -1,10 +1,9 @@
 %%% Copyright (C) 2008 - Will Glozer.  All rights reserved.
 
--module(pgsql_datetime).
+-module(pgsql_fdatetime).
 
 -export([decode/2, encode/2]).
 
--define(int16, 1/big-signed-unit:16).
 -define(int32, 1/big-signed-unit:32).
 
 -define(postgres_epoc_jdate, 2451545).

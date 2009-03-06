@@ -6,6 +6,7 @@
 -include("pgsql.hrl").
 
 -define(host, "localhost").
+-define(port, 5432).
 
 connect_test() ->
     connect_only([[]]).
@@ -14,7 +15,7 @@ connect_to_db_test() ->
     connect_only([[{database, "epgsql_test_db1"}]]).
 
 connect_as_test() ->
-    connect_only(["epgsql_test1", [{database, "epgsql_test_db1"}]]).
+    connect_only(["epgsql_test", [{database, "epgsql_test_db1"}]]).
 
 connect_with_cleartext_test() ->
     connect_only(["epgsql_test_cleartext",
@@ -31,7 +32,7 @@ connect_with_invalid_password_test() ->
         pgsql:connect(?host,
                       "epgsql_test_md5",
                       "epgsql_test_sha1",
-                      [{database, "epgsql_test_db1"}]).
+                      [{port, ?port}, {database, "epgsql_test_db1"}]).
 
 select_test() ->
     with_connection(
@@ -317,7 +318,7 @@ execute_function_test() ->
 parameter_get_test() ->
     with_connection(
       fun(C) ->
-              {ok, <<"off">>} = pgsql:get_parameter(C, "integer_datetimes")
+              {ok, <<"off">>} = pgsql:get_parameter(C, "is_superuser")
       end).
 
 parameter_set_test() ->
@@ -331,24 +332,39 @@ parameter_set_test() ->
               {ok, _Cols, [{<<"02.01.2000">>}]} = pgsql:squery(C, "select '2000-01-02'::date")
       end).
 
-type_test() ->
-    check_type(bool, "true", true, [true, false]),
-    check_type(bpchar, "'A'", $A, [1, $1, 255], "c_char"),
+numeric_type_test() ->
     check_type(int2, "1", 1, [0, 256, -32768, +32767]),
     check_type(int4, "1", 1, [0, 512, -2147483648, +2147483647]),
     check_type(int8, "1", 1, [0, 1024, -9223372036854775808, +9223372036854775807]),
     check_type(float4, "1.0", 1.0, [0.0, 1.23456, -1.23456]),
-    check_type(float8, "1.0", 1.0, [0.0, 1.23456789012345, -1.23456789012345]),
-    check_type(bytea, "E'\001\002'", <<1,2>>, [<<>>, <<0,128,255>>]),
+    check_type(float8, "1.0", 1.0, [0.0, 1.23456789012345, -1.23456789012345]).
+
+character_type_test() ->
+    check_type(bpchar, "'A'", $A, [1, $1, 255], "c_char"),
     check_type(text, "'hi'", <<"hi">>, [<<"">>, <<"hi">>]),
-    check_type(varchar, "'hi'", <<"hi">>, [<<"">>, <<"hi">>]),
-    check_type(date, "'2008-01-02'", {2008,1,2}, [{-4712,1,1}, {5874897,1,1}]),
-    check_type(time, "'00:01:02'", {0,1,2.0}, [{0,0,0.0}, {24,0,0.0}]),
-    check_type(timetz, "'00:01:02-01'", {{0,1,2.0},1*60*60}, [{{0,0,0.0},0}, {{24,0,0.0},-13*60*60}]),
-    check_type(timestamp, "'2008-01-02 03:04:05'", {{2008,1,2},{3,4,5.0}},
-               [{{-4712,1,1},{0,0,0.0}}, {{5874897,12,31}, {23,59,59.0}}]),
-    check_type(interval, "'1 hour 2 minutes 3.1 seconds'", {{1,2,3.1},0,0},
-               [{{0,0,0.0},0,-178000000 * 12}, {{0,0,0.0},0,178000000 * 12}]).
+    check_type(varchar, "'hi'", <<"hi">>, [<<"">>, <<"hi">>]).
+
+date_time_type_test() ->
+    with_connection(
+      fun(C) ->
+              case pgsql:get_parameter(C, "integer_datetimes") of
+                  {ok, <<"on">>}  -> MaxTsDate = 294276;
+                  {ok, <<"off">>} -> MaxTsDate = 5874897
+              end,
+
+              check_type(date, "'2008-01-02'", {2008,1,2}, [{-4712,1,1}, {5874897,1,1}]),
+              check_type(time, "'00:01:02'", {0,1,2.0}, [{0,0,0.0}, {24,0,0.0}]),
+              check_type(timetz, "'00:01:02-01'", {{0,1,2.0},1*60*60},
+                         [{{0,0,0.0},0}, {{24,0,0.0},-13*60*60}]),
+              check_type(timestamp, "'2008-01-02 03:04:05'", {{2008,1,2},{3,4,5.0}},
+                         [{{-4712,1,1},{0,0,0.0}}, {{MaxTsDate,12,31}, {23,59,59.0}}]),
+              check_type(interval, "'1 hour 2 minutes 3.1 seconds'", {{1,2,3.1},0,0},
+                         [{{0,0,0.0},0,-178000000 * 12}, {{0,0,0.0},0,178000000 * 12}])
+      end).
+
+misc_type_test() ->
+    check_type(bool, "true", true, [true, false]),
+    check_type(bytea, "E'\001\002'", <<1,2>>, [<<>>, <<0,128,255>>]).
 
 text_format_test() ->
     with_connection(
@@ -373,19 +389,19 @@ run_tests() ->
 %% -- internal functions --
 
 connect_only(Args) ->
-    {ok, C} = apply(pgsql, connect, [?host | Args]),
+    {ok, C} = apply(pgsql, connect, [?host, [{port, ?port} | Args]]),
     pgsql:close(C),
     flush().
 
 with_connection(F) ->
-    {ok, C} = pgsql:connect(?host, "epgsql_test1", [{database, "epgsql_test_db1"}]),
+    Args = [{port, ?port}, {database, "epgsql_test_db1"}],
+    {ok, C} = pgsql:connect(?host, "epgsql_test", Args),
     try
         F(C)
     after
         pgsql:close(C)
     end,
     flush().
-
 
 with_rollback(F) ->
     with_connection(
