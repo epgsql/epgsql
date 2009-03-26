@@ -12,6 +12,9 @@
 --
 -- any 'trust all' must be commented out for the invalid password test
 -- to succeed.
+--
+-- ssl support must be configured, and the sslinfo contrib module
+-- loaded for the ssl tests to succeed.
 
 
 CREATE USER epgsql_test;

@@ -8,6 +8,7 @@ Erlang PostgreSQL Database Client
 
   - database
   - port
+  - ssl (true | false | required)
 
   ok = pgsql:close(C).
 

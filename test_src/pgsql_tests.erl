@@ -34,6 +34,14 @@ connect_with_invalid_password_test() ->
                       "epgsql_test_sha1",
                       [{port, ?port}, {database, "epgsql_test_db1"}]).
 
+connect_with_ssl_test() ->
+    lists:foreach(fun application:start/1, [crypto, ssl]),
+    with_connection(
+      fun(C) ->
+              {ok, _Cols, [{true}]} = pgsql:equery(C, "select ssl_is_used()")
+      end,
+      [{ssl, true}]).
+
 select_test() ->
     with_connection(
       fun(C) ->
@@ -394,8 +402,11 @@ connect_only(Args) ->
     flush().
 
 with_connection(F) ->
-    Args = [{port, ?port}, {database, "epgsql_test_db1"}],
-    {ok, C} = pgsql:connect(?host, "epgsql_test", Args),
+    with_connection(F, []).
+
+with_connection(F, Args) ->
+    Args2 = [{port, ?port}, {database, "epgsql_test_db1"} | Args],
+    {ok, C} = pgsql:connect(?host, "epgsql_test", Args2),
     try
         F(C)
     after
