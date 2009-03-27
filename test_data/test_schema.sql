@@ -9,6 +9,7 @@
 -- host    epgsql_test_db1 epgsql_test             127.0.0.1/32    trust
 -- host    epgsql_test_db1 epgsql_test_md5         127.0.0.1/32    md5
 -- host    epgsql_test_db1 epgsql_test_cleartext   127.0.0.1/32    password
+-- hostssl epgsql_test_db1 epgsql_test_cert        127.0.0.1/32    cert
 --
 -- any 'trust all' must be commented out for the invalid password test
 -- to succeed.
@@ -20,6 +21,7 @@
 CREATE USER epgsql_test;
 CREATE USER epgsql_test_md5 WITH PASSWORD 'epgsql_test_md5';
 CREATE USER epgsql_test_cleartext WITH PASSWORD 'epgsql_test_cleartext';
+CREATE USER epgsql_test_cert;
 
 CREATE DATABASE epgsql_test_db1;
 CREATE DATABASE epgsql_test_db2;

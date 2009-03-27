@@ -3,6 +3,7 @@
 -export([run_tests/0]).
 
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("ssl/include/OTP-PKIX.hrl").
 -include("pgsql.hrl").
 
 -define(host, "localhost").
@@ -40,7 +41,25 @@ connect_with_ssl_test() ->
       fun(C) ->
               {ok, _Cols, [{true}]} = pgsql:equery(C, "select ssl_is_used()")
       end,
+      "epgsql_test",
       [{ssl, true}]).
+
+connect_with_client_cert_test() ->
+    lists:foreach(fun application:start/1, [crypto, ssl]),
+
+    Dir = filename:join(filename:dirname(code:which(pgsql_tests)), "../test_data"),
+    File = fun(Name) -> filename:join(Dir, Name) end,
+    {ok, Cert} = ssl_pkix:decode_cert_file(File("epgsql.crt"), [pem, pkix]),
+    #'TBSCertificate'{serialNumber = Serial} = Cert#'Certificate'.tbsCertificate,
+    Serial2 = list_to_binary(integer_to_list(Serial)),
+
+    with_connection(
+      fun(C) ->
+              {ok, _, [{true}]} = pgsql:equery(C, "select ssl_is_used()"),
+              {ok, _, [{Serial2}]} = pgsql:equery(C, "select ssl_client_serial()")
+      end,
+      "epgsql_test_cert",
+      [{ssl, true}, {keyfile, File("epgsql.key")}, {certfile, File("epgsql.crt")}]).
 
 select_test() ->
     with_connection(
@@ -402,11 +421,11 @@ connect_only(Args) ->
     flush().
 
 with_connection(F) ->
-    with_connection(F, []).
+    with_connection(F, "epgsql_test", []).
 
-with_connection(F, Args) ->
+with_connection(F, Username, Args) ->
     Args2 = [{port, ?port}, {database, "epgsql_test_db1"} | Args],
-    {ok, C} = pgsql:connect(?host, "epgsql_test", Args2),
+    {ok, C} = pgsql:connect(?host, Username, Args2),
     try
         F(C)
     after

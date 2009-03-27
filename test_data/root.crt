@@ -1,0 +1,63 @@
+Certificate:
+    Data:
+        Version: 3 (0x2)
+        Serial Number:
+            81:4c:f2:4f:ec:a0:bf:ea
+        Signature Algorithm: sha1WithRSAEncryption
+        Issuer: C=US, ST=California, L=San Francisco, O=lambdaWorks, CN=epgsql CA
+        Validity
+            Not Before: Mar 27 03:52:34 2009 GMT
+            Not After : Feb  3 03:52:34 2019 GMT
+        Subject: C=US, ST=California, L=San Francisco, O=lambdaWorks, CN=epgsql CA
+        Subject Public Key Info:
+            Public Key Algorithm: rsaEncryption
+            RSA Public Key: (1024 bit)
+                Modulus (1024 bit):
+                    00:bd:03:59:e5:ce:5d:24:45:ae:bf:cd:a4:4a:d4:
+                    33:7a:48:08:79:8a:20:4c:b6:28:51:f8:f0:9a:1d:
+                    1e:fb:b8:de:a3:b7:10:95:d7:a3:58:b7:94:b4:7e:
+                    36:0a:0c:68:1c:e8:21:a5:5d:9d:0a:3a:5d:26:dd:
+                    bb:5b:62:59:e0:1f:b8:48:a7:3d:28:dd:f3:b9:de:
+                    27:d7:25:4b:f6:8a:ac:ef:a3:0e:b3:fb:1b:b8:dd:
+                    db:01:72:01:1f:79:5b:f8:c3:54:7e:1a:94:68:1d:
+                    81:2c:05:11:05:2c:5b:81:05:21:19:c0:c7:94:4f:
+                    77:f5:76:4c:98:8d:ab:68:5b
+                Exponent: 65537 (0x10001)
+        X509v3 extensions:
+            X509v3 Subject Key Identifier: 
+                EE:4E:CD:35:A5:3B:76:A8:ED:80:32:B4:80:56:03:70:35:19:70:DA
+            X509v3 Authority Key Identifier: 
+                keyid:EE:4E:CD:35:A5:3B:76:A8:ED:80:32:B4:80:56:03:70:35:19:70:DA
+                DirName:/C=US/ST=California/L=San Francisco/O=lambdaWorks/CN=epgsql CA
+                serial:81:4C:F2:4F:EC:A0:BF:EA
+
+            X509v3 Basic Constraints: 
+                CA:TRUE
+    Signature Algorithm: sha1WithRSAEncryption
+        27:4c:04:ee:27:46:23:9b:6f:7c:8f:5b:9e:c6:65:74:33:40:
+        06:be:ca:e0:55:91:1c:9e:1c:77:27:82:03:4e:67:91:5d:14:
+        e4:74:b7:88:9e:49:d6:02:5b:71:94:b3:62:2a:5e:58:00:7d:
+        8c:42:09:db:ca:27:20:71:33:16:09:d2:17:36:d4:4f:63:09:
+        0a:48:80:d7:36:13:24:57:e3:7a:7e:25:4e:b8:f0:71:c6:34:
+        69:4e:e1:4b:5a:ec:b3:be:14:78:1e:af:85:b2:56:91:62:03:
+        6b:b2:85:2e:8e:ef:4b:5a:bf:ac:54:43:24:cb:0e:c6:f8:58:
+        b5:a1
+-----BEGIN CERTIFICATE-----
+MIIDEDCCAnmgAwIBAgIJAIFM8k/soL/qMA0GCSqGSIb3DQEBBQUAMGQxCzAJBgNV
+BAYTAlVTMRMwEQYDVQQIEwpDYWxpZm9ybmlhMRYwFAYDVQQHEw1TYW4gRnJhbmNp
+c2NvMRQwEgYDVQQKEwtsYW1iZGFXb3JrczESMBAGA1UEAxMJZXBnc3FsIENBMB4X
+DTA5MDMyNzAzNTIzNFoXDTE5MDIwMzAzNTIzNFowZDELMAkGA1UEBhMCVVMxEzAR
+BgNVBAgTCkNhbGlmb3JuaWExFjAUBgNVBAcTDVNhbiBGcmFuY2lzY28xFDASBgNV
+BAoTC2xhbWJkYVdvcmtzMRIwEAYDVQQDEwllcGdzcWwgQ0EwgZ8wDQYJKoZIhvcN
+AQEBBQADgY0AMIGJAoGBAL0DWeXOXSRFrr/NpErUM3pICHmKIEy2KFH48JodHvu4
+3qO3EJXXo1i3lLR+NgoMaBzoIaVdnQo6XSbdu1tiWeAfuEinPSjd87neJ9clS/aK
+rO+jDrP7G7jd2wFyAR95W/jDVH4alGgdgSwFEQUsW4EFIRnAx5RPd/V2TJiNq2hb
+AgMBAAGjgckwgcYwHQYDVR0OBBYEFO5OzTWlO3ao7YAytIBWA3A1GXDaMIGWBgNV
+HSMEgY4wgYuAFO5OzTWlO3ao7YAytIBWA3A1GXDaoWikZjBkMQswCQYDVQQGEwJV
+UzETMBEGA1UECBMKQ2FsaWZvcm5pYTEWMBQGA1UEBxMNU2FuIEZyYW5jaXNjbzEU
+MBIGA1UEChMLbGFtYmRhV29ya3MxEjAQBgNVBAMTCWVwZ3NxbCBDQYIJAIFM8k/s
+oL/qMAwGA1UdEwQFMAMBAf8wDQYJKoZIhvcNAQEFBQADgYEAJ0wE7idGI5tvfI9b
+nsZldDNABr7K4FWRHJ4cdyeCA05nkV0U5HS3iJ5J1gJbcZSzYipeWAB9jEIJ28on
+IHEzFgnSFzbUT2MJCkiA1zYTJFfjen4lTrjwccY0aU7hS1rss74UeB6vhbJWkWID
+a7KFLo7vS1q/rFRDJMsOxvhYtaE=
+-----END CERTIFICATE-----
