@@ -2,14 +2,19 @@ Erlang PostgreSQL Database Client
 
 * Connect
 
-  {ok, C} = pgsql:connect(Host, [Username, Password, Opts]).
+  {ok, C} = pgsql:connect(Host, [Username], [Password], [Opts]).
 
-  Opts is a property list. The following properties are supported:
+  Host      - host to connect to.
+  Username  - username to connect as, defaults to $USER.
+  Password  - optional password to authenticate with.
+  Opts      - property list of extra options. Supported properties:
 
-  - database
-  - port
-  - ssl (true | false | required)
+    + database
+    + port
+    + ssl (true | false | required)
+    + ssl_opts (see ssl docs in OTP)
 
+  {ok, C} = pgsql:connect("localhost", "username", [{database, "test_db"}]).
   ok = pgsql:close(C).
 
 * Simple Query
@@ -31,7 +36,7 @@ Erlang PostgreSQL Database Client
 
   {error, #error{}}          = pgsql:equery(C, "invalid SQL", [Parameters]).
 
-  Parameters    - list of values to be bound to $1, $2, $3, etc.
+  Parameters    - optional list of values to be bound to $1, $2, $3, etc.
 
   The extended query protocol combines parse, bind, and execute using
   the unnamed prepared statement and portal. A "select" statement returns
@@ -55,7 +60,7 @@ Erlang PostgreSQL Database Client
 
   ok = pgsql:bind(C, Statement, [PortalName], ParameterValues).
 
-  PortalName- optional name for the result portal.
+  PortalName      - optional name for the result portal.
 
   {ok | partial, Rows} = pgsql:execute(C, Statement, [PortalName], [MaxRows]).
   {ok, Count}          = pgsql:execute(C, Statement, [PortalName]).
