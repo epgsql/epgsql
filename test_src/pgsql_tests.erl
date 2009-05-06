@@ -431,6 +431,43 @@ execute_timeout_test() ->
       end,
       [{timeout, 10}]).
 
+connection_closed_test() ->
+    P = self(),
+    F = fun() ->
+                process_flag(trap_exit, true),
+                {ok, C} = pgsql:connect(?host, [{port, ?port}]),
+                P ! {connected, C},
+                receive
+                    Any -> P ! Any
+                end
+        end,
+    spawn_link(F),
+    receive
+        {connected, C} ->
+            timer:sleep(100),
+            pgsql:close(C),
+            {'EXIT', C, _} = receive R -> R end
+    end,
+    flush().
+
+active_connection_closed_test() ->
+    P = self(),
+    F = fun() ->
+                process_flag(trap_exit, true),
+                {ok, C} = pgsql:connect(?host, [{port, ?port}]),
+                P ! {connected, C},
+                R = pgsql:squery(C, "select pg_sleep(10)"),
+                P ! R
+        end,
+    spawn_link(F),
+    receive
+        {connected, C} ->
+            timer:sleep(100),
+            pgsql:close(C),
+            {error, closed} = receive R -> R end
+    end,
+    flush().
+
 %% -- run all tests --
 
 run_tests() ->

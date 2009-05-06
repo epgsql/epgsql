@@ -24,7 +24,7 @@ Erlang PostgreSQL Database Client
 * Simple Query
 
   {ok, Columns, Rows} = pgsql:squery(C, Sql).
-  {error, #error{}}   = pgsql:squery(C, InvalidSql).
+  {error, Error}      = pgsql:squery(C, InvalidSql).
 
   Columns       - list of column records, see pgsql.hrl for definition.
   Rows          - list of tuples, one for each row.
@@ -38,7 +38,7 @@ Erlang PostgreSQL Database Client
   {ok, Count}                = pgsql:equery(C, "update ...", [Parameters]).
   {ok, Count, Columns, Rows} = pgsql:equery(C, "insert ... returning ...", [Parameters]).
 
-  {error, #error{}}          = pgsql:equery(C, "invalid SQL", [Parameters]).
+  {error, Error}             = pgsql:equery(C, "invalid SQL", [Parameters]).
 
   Parameters    - optional list of values to be bound to $1, $2, $3, etc.
 
@@ -79,7 +79,7 @@ Erlang PostgreSQL Database Client
   ok = pgsql:close(C, statement | portal, Name).
   ok = pgsql:sync(C).
 
-  All functions return {error, #error{}} when an error occurs.
+  All functions return {error, Error} when an error occurs.
 
 * Data Representation
 
@@ -99,3 +99,9 @@ Erlang PostgreSQL Database Client
   bytea       = <<1, 2>>
 
   record      = {int2, time, text, ...} (decode only)
+
+* Errors
+
+  Errors originating from the PostgreSQL backend are returned as {error, #error{}},
+  see pgsql.hrl for the record definition. epgsql may also return {error, Atom}
+  where Atom is 'timeout' or 'closed'.

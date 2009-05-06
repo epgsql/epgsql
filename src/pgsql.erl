@@ -112,17 +112,19 @@ with_transaction(C, F) ->
 %% -- internal functions --
 
 receive_result(C, Result) ->
-    case receive_result(C, [], []) of
+    try receive_result(C, [], []) of
         done    -> Result;
-        timeout -> {error, timeout};
         R       -> receive_result(C, R)
+    catch
+        throw:E -> E
     end.
 
 receive_results(C, Results) ->
-    case receive_result(C, [], []) of
+    try receive_result(C, [], []) of
         done    -> lists:reverse(Results);
-        timeout -> lists:reverse([{error, timeout} | Results]);
         R       -> receive_results(C, [R | Results])
+    catch
+        throw:E -> E
     end.
 
 receive_result(C, Cols, Rows) ->
@@ -145,7 +147,9 @@ receive_result(C, Cols, Rows) ->
         {pgsql, C, done} ->
             done;
         {pgsql, C, timeout} ->
-            timeout
+            throw({error, timeout});
+        {'EXIT', C, _Reason} ->
+            throw({error, closed})
     end.
 
 receive_extended_result(C)->
@@ -169,5 +173,7 @@ receive_extended_result(C, Rows) ->
         {pgsql, C, {notice, _N}} ->
             receive_extended_result(C, Rows);
         {pgsql, C, timeout} ->
-            {error, timeout}
+            {error, timeout};
+        {'EXIT', C, _Reason} ->
+            {error, closed}
     end.
