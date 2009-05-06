@@ -14,13 +14,14 @@
 
 -export([startup/3, auth/2, initializing/2, ready/2, ready/3]).
 -export([querying/2, parsing/2, binding/2, describing/2]).
--export([executing/2, closing/2, synchronizing/2]).
+-export([executing/2, closing/2, synchronizing/2, timeout/2]).
 
 -include("pgsql.hrl").
 
 -record(state, {
           reader,
           sock,
+          timeout,
           parameters = [],
           reply,
           reply_to,
@@ -111,31 +112,35 @@ code_change(_Old_Vsn, State_Name, State, _Extra) ->
 %% -- states --
 
 startup({connect, Host, Username, Password, Opts}, From, State) ->
+    Timeout = proplists:get_value(timeout, Opts, 5000),
     case pgsql_sock:start_link(self(), Host, Username, Opts) of
         {ok, Sock} ->
             put(username, Username),
             put(password, Password),
-            State2 = State#state{sock = Sock, reply_to = From},
-            {next_state, auth, State2};
+            State2 = State#state{sock = Sock, timeout = Timeout, reply_to = From},
+            {next_state, auth, State2, Timeout};
         Error ->
             {stop, normal, Error, State}
     end.
 
 %% AuthenticationOk
 auth({$R, <<0:?int32>>}, State) ->
-    {next_state, initializing, State};
+    #state{timeout = Timeout} = State,
+    {next_state, initializing, State, Timeout};
 
 %% AuthenticationCleartextPassword
 auth({$R, <<3:?int32>>}, State) ->
+    #state{timeout = Timeout} = State,
     send(State, $p, [get(password), 0]),
-    {next_state, auth, State};
+    {next_state, auth, State, Timeout};
 
 %% AuthenticationMD5Password
 auth({$R, <<5:?int32, Salt:4/binary>>}, State) ->
+    #state{timeout = Timeout} = State,
     Digest1 = hex(erlang:md5([get(password), get(username)])),
     Str = ["md5", hex(erlang:md5([Digest1, Salt])), 0],
     send(State, $p, Str),
-    {next_state, auth, State};
+    {next_state, auth, State, Timeout};
 
 auth({$R, <<M:?int32, _/binary>>}, State) ->
     case M of
@@ -157,12 +162,17 @@ auth({error, E}, State) ->
         Any         -> Why = Any
     end,
     gen_fsm:reply(State#state.reply_to, {error, Why}),
+    {stop, normal, State};
+
+auth(timeout, State) ->
+    gen_fsm:reply(State#state.reply_to, {error, timeout}),
     {stop, normal, State}.
 
 %% BackendKeyData
 initializing({$K, <<Pid:?int32, Key:?int32>>}, State) ->
+    #state{timeout = Timeout} = State,
     State2 = State#state{backend = {Pid, Key}},
-    {next_state, initializing, State2};
+    {next_state, initializing, State2, Timeout};
 
 %% ErrorResponse
 initializing({error, E}, State) ->
@@ -171,6 +181,10 @@ initializing({error, E}, State) ->
         Any         -> Why = Any
     end,
     gen_fsm:reply(State#state.reply_to, {error, Why}),
+    {stop, normal, State};
+
+initializing(timeout, State) ->
+    gen_fsm:reply(State#state.reply_to, {error, timeout}),
     {stop, normal, State};
 
 %% ReadyForQuery
@@ -190,12 +204,14 @@ ready(_Msg, State) ->
 
 %% execute simple query
 ready({squery, Sql}, From, State) ->
+    #state{timeout = Timeout} = State,
     send(State, $Q, [Sql, 0]),
     State2 = State#state{statement = #statement{}, reply_to = From},
-    {reply, ok, querying, State2};
+    {reply, ok, querying, State2, Timeout};
 
 %% execute extended query
 ready({equery, Statement, Parameters}, From, State) ->
+    #state{timeout = Timeout} = State,
     #statement{name = StatementName, columns = Columns} = Statement,
     Bin1 = encode_parameters(Parameters),
     Bin2 = encode_formats(Columns),
@@ -204,7 +220,7 @@ ready({equery, Statement, Parameters}, From, State) ->
     send(State, $C, [$S, "", 0]),
     send(State, $S, []),
     State2 = State#state{statement = Statement, reply_to = From},
-    {reply, ok, querying, State2};
+    {reply, ok, querying, State2, Timeout};
 
 ready({get_parameter, Name}, _From, State) ->
     case lists:keysearch(Name, 1, State#state.parameters) of
@@ -214,88 +230,108 @@ ready({get_parameter, Name}, _From, State) ->
     {reply, {ok, Value}, ready, State};
 
 ready({parse, Name, Sql, Types}, From, State) ->
+    #state{timeout = Timeout} = State,
     Bin = encode_types(Types),
     send(State, $P, [Name, 0, Sql, 0, Bin]),
     send(State, $D, [$S, Name, 0]),
     send(State, $H, []),
     S = #statement{name = Name},
-    {next_state, parsing, State#state{statement = S, reply_to = From}};
+    State2 = State#state{statement = S, reply_to = From},
+    {next_state, parsing, State2, Timeout};
 
 ready({bind, Statement, PortalName, Parameters}, From, State) ->
+    #state{timeout = Timeout} = State,
     #statement{name = StatementName, columns = Columns, types = Types} = Statement,
     Typed_Parameters = lists:zip(Types, Parameters),
     Bin1 = encode_parameters(Typed_Parameters),
     Bin2 = encode_formats(Columns),
     send(State, $B, [PortalName, 0, StatementName, 0, Bin1, Bin2]),
     send(State, $H, []),
-    {next_state, binding, State#state{statement = Statement, reply_to = From}};
+    State2 = State#state{statement = Statement, reply_to = From},
+    {next_state, binding, State2, Timeout};
 
 ready({execute, Statement, PortalName, MaxRows}, From, State) ->
+    #state{timeout = Timeout} = State,
     send(State, $E, [PortalName, 0, <<MaxRows:?int32>>]),
     send(State, $H, []),
-    {reply, ok, executing, State#state{statement = Statement, reply_to = From}};
+    State2 = State#state{statement = Statement, reply_to = From},
+    {reply, ok, executing, State2, Timeout};
 
 ready({describe, Type, Name}, From, State) ->
+    #state{timeout = Timeout} = State,
     case Type of
         statement -> Type2 = $S;
         portal    -> Type2 = $P
     end,
     send(State, $D, [Type2, Name, 0]),
     send(State, $H, []),
-    {next_state, describing, State#state{reply_to = From}};
+    {next_state, describing, State#state{reply_to = From}, Timeout};
 
 ready({close, Type, Name}, From, State) ->
+    #state{timeout = Timeout} = State,
     case Type of
         statement -> Type2 = $S;
         portal    -> Type2 = $P
     end,
     send(State, $C, [Type2, Name, 0]),
     send(State, $H, []),
-    {next_state, closing, State#state{reply_to = From}};
+    {next_state, closing, State#state{reply_to = From}, Timeout};
 
 ready(sync, From, State) ->
+    #state{timeout = Timeout} = State,
     send(State, $S, []),
-    {next_state, synchronizing, State#state{reply = ok, reply_to = From}}.
+    State2 = State#state{reply = ok, reply_to = From},
+    {next_state, synchronizing, State2, Timeout}.
 
 %% BindComplete
 querying({$2, <<>>}, State) ->
-    #state{statement = #statement{columns = Columns}} = State,
+    #state{timeout = Timeout, statement = #statement{columns = Columns}} = State,
     notify(State, {columns, Columns}),
-    {next_state, querying, State};
+    {next_state, querying, State, Timeout};
 
 %% CloseComplete
 querying({$3, <<>>}, State) ->
-    {next_state, querying, State};
+    #state{timeout = Timeout} = State,
+    {next_state, querying, State, Timeout};
 
 %% RowDescription
 querying({$T, <<Count:?int16, Bin/binary>>}, State) ->
+    #state{timeout = Timeout} = State,
     Columns = decode_columns(Count, Bin),
     S2 = (State#state.statement)#statement{columns = Columns},
     notify(State, {columns, Columns}),
-    {next_state, querying, State#state{statement = S2}};
+    {next_state, querying, State#state{statement = S2}, Timeout};
 
 %% DataRow
 querying({$D, <<_Count:?int16, Bin/binary>>}, State) ->
-    #state{statement = #statement{columns = Columns}} = State,
+    #state{timeout = Timeout, statement = #statement{columns = Columns}} = State,
     Data = decode_data(Columns, Bin),
     notify(State, {data, Data}),
-    {next_state, querying, State};
+    {next_state, querying, State, Timeout};
 
 %% CommandComplete
 querying({$C, Bin}, State) ->
+    #state{timeout = Timeout} = State,
     Complete = decode_complete(Bin),
     notify(State, {complete, Complete}),
-    {next_state, querying, State};
+    {next_state, querying, State, Timeout};
 
 %% EmptyQueryResponse
 querying({$I, _Bin}, State) ->
+    #state{timeout = Timeout} = State,
     notify(State, {complete, empty}),
-    {next_state, querying, State};
+    {next_state, querying, State, Timeout};
+
+querying(timeout, State) ->
+    #state{sock = Sock, timeout = Timeout, backend = {Pid, Key}} = State,
+    pgsql_sock:cancel(Sock, Pid, Key),
+    {next_state, timeout, State, Timeout};
 
 %% ErrorResponse
 querying({error, E}, State) ->
+    #state{timeout = Timeout} = State,
     notify(State, {error, E}),
-    {next_state, querying, State};
+    {next_state, querying, State, Timeout};
 
 %% ReadyForQuery
 querying({$Z, <<_Status:8>>}, State) ->
@@ -304,13 +340,21 @@ querying({$Z, <<_Status:8>>}, State) ->
 
 %% ParseComplete
 parsing({$1, <<>>}, State) ->
-    {next_state, describing, State};
+    #state{timeout = Timeout} = State,
+    {next_state, describing, State, Timeout};
+
+parsing(timeout, State) ->
+    #state{timeout = Timeout} = State,
+    Reply = {error, timeout},
+    send(State, $S, []),
+    {next_state, parsing, State#state{reply = Reply}, Timeout};
 
 %% ErrorResponse
 parsing({error, E}, State) ->
+    #state{timeout = Timeout} = State,
     Reply = {error, E},
     send(State, $S, []),
-    {next_state, parsing, State#state{reply = Reply}};
+    {next_state, parsing, State#state{reply = Reply}, Timeout};
 
 %% ReadyForQuery
 parsing({$Z, <<Status:8>>}, State) ->
@@ -323,11 +367,18 @@ binding({$2, <<>>}, State) ->
     gen_fsm:reply(State#state.reply_to, ok),
     {next_state, ready, State};
 
+binding(timeout, State) ->
+    #state{timeout = Timeout} = State,
+    Reply = {error, timeout},
+    send(State, $S, []),
+    {next_state, binding, State#state{reply = Reply}, Timeout};
+
 %% ErrorResponse
 binding({error, E}, State) ->
+    #state{timeout = Timeout} = State,
     Reply = {error, E},
     send(State, $S, []),
-    {next_state, binding, State#state{reply = Reply}};
+    {next_state, binding, State#state{reply = Reply}, Timeout};
 
 %% ReadyForQuery
 binding({$Z, <<Status:8>>}, State) ->
@@ -337,9 +388,10 @@ binding({$Z, <<Status:8>>}, State) ->
 
 %% ParameterDescription
 describing({$t, <<_Count:?int16, Bin/binary>>}, State) ->
+    #state{timeout = Timeout} = State,
     Types = [pgsql_types:oid2type(Oid) || <<Oid:?int32>> <= Bin],
     S2 = (State#state.statement)#statement{types = Types},
-    {next_state, describing, State#state{statement = S2}};
+    {next_state, describing, State#state{statement = S2}, Timeout};
 
 %% RowDescription
 describing({$T, <<Count:?int16, Bin/binary>>}, State) ->
@@ -355,11 +407,18 @@ describing({$n, <<>>}, State) ->
     gen_fsm:reply(State#state.reply_to, {ok, S2}),
     {next_state, ready, State};
 
+describing(timeout, State) ->
+    #state{timeout = Timeout} = State,
+    Reply = {error, timeout},
+    send(State, $S, []),
+    {next_state, describing, State#state{reply = Reply}, Timeout};
+
 %% ErrorResponse
 describing({error, E}, State) ->
+    #state{timeout = Timeout} = State,
     Reply = {error, E},
     send(State, $S, []),
-    {next_state, describing, State#state{reply = Reply}};
+    {next_state, describing, State#state{reply = Reply}, Timeout};
 
 %% ReadyForQuery
 describing({$Z, <<Status:8>>}, State) ->
@@ -369,10 +428,10 @@ describing({$Z, <<Status:8>>}, State) ->
 
 %% DataRow
 executing({$D, <<_Count:?int16, Bin/binary>>}, State) ->
-    #state{statement = #statement{columns = Columns}} = State,
+    #state{timeout = Timeout, statement = #statement{columns = Columns}} = State,
     Data = decode_data(Columns, Bin),
     notify(State, {data, Data}),
-    {next_state, executing, State};
+    {next_state, executing, State, Timeout};
 
 %% PortalSuspended
 executing({$s, <<>>}, State) ->
@@ -389,14 +448,25 @@ executing({$I, _Bin}, State) ->
     notify(State, {complete, empty}),
     {next_state, ready, State};
 
+executing(timeout, State) ->
+    #state{sock = Sock, timeout = Timeout, backend = {Pid, Key}} = State,
+    pgsql_sock:cancel(Sock, Pid, Key),
+    send(State, $S, []),
+    {next_state, timeout, State, Timeout};
+
 %% ErrorResponse
 executing({error, E}, State) ->
+    #state{timeout = Timeout} = State,
     notify(State, {error, E}),
-    {next_state, executing, State}.
+    {next_state, executing, State, Timeout}.
 
 %% CloseComplete
 closing({$3, <<>>}, State) ->
     gen_fsm:reply(State#state.reply_to, ok),
+    {next_state, ready, State};
+
+closing(timeout, State) ->
+    gen_fsm:reply(State#state.reply_to, {error, timeout}),
     {next_state, ready, State};
 
 %% ErrorResponse
@@ -407,14 +477,32 @@ closing({error, E}, State) ->
 
 %% ErrorResponse
 synchronizing({error, E}, State) ->
+    #state{timeout = Timeout} = State,
     Reply = {error, E},
-    {next_state, synchronizing, State#state{reply = Reply}};
+    {next_state, synchronizing, State#state{reply = Reply}, Timeout};
+
+synchronizing(timeout, State) ->
+    #state{timeout = Timeout} = State,
+    Reply = {error, timeout},
+    {next_state, synchronizing, State#state{reply = Reply}, Timeout};
 
 %% ReadyForQuery
 synchronizing({$Z, <<Status:8>>}, State) ->
     #state{reply = Reply, reply_to = Reply_To} = State,
     gen_fsm:reply(Reply_To, Reply),
     {next_state, ready, State#state{reply = undefined, txstatus = Status}}.
+
+timeout({$Z, <<Status:8>>}, State) ->
+    notify(State, timeout),
+    {next_state, ready, State#state{txstatus = Status}};
+
+timeout(timeout, State) ->
+    {stop, timeout, State};
+
+%% ignore events that occur after timeout
+timeout(_Event, State) ->
+    #state{timeout = Timeout} = State,
+    {next_state, timeout, State, Timeout}.
 
 %% -- internal functions --
 

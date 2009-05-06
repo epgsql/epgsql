@@ -1,5 +1,4 @@
 %%% Copyright (C) 2008 - Will Glozer.  All rights reserved.
-
 -module(pgsql).
 
 -export([connect/2, connect/3, connect/4, close/1]).
@@ -10,8 +9,6 @@
 -export([with_transaction/2]).
 
 -include("pgsql.hrl").
-
--define(timeout, 5000).
 
 %% -- client interface --
 
@@ -47,7 +44,7 @@ equery(C, Sql, Parameters) ->
         {ok, #statement{types = Types} = S} ->
             Typed_Parameters = lists:zip(Types, Parameters),
             ok = pgsql_connection:equery(C, S, Typed_Parameters),
-            receive_result(C);
+            receive_result(C, undefined);
         Error ->
             Error
     end.
@@ -114,16 +111,18 @@ with_transaction(C, F) ->
 
 %% -- internal functions --
 
-receive_result(C) ->
-    R = receive_result(C, [], []),
-    receive
-        {pgsql, C, done} -> R
+receive_result(C, Result) ->
+    case receive_result(C, [], []) of
+        done    -> Result;
+        timeout -> {error, timeout};
+        R       -> receive_result(C, R)
     end.
 
 receive_results(C, Results) ->
     case receive_result(C, [], []) of
-        done -> lists:reverse(Results);
-        R    -> receive_results(C, [R | Results])
+        done    -> lists:reverse(Results);
+        timeout -> lists:reverse([{error, timeout} | Results]);
+        R       -> receive_results(C, [R | Results])
     end.
 
 receive_result(C, Cols, Rows) ->
@@ -144,9 +143,9 @@ receive_result(C, Cols, Rows) ->
         {pgsql, C, {notice, _N}} ->
             receive_result(C, Cols, Rows);
         {pgsql, C, done} ->
-            done
-    after
-        ?timeout -> {error, timeout}
+            done;
+        {pgsql, C, timeout} ->
+            timeout
     end.
 
 receive_extended_result(C)->
@@ -168,7 +167,7 @@ receive_extended_result(C, Rows) ->
         {pgsql, C, {complete, _Type}} ->
             {ok, lists:reverse(Rows)};
         {pgsql, C, {notice, _N}} ->
-            receive_extended_result(C, Rows)
-    after
-        ?timeout -> {error, timeout}
+            receive_extended_result(C, Rows);
+        {pgsql, C, timeout} ->
+            {error, timeout}
     end.

@@ -4,7 +4,7 @@
 
 -behavior(gen_server).
 
--export([start_link/4, send/2, send/3]).
+-export([start_link/4, send/2, send/3, cancel/3]).
 -export([decode_string/1, lower_atom/1]).
 
 -export([handle_call/3, handle_cast/2, handle_info/2]).
@@ -31,6 +31,9 @@ send(S, Data) ->
     Bin = iolist_to_binary(Data),
     Msg = <<(byte_size(Bin) + 4):?int32, Bin/binary>>,
     gen_server:cast(S, {send, Msg}).
+
+cancel(S, Pid, Key) ->
+    gen_server:cast(S, {cancel, Pid, Key}).
 
 %% -- gen_server implementation --
 
@@ -72,6 +75,15 @@ handle_call(Call, _From, State) ->
 handle_cast({send, Data}, State) ->
     #state{mod = Mod, sock = Sock} = State,
     ok = Mod:send(Sock, Data),
+    {noreply, State};
+
+handle_cast({cancel, Pid, Key}, State) ->
+    {ok, {Addr, Port}} = inet:peername(State#state.sock),
+    SockOpts = [{active, false}, {packet, raw}, binary],
+    {ok, Sock} = gen_tcp:connect(Addr, Port, SockOpts),
+    Msg = <<16:?int32, 80877102:?int32, Pid:?int32, Key:?int32>>,
+    ok = gen_tcp:send(Sock, Msg),
+    gen_tcp:close(Sock),
     {noreply, State};
 
 handle_cast(Cast, State) ->

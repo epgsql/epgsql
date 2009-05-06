@@ -2,7 +2,7 @@ Erlang PostgreSQL Database Client
 
 * Connect
 
-  {ok, C} = pgsql:connect(Host, [Username], [Password], [Opts]).
+  {ok, C} = pgsql:connect(Host, [Username], [Password], Opts).
 
   Host      - host to connect to.
   Username  - username to connect as, defaults to $USER.
@@ -13,9 +13,13 @@ Erlang PostgreSQL Database Client
     + port
     + ssl (true | false | required)
     + ssl_opts (see ssl docs in OTP)
+    + timeout (milliseconds, defaults to 5000)
 
   {ok, C} = pgsql:connect("localhost", "username", [{database, "test_db"}]).
   ok = pgsql:close(C).
+
+  The timeout parameter is applied to all operations. In the case of equery
+  this means that total execution time may exceed the timeout value.
 
 * Simple Query
 

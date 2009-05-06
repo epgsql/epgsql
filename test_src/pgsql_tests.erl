@@ -406,6 +406,31 @@ text_format_test() ->
               Select("numeric", "123456")
       end).
 
+connect_timeout_test() ->
+    {error, timeout} = pgsql:connect(?host, [{port, ?port}, {timeout, 0}]).
+
+query_timeout_test() ->
+    with_connection(
+      fun(C) ->
+              {error, timeout} = pgsql:squery(C, "select pg_sleep(1)"),
+              {error, timeout} = pgsql:equery(C, "select pg_sleep(2)"),
+              {ok, _Cols, [{1}]} = pgsql:equery(C, "select 1")
+      end,
+      [{timeout, 10}]).
+
+execute_timeout_test() ->
+    with_connection(
+      fun(C) ->
+              {ok, S} = pgsql:parse(C, "select pg_sleep($1)"),
+              ok = pgsql:bind(C, S, [2]),
+              {error, timeout} = pgsql:execute(C, S, 0),
+              ok = pgsql:bind(C, S, [0]),
+              {ok, [{<<>>}]} = pgsql:execute(C, S, 0),
+              ok = pgsql:close(C, S),
+              ok = pgsql:sync(C)
+      end,
+      [{timeout, 10}]).
+
 %% -- run all tests --
 
 run_tests() ->
@@ -422,6 +447,9 @@ connect_only(Args) ->
 
 with_connection(F) ->
     with_connection(F, "epgsql_test", []).
+
+with_connection(F, Args) ->
+    with_connection(F, "epgsql_test", Args).
 
 with_connection(F, Username, Args) ->
     Args2 = [{port, ?port}, {database, "epgsql_test_db1"} | Args],
