@@ -10,12 +10,13 @@
 encode(_Any, null)  -> <<-1:?int32>>;
 encode(bool, true)  -> <<1:?int32, 1:1/big-signed-unit:8>>;
 encode(bool, false) -> <<1:?int32, 0:1/big-signed-unit:8>>;
-encode(bpchar, C)   -> <<1:?int32, C:1/big-unsigned-unit:8>>;
 encode(int2, N)     -> <<2:?int32, N:1/big-signed-unit:16>>;
 encode(int4, N)     -> <<4:?int32, N:1/big-signed-unit:32>>;
 encode(int8, N)     -> <<8:?int32, N:1/big-signed-unit:64>>;
 encode(float4, N)   -> <<4:?int32, N:1/big-float-unit:32>>;
 encode(float8, N)   -> <<8:?int32, N:1/big-float-unit:64>>;
+encode(bpchar, C) when is_integer(C) -> <<1:?int32, C:1/big-unsigned-unit:8>>;
+encode(bpchar, B) when is_binary(B)  -> <<(byte_size(B)):?int32, B/binary>>;
 encode(Type, B) when Type == time; Type == timetz          -> ?datetime:encode(Type, B);
 encode(Type, B) when Type == date; Type == timestamp       -> ?datetime:encode(Type, B);
 encode(Type, B) when Type == timestamptz; Type == interval -> ?datetime:encode(Type, B);

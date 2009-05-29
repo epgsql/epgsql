@@ -367,7 +367,10 @@ numeric_type_test() ->
     check_type(float8, "1.0", 1.0, [0.0, 1.23456789012345, -1.23456789012345]).
 
 character_type_test() ->
-    check_type(bpchar, "'A'", $A, [1, $1, 255], "c_char"),
+    Alpha = unicode:characters_to_binary([16#03B1]),
+    Ka    = unicode:characters_to_binary([16#304B]),
+    One   = unicode:characters_to_binary([16#10D360]),
+    check_type(bpchar, "'A'", $A, [1, $1, 16#7F, Alpha, Ka, One], "c_char"),
     check_type(text, "'hi'", <<"hi">>, [<<"">>, <<"hi">>]),
     check_type(varchar, "'hi'", <<"hi">>, [<<"">>, <<"hi">>]).
 

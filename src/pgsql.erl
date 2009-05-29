@@ -1,4 +1,5 @@
 %%% Copyright (C) 2008 - Will Glozer.  All rights reserved.
+
 -module(pgsql).
 
 -export([connect/2, connect/3, connect/4, close/1]).

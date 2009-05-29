@@ -23,8 +23,8 @@ CREATE USER epgsql_test_md5 WITH PASSWORD 'epgsql_test_md5';
 CREATE USER epgsql_test_cleartext WITH PASSWORD 'epgsql_test_cleartext';
 CREATE USER epgsql_test_cert;
 
-CREATE DATABASE epgsql_test_db1;
-CREATE DATABASE epgsql_test_db2;
+CREATE DATABASE epgsql_test_db1 WITH ENCODING 'UTF8';
+CREATE DATABASE epgsql_test_db2 WITH ENCODING 'UTF8';
 
 GRANT ALL ON DATABASE epgsql_test_db1 to epgsql_test;
 GRANT ALL ON DATABASE epgsql_test_db1 to epgsql_test_md5;
