@@ -47,7 +47,7 @@ init([C, Host, Username, Opts]) ->
     end,
 
     Port = proplists:get_value(port, Opts, 5432),
-    SockOpts = [{active, false}, {packet, raw}, binary],
+    SockOpts = [{active, false}, {packet, raw}, binary, {nodelay, true}],
     {ok, S} = gen_tcp:connect(Host, Port, SockOpts),
 
     State = #state{
