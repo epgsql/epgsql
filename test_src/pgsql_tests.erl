@@ -49,7 +49,8 @@ connect_with_client_cert_test() ->
 
     Dir = filename:join(filename:dirname(code:which(pgsql_tests)), "../test_data"),
     File = fun(Name) -> filename:join(Dir, Name) end,
-    {ok, Cert} = ssl_pkix:decode_cert_file(File("epgsql.crt"), [pem, pkix]),
+    {ok, [{cert, Der, _}]} = public_key:pem_to_der(File("epgsql.crt")),
+    {ok, Cert} = public_key:pkix_decode_cert(Der, plain),
     #'TBSCertificate'{serialNumber = Serial} = Cert#'Certificate'.tbsCertificate,
     Serial2 = list_to_binary(integer_to_list(Serial)),
 
