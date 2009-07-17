@@ -23,11 +23,15 @@ Erlang PostgreSQL Database Client
 
 * Simple Query
 
-  {ok, Columns, Rows} = pgsql:squery(C, Sql).
-  {error, Error}      = pgsql:squery(C, InvalidSql).
+  {ok, Columns, Rows}        = pgsql:squery(C, "select ...").
+  {ok, Count}                = pgsql:squery(C, "update ...").
+  {ok, Count, Columns, Rows} = pgsql:squery(C, "insert ... returning ...").
+
+  {error, Error}             = pgsql:squery(C, "invalid SQL").
 
   Columns       - list of column records, see pgsql.hrl for definition.
   Rows          - list of tuples, one for each row.
+  Count         - integer count of rows inserted/updated/etc
 
   The simple query protocol returns all columns as text (Erlang binaries)
   and does not support binding parameters.
