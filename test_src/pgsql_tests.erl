@@ -10,10 +10,10 @@
 -define(port, 5432).
 
 connect_test() ->
-    connect_only([[]]).
+    connect_only([]).
 
 connect_to_db_test() ->
-    connect_only([[{database, "epgsql_test_db1"}]]).
+    connect_only([{database, "epgsql_test_db1"}]).
 
 connect_as_test() ->
     connect_only(["epgsql_test", [{database, "epgsql_test_db1"}]]).
@@ -482,7 +482,13 @@ run_tests() ->
 %% -- internal functions --
 
 connect_only(Args) ->
-    {ok, C} = apply(pgsql, connect, [?host, [{port, ?port} | Args]]),
+    TestOpts = [{port, ?port}],
+    case Args of
+        [User, Opts]       -> Args2 = [User, TestOpts ++ Opts];
+        [User, Pass, Opts] -> Args2 = [User, Pass, TestOpts ++ Opts];
+        Opts               -> Args2 = [TestOpts ++ Opts]
+    end,
+    {ok, C} = apply(pgsql, connect, [?host | Args2]),
     pgsql:close(C),
     flush().
 
@@ -552,4 +558,3 @@ flush(Acc) ->
     after
         0 -> lists:reverse(Acc)
     end.
-
