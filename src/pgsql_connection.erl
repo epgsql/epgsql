@@ -41,34 +41,34 @@ stop(C) ->
     gen_fsm:send_all_state_event(C, stop).
 
 connect(C, Host, Username, Password, Opts) ->
-    gen_fsm:sync_send_event(C, {connect, Host, Username, Password, Opts}).
+    gen_fsm:sync_send_event(C, {connect, Host, Username, Password, Opts}, infinity).
 
 get_parameter(C, Name) ->
     gen_fsm:sync_send_event(C, {get_parameter, to_binary(Name)}).
 
 squery(C, Sql) ->
-    gen_fsm:sync_send_event(C, {squery, Sql}).
+    gen_fsm:sync_send_event(C, {squery, Sql}, infinity).
 
 equery(C, Statement, Parameters) ->
-    gen_fsm:sync_send_event(C, {equery, Statement, Parameters}).
+    gen_fsm:sync_send_event(C, {equery, Statement, Parameters}, infinity).
 
 parse(C, Name, Sql, Types) ->
-    gen_fsm:sync_send_event(C, {parse, Name, Sql, Types}).
+    gen_fsm:sync_send_event(C, {parse, Name, Sql, Types}, infinity).
 
 bind(C, Statement, PortalName, Parameters) ->
-    gen_fsm:sync_send_event(C, {bind, Statement, PortalName, Parameters}).
+    gen_fsm:sync_send_event(C, {bind, Statement, PortalName, Parameters}, infinity).
 
 execute(C, Statement, PortalName, MaxRows) ->
-    gen_fsm:sync_send_event(C, {execute, Statement, PortalName, MaxRows}).
+    gen_fsm:sync_send_event(C, {execute, Statement, PortalName, MaxRows}, infinity).
 
 describe(C, Type, Name) ->
-    gen_fsm:sync_send_event(C, {describe, Type, Name}).
+    gen_fsm:sync_send_event(C, {describe, Type, Name}, infinity).
 
 close(C, Type, Name) ->
-    gen_fsm:sync_send_event(C, {close, Type, Name}).
+    gen_fsm:sync_send_event(C, {close, Type, Name}, infinity).
 
 sync(C) ->
-    gen_fsm:sync_send_event(C, sync).
+    gen_fsm:sync_send_event(C, sync, infinity).
 
 %% -- gen_fsm implementation --
 
