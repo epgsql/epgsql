@@ -541,9 +541,10 @@ decode_columns(N, Bin, Acc) ->
     decode_columns(N - 1, Rest2, [Desc | Acc]).
 
 %% decode command complete msg
-decode_complete(<<"SELECT", 0>>)   -> select;
-decode_complete(<<"BEGIN", 0>>)    -> 'begin';
-decode_complete(<<"ROLLBACK", 0>>) -> rollback;
+decode_complete(<<"SELECT", 0>>)        -> select;
+decode_complete(<<"SELECT", _/binary>>) -> select;
+decode_complete(<<"BEGIN", 0>>)         -> 'begin';
+decode_complete(<<"ROLLBACK", 0>>)      -> rollback;
 decode_complete(Bin) ->
     {Str, _} = pgsql_sock:decode_string(Bin),
     case string:tokens(binary_to_list(Str), " ") of
