@@ -159,6 +159,7 @@ auth({$R, <<M:?int32, _/binary>>}, State) ->
 auth({error, E}, State) ->
     case E#error.code of
         <<"28000">> -> Why = invalid_authorization_specification;
+        <<"28P01">> -> Why = invalid_password;
         Any         -> Why = Any
     end,
     gen_fsm:reply(State#state.reply_to, {error, Why}),
