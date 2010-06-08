@@ -25,6 +25,7 @@
           parameters = [],
           reply,
           reply_to,
+          async,
           backend,
           statement,
           txstatus}).
@@ -76,8 +77,12 @@ init([]) ->
     process_flag(trap_exit, true),
     {ok, startup, #state{}}.
 
-handle_event({notice, Notice}, State_Name, State) ->
-    notify(State, {notice, Notice}),
+handle_event({notice, _Notice} = Msg, State_Name, State) ->
+    notify_async(State, Msg),
+    {next_state, State_Name, State};
+
+handle_event({notification, _Channel, _Pid, _Payload} = Msg, State_Name, State) ->
+    notify_async(State, Msg),
     {next_state, State_Name, State};
 
 handle_event({parameter_status, Name, Value}, State_Name, State) ->
@@ -113,11 +118,16 @@ code_change(_Old_Vsn, State_Name, State, _Extra) ->
 
 startup({connect, Host, Username, Password, Opts}, From, State) ->
     Timeout = proplists:get_value(timeout, Opts, 5000),
+    Async   = proplists:get_value(async, Opts, undefined),
     case pgsql_sock:start_link(self(), Host, Username, Opts) of
         {ok, Sock} ->
             put(username, Username),
             put(password, Password),
-            State2 = State#state{sock = Sock, timeout = Timeout, reply_to = From},
+            State2 = State#state{
+                       sock     = Sock,
+                       timeout  = Timeout,
+                       reply_to = From,
+                       async    = Async},
             {next_state, auth, State2, Timeout};
         Error ->
             {stop, normal, Error, State}
@@ -618,6 +628,12 @@ encode_list(L) ->
 
 notify(#state{reply_to = {Pid, _Tag}}, Msg) ->
     Pid ! {pgsql, self(), Msg}.
+
+notify_async(#state{async = Pid}, Msg) ->
+    case is_pid(Pid) of
+        true  -> Pid ! {pgsql, self(), Msg};
+        false -> false
+    end.
 
 to_binary(B) when is_binary(B) -> B;
 to_binary(L) when is_list(L)   -> list_to_binary(L).

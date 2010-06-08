@@ -143,8 +143,6 @@ receive_result(C, Cols, Rows) ->
             end;
         {pgsql, C, {complete, _Type}} ->
             {ok, Cols, lists:reverse(Rows)};
-        {pgsql, C, {notice, _N}} ->
-            receive_result(C, Cols, Rows);
         {pgsql, C, done} ->
             done;
         {pgsql, C, timeout} ->
@@ -171,8 +169,6 @@ receive_extended_result(C, Rows) ->
             end;
         {pgsql, C, {complete, _Type}} ->
             {ok, lists:reverse(Rows)};
-        {pgsql, C, {notice, _N}} ->
-            receive_extended_result(C, Rows);
         {pgsql, C, timeout} ->
             {error, timeout};
         {'EXIT', C, _Reason} ->

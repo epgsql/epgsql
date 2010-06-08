@@ -484,6 +484,47 @@ active_connection_closed_test() ->
     end,
     flush().
 
+warning_notice_test() ->
+    with_connection(
+      fun(C) ->
+          {ok, _, _} = pgsql:squery(C, "select 'test\\n'"),
+          receive
+              {pgsql, C, {notice, #error{code = <<"22P06">>}}} -> ok
+          after
+              100 -> erlang:error(didnt_receive_notice)
+          end
+      end,
+      [{async, self()}]).
+
+listen_notify_test() ->
+    with_connection(
+      fun(C) ->
+          {ok, [], []}     = pgsql:squery(C, "listen epgsql_test"),
+          {ok, _, [{Pid}]} = pgsql:equery(C, "select pg_backend_pid()"),
+          {ok, [], []}     = pgsql:squery(C, "notify epgsql_test"),
+          receive
+              {pgsql, C, {notification, <<"epgsql_test">>, Pid, <<>>}} -> ok
+          after
+              100 -> erlang:error(didnt_receive_notification)
+          end
+      end,
+      [{async, self()}]).
+
+listen_notify_payload_test() ->
+    with_min_version(
+      9.0,
+      fun(C) ->
+          {ok, [], []}     = pgsql:squery(C, "listen epgsql_test"),
+          {ok, _, [{Pid}]} = pgsql:equery(C, "select pg_backend_pid()"),
+          {ok, [], []}     = pgsql:squery(C, "notify epgsql_test, 'test!'"),
+          receive
+              {pgsql, C, {notification, <<"epgsql_test">>, Pid, <<"test!">>}} -> ok
+          after
+              100 -> erlang:error(didnt_receive_notification)
+          end
+      end,
+      [{async, self()}]).
+
 %% -- run all tests --
 
 run_tests() ->
@@ -530,6 +571,18 @@ with_rollback(F) ->
                       pgsql:squery(C, "rollback")
                   end
       end).
+
+with_min_version(Min, F, Args) ->
+    with_connection(
+      fun(C) ->
+          {ok, Bin} = pgsql:get_parameter(C, <<"server_version">>),
+          {ok, [{float, 1, Ver} | _], _} = erl_scan:string(binary_to_list(Bin)),
+          case Ver >= Min of
+              true  -> F(C);
+              false -> ?debugFmt("skipping test requiring PostgreSQL >= ~.2f~n", [Min])
+          end
+      end,
+      Args).
 
 check_type(Type, In, Out, Values) ->
     Column = "c_" ++ atom_to_list(Type),

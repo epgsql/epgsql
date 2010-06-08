@@ -147,6 +147,14 @@ decode(<<Type:8, Len:?int32, Rest/binary>> = Bin, #state{c = C} = State) ->
         <<Data:Len2/binary, Tail/binary>> when Type == $E ->
             gen_fsm:send_event(C, {error, decode_error(Data)}),
             decode(Tail, State);
+        <<Data:Len2/binary, Tail/binary>> when Type == $A ->
+            <<Pid:?int32, Strings/binary>> = Data,
+            case decode_strings(Strings) of
+                [Channel, Payload] -> ok;
+                [Channel]          -> Payload = <<>>
+            end,
+            gen_fsm:send_all_state_event(C, {notification, Channel, Pid, Payload}),
+            decode(Tail, State);
         <<Data:Len2/binary, Tail/binary>> ->
             gen_fsm:send_event(C, {Type, Data}),
             decode(Tail, State);
