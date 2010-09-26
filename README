@@ -12,7 +12,7 @@ Erlang PostgreSQL Database Client
     + {database, String}
     + {port,     Integer}
     + {ssl,      Atom}       true | false | required
-    + {ssl_opts  List}       see ssl application docs in OTP
+    + {ssl_opts, List}       see ssl application docs in OTP
     + {timeout,  Integer}    milliseconds, defaults to 5000
     + {async,    Pid}        see Asynchronous Messages section
 
