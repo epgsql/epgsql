@@ -1,3 +1,4 @@
 *.beam
 *.boot
 *.script
+ebin/*.app

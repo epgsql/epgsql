@@ -15,7 +15,7 @@ RELEASE		:= $(NAME)-$(VERSION).tar.gz
 APPDIR		:= $(NAME)-$(VERSION)
 BEAMS		:= $(SRC:src/%.erl=ebin/%.beam) 
 
-compile: $(BEAMS)
+compile: $(BEAMS) ebin/$(NAME).app
 
 app: compile
 	@mkdir -p $(APPDIR)/ebin
@@ -26,11 +26,11 @@ release: app
 	@tar czvf $(RELEASE) $(APPDIR)
 
 clean:
-	@rm -f ebin/*.beam
+	@rm -f ebin/*.{beam,app}
 	@rm -rf $(NAME)-$(VERSION) $(NAME)-*.tar.gz
 
 test: $(TESTS:test_src/%.erl=test_ebin/%.beam) $(BEAMS)
-	@dialyzer --src -c src
+	@dialyzer -n --src -c src
 	$(ERL) -pa ebin/ -pa test_ebin/ -noshell -s pgsql_tests run_tests -s init stop
 
 # ------------------------------------------------------------------------
@@ -40,6 +40,9 @@ test: $(TESTS:test_src/%.erl=test_ebin/%.beam) $(BEAMS)
 
 ebin/%.beam : src/%.erl
 	$(ERLC) $(ERLC_FLAGS) -o $(dir $@) $<
+
+ebin/%.app : src/%.app.src
+	sed -e s/VERSION/$(VERSION)/g $< > $@
 
 test_ebin/%.beam : test_src/%.erl
 	$(ERLC) $(ERLC_FLAGS) -o $(dir $@) $<
