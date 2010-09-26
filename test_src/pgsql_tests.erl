@@ -525,6 +525,10 @@ listen_notify_payload_test() ->
       end,
       [{async, self()}]).
 
+application_test() ->
+    lists:foreach(fun application:start/1, [crypto, ssl]),
+    ok = application:start(epgsql).
+
 %% -- run all tests --
 
 run_tests() ->

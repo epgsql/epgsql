@@ -29,7 +29,7 @@ clean:
 	@rm -f ebin/*.{beam,app}
 	@rm -rf $(NAME)-$(VERSION) $(NAME)-*.tar.gz
 
-test: $(TESTS:test_src/%.erl=test_ebin/%.beam) $(BEAMS)
+test: $(TESTS:test_src/%.erl=test_ebin/%.beam) compile
 	@dialyzer -n --src -c src
 	$(ERL) -pa ebin/ -pa test_ebin/ -noshell -s pgsql_tests run_tests -s init stop
 
