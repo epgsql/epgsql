@@ -409,6 +409,24 @@ misc_type_test() ->
     check_type(bool, "true", true, [true, false]),
     check_type(bytea, "E'\001\002'", <<1,2>>, [<<>>, <<0,128,255>>]).
 
+array_type_test() ->
+    with_connection(
+      fun(C) ->
+          Select = fun(Type, V) ->
+                       Query = "select $1::" ++ Type,
+                       {ok, _Cols, [{V}]} = pgsql:equery(C, Query, [V])
+                   end,
+          Select("int2[]", []),
+          Select("int2[]", [1, 2, 3, 4]),
+          Select("int2[]", [[1], [2], [3], [4]]),
+          Select("int2[]", [[[[[[1, 2]]]]]]),
+          Select("bool[]", [true]),
+          Select("char[]", [$a, $b, $c]),
+          Select("int4[]", [[1, 2]]),
+          Select("int8[]", [[[[1, 2]], [[3, 4]]]]),
+          Select("text[]", [<<"one">>, <<"two>">>])
+      end).
+
 text_format_test() ->
     with_connection(
       fun(C) ->
