@@ -258,6 +258,19 @@ bind_and_close_test() ->
               ok = pgsql:sync(C)
       end).
 
+execute_error_test() ->
+    with_connection(
+      fun(C) ->
+          {ok, S} = pgsql:parse(C, "insert into test_table1 (id, value) values ($1, $2)"),
+          ok = pgsql:bind(C, S, [1, <<"foo">>]),
+          {error, #error{code = <<"23505">>}} = pgsql:execute(C, S, 0),
+          {error, sync_required} = pgsql:bind(C, S, [3, <<"quux">>]),
+          ok = pgsql:sync(C),
+          ok = pgsql:bind(C, S, [3, <<"quux">>]),
+          {ok, _} = pgsql:execute(C, S, 0),
+          {ok, 1} = pgsql:squery(C, "delete from test_table1 where id = 3")
+      end).
+
 describe_test() ->
     with_connection(
       fun(C) ->

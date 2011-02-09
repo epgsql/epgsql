@@ -15,6 +15,7 @@
 -export([startup/3, auth/2, initializing/2, ready/2, ready/3]).
 -export([querying/2, parsing/2, binding/2, describing/2]).
 -export([executing/2, closing/2, synchronizing/2, timeout/2]).
+-export([aborted/3]).
 
 -include("pgsql.hrl").
 
@@ -469,7 +470,7 @@ executing(timeout, State) ->
 executing({error, E}, State) ->
     #state{timeout = Timeout} = State,
     notify(State, {error, E}),
-    {next_state, executing, State, Timeout}.
+    {next_state, aborted, State, Timeout}.
 
 %% CloseComplete
 closing({$3, <<>>}, State) ->
@@ -514,6 +515,16 @@ timeout(timeout, State) ->
 timeout(_Event, State) ->
     #state{timeout = Timeout} = State,
     {next_state, timeout, State, Timeout}.
+
+aborted(sync, From, State) ->
+    #state{timeout = Timeout} = State,
+    send(State, $S, []),
+    State2 = State#state{reply = ok, reply_to = From},
+    {next_state, synchronizing, State2, Timeout};
+
+aborted(_Msg, _From, State) ->
+    #state{timeout = Timeout} = State,
+    {reply, {error, sync_required}, aborted, State, Timeout}.
 
 %% -- internal functions --
 

@@ -108,8 +108,13 @@ Erlang PostgreSQL Database Client
 * Errors
 
   Errors originating from the PostgreSQL backend are returned as {error, #error{}},
-  see pgsql.hrl for the record definition. epgsql may also return {error, Atom}
-  where Atom is 'timeout' or 'closed'.
+  see pgsql.hrl for the record definition. epgsql functions may also return
+  {error, What} where What is one of the following:
+
+  {unsupported_auth_method, Method}     - required auth method is unsupported
+  timeout                               - request timed out
+  closed                                - connection was closed
+  sync_required                         - error occured and pgsql:sync must be called
 
 * Asynchronous Messages
 
