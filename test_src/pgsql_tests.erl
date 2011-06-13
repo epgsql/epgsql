@@ -29,11 +29,15 @@ connect_with_md5_test() ->
                   [{database, "epgsql_test_db1"}]]).
 
 connect_with_invalid_user_test() ->
-    {error, invalid_authorization_specification} =
+    {error, Why} =
         pgsql:connect(?host,
                       "epgsql_test_invalid",
                       "epgsql_test_invalid",
-                      [{port, ?port}, {database, "epgsql_test_db1"}]).
+                      [{port, ?port}, {database, "epgsql_test_db1"}]),
+    case Why of
+        invalid_authorization_specification -> ok; % =< 8.4
+        invalid_password                    -> ok  % >= 9.0
+    end.
 
 connect_with_invalid_password_test() ->
     {error, Why} =
