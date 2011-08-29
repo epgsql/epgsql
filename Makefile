@@ -1,5 +1,5 @@
 NAME		:= epgsql
-VERSION		:= 1.3
+VERSION		:= 1.4
 
 ERL  		:= erl
 ERLC 		:= erlc
