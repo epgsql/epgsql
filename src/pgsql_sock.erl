@@ -17,8 +17,8 @@
 
 %% -- client interface --
 
-start_link(C, Host, Username, Opts) ->
-    gen_server:start_link(?MODULE, [C, Host, Username, Opts], []).
+start_link(Host, Username, Opts) ->
+    gen_server:start_link(?MODULE, [Host, Username, Opts], []).
 
 cancel(S) ->
     gen_server:cast(S, cancel}).
@@ -37,7 +37,6 @@ init([C, Host, Username, Opts]) ->
     {ok, S} = gen_tcp:connect(Host, Port, SockOpts),
 
     State = #state{
-      c    = C,
       mod  = gen_tcp,
       sock = S,
       tail = <<>>},
