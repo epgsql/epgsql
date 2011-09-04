@@ -67,17 +67,18 @@ handle_cast(cancel, State = #state{backend = {Pid, Key}}) ->
     gen_tcp:close(Sock),
     {noreply, State}.
 
-handle_info({_, _Sock, Data}, #state{tail = Tail} = State) ->
-    State2 = decode(<<Tail/binary, Data/binary>>, State),
-    {noreply, State2};
-
 handle_info({Closed, _Sock}, State)
   when Closed == tcp_closed; Closed == ssl_closed ->
     {stop, sock_closed, State};
 
 handle_info({Error, _Sock, Reason}, State)
   when Error == tcp_error; Error == ssl_error ->
-    {stop, {sock_error, Reason}, State}.
+    {stop, {sock_error, Reason}, State};
+
+handle_info({_, _Sock, Data}, #state{decoder = Decoder} = State) ->
+    {Messages, Decoder2} = pgsql_wire:decode_messages(Data, Decoder),
+    State2 = State#{decoder = Decoder2},
+    {noreply, lists:foldl(fun on_mesage/2, State2, Messages)}.
 
 terminate(_Reason, _State) ->
     ok.
@@ -111,6 +112,9 @@ send(Data, State#state{mod = Mod, sock = Sock, decoder = Decoder}) ->
 
 send(Type, Data, State#state{mod = Mod, sock = Sock, decoder = Decoder}) ->
     Mod:send(Sock, pgsql_wire:encode(Type, Data, Decoder)).
+
+on_message(_Msg, State) ->
+    State.
 
 decode(<<Type:8, Len:?int32, Rest/binary>> = Bin, #state{c = C} = State) ->
     Len2 = Len - 4,
