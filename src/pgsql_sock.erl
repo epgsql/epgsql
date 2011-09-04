@@ -13,15 +13,15 @@
 -include("pgsql.hrl").
 -include("pgsql_binary.hrl").
 
--record(state, {mod, sock, decoder}).
+-record(state, {mod, sock, decoder, backend}).
 
 %% -- client interface --
 
 start_link(C, Host, Username, Opts) ->
     gen_server:start_link(?MODULE, [C, Host, Username, Opts], []).
 
-cancel(S, Pid, Key) ->
-    gen_server:cast(S, {cancel, Pid, Key}).
+cancel(S) ->
+    gen_server:cast(S, cancel}).
 
 %% -- gen_server implementation --
 
@@ -63,7 +63,7 @@ handle_cast({send, Data}, State) ->
     ok = Mod:send(Sock, Data),
     {noreply, State};
 
-handle_cast({cancel, Pid, Key}, State) ->
+handle_cast(cancel, State = #state{backend = {Pid, Key}}) ->
     {ok, {Addr, Port}} = inet:peername(State#state.sock),
     SockOpts = [{active, false}, {packet, raw}, binary],
     {ok, Sock} = gen_tcp:connect(Addr, Port, SockOpts),
