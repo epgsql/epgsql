@@ -11,11 +11,9 @@
 -export([init/1, code_change/3, terminate/2]).
 
 -include("pgsql.hrl").
+-include("pgsql_binary.hrl").
 
 -record(state, {c, mod, sock, tail}).
-
--define(int16, 1/big-signed-unit:16).
--define(int32, 1/big-signed-unit:32).
 
 %% -- client interface --
 

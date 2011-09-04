@@ -1,0 +1,2 @@
+-define(int16, 1/big-signed-unit:16).
+-define(int32, 1/big-signed-unit:32).

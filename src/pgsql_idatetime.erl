@@ -4,8 +4,7 @@
 
 -export([decode/2, encode/2]).
 
--define(int32, 1/big-signed-unit:32).
--define(int64, 1/big-signed-unit:64).
+-include("pgsql_binary.hrl").
 
 -define(postgres_epoc_jdate, 2451545).
 

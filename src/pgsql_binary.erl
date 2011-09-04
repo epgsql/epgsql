@@ -4,7 +4,8 @@
 
 -export([encode/2, decode/2, supports/1]).
 
--define(int32, 1/big-signed-unit:32).
+-include("pgsql_binary.hrl").
+
 -define(datetime, (get(datetime_mod))).
 
 encode(_Any, null)                          -> <<-1:?int32>>;
