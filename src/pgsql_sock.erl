@@ -4,7 +4,7 @@
 
 -behavior(gen_server).
 
--export([start_link/4, send/2, send/3, cancel/3]).
+-export([start_link/4, cancel/3]).
 -export([decode_string/1, lower_atom/1]).
 
 -export([handle_call/3, handle_cast/2, handle_info/2]).
@@ -13,22 +13,12 @@
 -include("pgsql.hrl").
 -include("pgsql_binary.hrl").
 
--record(state, {c, mod, sock, tail}).
+-record(state, {mod, sock, decoder}).
 
 %% -- client interface --
 
 start_link(C, Host, Username, Opts) ->
     gen_server:start_link(?MODULE, [C, Host, Username, Opts], []).
-
-send(S, Type, Data) ->
-    Bin = iolist_to_binary(Data),
-    Msg = <<Type:8, (byte_size(Bin) + 4):?int32, Bin/binary>>,
-    gen_server:cast(S, {send, Msg}).
-
-send(S, Data) ->
-    Bin = iolist_to_binary(Data),
-    Msg = <<(byte_size(Bin) + 4):?int32, Bin/binary>>,
-    gen_server:cast(S, {send, Msg}).
 
 cancel(S, Pid, Key) ->
     gen_server:cast(S, {cancel, Pid, Key}).
