@@ -38,8 +38,6 @@ cancel(S, Pid, Key) ->
 %% -- gen_server implementation --
 
 init([C, Host, Username, Opts]) ->
-    process_flag(trap_exit, true),
-
     Opts2 = ["user", 0, Username, 0],
     case proplists:get_value(database, Opts, undefined) of
         undefined -> Opts3 = Opts2;
@@ -99,13 +97,7 @@ handle_info({Closed, _Sock}, State)
 
 handle_info({Error, _Sock, Reason}, State)
   when Error == tcp_error; Error == ssl_error ->
-    {stop, {sock_error, Reason}, State};
-
-handle_info({'EXIT', _Pid, Reason}, State) ->
-    {stop, Reason, State};
-
-handle_info(Info, State) ->
-    {stop, {unsupported_info, Info}, State}.
+    {stop, {sock_error, Reason}, State}.
 
 terminate(_Reason, _State) ->
     ok.
