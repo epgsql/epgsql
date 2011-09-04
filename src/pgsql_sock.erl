@@ -34,6 +34,7 @@ init([C, Host, Username, Opts]) ->
 
     Port = proplists:get_value(port, Opts, 5432),
     SockOpts = [{active, false}, {packet, raw}, binary, {nodelay, true}],
+    %% TODO connect timeout
     {ok, S} = gen_tcp:connect(Host, Port, SockOpts),
 
     State = #state{
