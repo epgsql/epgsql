@@ -39,7 +39,7 @@ init([C, Host, Username, Opts]) ->
     State = #state{
       mod  = gen_tcp,
       sock = S,
-      tail = <<>>},
+      decoder = pgsql_wire:init([])},
 
     case proplists:get_value(ssl, Opts) of
         T when T == true; T == required ->
@@ -51,16 +51,11 @@ init([C, Host, Username, Opts]) ->
     end,
 
     setopts(State2, [{active, true}]),
-    send(self(), [<<196608:32>>, Opts3, 0]),
+    send([<<196608:32>>, Opts3, 0], State2),
     {ok, State2}.
 
 handle_call(Call, _From, State) ->
     {stop, {unsupported_call, Call}, State}.
-
-handle_cast({send, Data}, State) ->
-    #state{mod = Mod, sock = Sock} = State,
-    ok = Mod:send(Sock, Data),
-    {noreply, State};
 
 handle_cast(cancel, State = #state{backend = {Pid, Key}}) ->
     {ok, {Addr, Port}} = inet:peername(State#state.sock),
@@ -69,10 +64,7 @@ handle_cast(cancel, State = #state{backend = {Pid, Key}}) ->
     Msg = <<16:?int32, 80877102:?int32, Pid:?int32, Key:?int32>>,
     ok = gen_tcp:send(Sock, Msg),
     gen_tcp:close(Sock),
-    {noreply, State};
-
-handle_cast(Cast, State) ->
-    {stop, {unsupported_cast, Cast}, State}.
+    {noreply, State}.
 
 handle_info({_, _Sock, Data}, #state{tail = Tail} = State) ->
     State2 = decode(<<Tail/binary, Data/binary>>, State),
@@ -112,6 +104,12 @@ setopts(#state{mod = Mod, sock = Sock}, Opts) ->
         gen_tcp -> inet:setopts(Sock, Opts);
         ssl     -> ssl:setopts(Sock, Opts)
     end.
+
+send(Data, State#state{mod = Mod, sock = Sock, decoder = Decoder}) ->
+    Mod:send(Sock, pgsql_wire:encode(Data, Decoder)).
+
+send(Type, Data, State#state{mod = Mod, sock = Sock, decoder = Decoder}) ->
+    Mod:send(Sock, pgsql_wire:encode(Type, Data, Decoder)).
 
 decode(<<Type:8, Len:?int32, Rest/binary>> = Bin, #state{c = C} = State) ->
     Len2 = Len - 4,
