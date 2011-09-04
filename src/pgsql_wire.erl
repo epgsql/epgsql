@@ -37,25 +37,13 @@ decode_messages(Acc, <<Type:8, Len:?int32, Rest/binary>> = Bin, State) ->
 decode_messages(Acc, Bin, State) ->
     {lists:reverse(Acc), State#state{tail = Bin}}.
 
-
 %% decode a single null-terminated string
 decode_string(Bin) ->
-    decode_string(Bin, <<>>).
-
-decode_string(<<0, Rest/binary>>, Str) ->
-    {Str, Rest};
-decode_string(<<C, Rest/binary>>, Str) ->
-    decode_string(Rest, <<Str/binary, C>>).
+    binary_split(Bin, <<0>>).
 
 %% decode multiple null-terminated string
 decode_strings(Bin) ->
-    decode_strings(Bin, []).
-
-decode_strings(<<>>, Acc) ->
-    lists:reverse(Acc);
-decode_strings(Bin, Acc) ->
-    {Str, Rest} = decode_string(Bin),
-    decode_strings(Rest, [Str | Acc]).
+    binary:split(Bin, <<0>>, [global, trim]).
 
 %% decode field
 decode_fields(Bin) ->
