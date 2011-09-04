@@ -31,3 +31,6 @@ decode_messages(Acc, <<Type:8, Len:?int32, Rest/binary>> = Bin, State) ->
         _Other ->
             {lists:reverse(Acc), State#state{tail = Bin}}
     end;
+
+decode_messages(Acc, Bin, State) ->
+    {lists:reverse(Acc), State#state{tail = Bin}}.
