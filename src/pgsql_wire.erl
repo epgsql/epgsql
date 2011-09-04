@@ -1,4 +1,4 @@
--module(pgsql_decoder).
+-module(pgsql_wire).
 
 -export([init/1,
          decode/2,
