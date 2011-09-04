@@ -113,91 +113,30 @@ send(Data, State#state{mod = Mod, sock = Sock, decoder = Decoder}) ->
 send(Type, Data, State#state{mod = Mod, sock = Sock, decoder = Decoder}) ->
     Mod:send(Sock, pgsql_wire:encode(Type, Data, Decoder)).
 
+on_message({$N, Data}, State) ->
+    %% TODO use it
+    {notice, pgsql_wire:decode_error(Data)},
+    State;
+
+on_message({$S, Data}, State) ->
+    [Name, Value] = pgsql_wire:decode_strings(Data),
+    %% TODO use it
+    {parameter_status, Name, Value},
+    State;
+
+on_message({$E, Data}, State) ->
+    %% TODO use it
+    {error, decode_error(Data)},
+    State;
+
+on_message({$A, <<Pid:?int32, Strings/binary>>}, State) ->
+    case pgsql_wire:decode_strings(Strings) of
+        [Channel, Payload] -> ok;
+        [Channel]          -> Payload = <<>>
+    end,
+    %% TODO use it
+    {notification, Channel, Pid, Payload},
+    State;
+
 on_message(_Msg, State) ->
     State.
-
-decode(<<Type:8, Len:?int32, Rest/binary>> = Bin, #state{c = C} = State) ->
-    Len2 = Len - 4,
-    case Rest of
-        <<Data:Len2/binary, Tail/binary>> when Type == $N ->
-            gen_fsm:send_all_state_event(C, {notice, decode_error(Data)}),
-            decode(Tail, State);
-        <<Data:Len2/binary, Tail/binary>> when Type == $S ->
-            [Name, Value] = decode_strings(Data),
-            gen_fsm:send_all_state_event(C, {parameter_status, Name, Value}),
-            decode(Tail, State);
-        <<Data:Len2/binary, Tail/binary>> when Type == $E ->
-            gen_fsm:send_event(C, {error, decode_error(Data)}),
-            decode(Tail, State);
-        <<Data:Len2/binary, Tail/binary>> when Type == $A ->
-            <<Pid:?int32, Strings/binary>> = Data,
-            case decode_strings(Strings) of
-                [Channel, Payload] -> ok;
-                [Channel]          -> Payload = <<>>
-            end,
-            gen_fsm:send_all_state_event(C, {notification, Channel, Pid, Payload}),
-            decode(Tail, State);
-        <<Data:Len2/binary, Tail/binary>> ->
-            gen_fsm:send_event(C, {Type, Data}),
-            decode(Tail, State);
-        _Other ->
-            State#state{tail = Bin}
-    end;
-decode(Bin, State) ->
-    State#state{tail = Bin}.
-
-%% decode a single null-terminated string
-decode_string(Bin) ->
-    decode_string(Bin, <<>>).
-
-decode_string(<<0, Rest/binary>>, Str) ->
-    {Str, Rest};
-decode_string(<<C, Rest/binary>>, Str) ->
-    decode_string(Rest, <<Str/binary, C>>).
-
-%% decode multiple null-terminated string
-decode_strings(Bin) ->
-    decode_strings(Bin, []).
-
-decode_strings(<<>>, Acc) ->
-    lists:reverse(Acc);
-decode_strings(Bin, Acc) ->
-    {Str, Rest} = decode_string(Bin),
-    decode_strings(Rest, [Str | Acc]).
-
-%% decode field
-decode_fields(Bin) ->
-    decode_fields(Bin, []).
-
-decode_fields(<<0>>, Acc) ->
-    Acc;
-decode_fields(<<Type:8, Rest/binary>>, Acc) ->
-    {Str, Rest2} = decode_string(Rest),
-    decode_fields(Rest2, [{Type, Str} | Acc]).
-
-%% decode ErrorResponse
-decode_error(Bin) ->
-    Fields = decode_fields(Bin),
-    Error = #error{
-      severity = lower_atom(proplists:get_value($S, Fields)),
-      code     = proplists:get_value($C, Fields),
-      message  = proplists:get_value($M, Fields),
-      extra    = decode_error_extra(Fields)},
-    Error.
-
-decode_error_extra(Fields) ->
-    Types = [{$D, detail}, {$H, hint}, {$P, position}],
-    decode_error_extra(Types, Fields, []).
-
-decode_error_extra([], _Fields, Extra) ->
-    Extra;
-decode_error_extra([{Type, Name} | T], Fields, Extra) ->
-    case proplists:get_value(Type, Fields) of
-        undefined -> decode_error_extra(T, Fields, Extra);
-        Value     -> decode_error_extra(T, Fields, [{Name, Value} | Extra])
-    end.
-
-lower_atom(Str) when is_binary(Str) ->
-    lower_atom(binary_to_list(Str));
-lower_atom(Str) when is_list(Str) ->
-    list_to_atom(string:to_lower(Str)).
