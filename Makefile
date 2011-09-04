@@ -1,12 +1,12 @@
 NAME		:= epgsql
-VERSION		:= 1.3
+VERSION		:= 1.4
 
 ERL  		:= erl
 ERLC 		:= erlc
 
 # ------------------------------------------------------------------------
 
-ERLC_FLAGS	:= -Wall -I include
+ERLC_FLAGS	:= -Wall -I include +debug_info
 
 SRC			:= $(wildcard src/*.erl)
 TESTS 		:= $(wildcard test_src/*.erl)
@@ -26,7 +26,8 @@ release: app
 	@tar czvf $(RELEASE) $(APPDIR)
 
 clean:
-	@rm -f ebin/*.{beam,app}
+	@rm -f ebin/*.beam
+	@rm -f ebin/$(NAME).app
 	@rm -rf $(NAME)-$(VERSION) $(NAME)-*.tar.gz
 
 test: $(TESTS:test_src/%.erl=test_ebin/%.beam) compile
@@ -41,7 +42,7 @@ test: $(TESTS:test_src/%.erl=test_ebin/%.beam) compile
 ebin/%.beam : src/%.erl
 	$(ERLC) $(ERLC_FLAGS) -o $(dir $@) $<
 
-ebin/%.app : src/%.app.src
+ebin/%.app : src/%.app.src Makefile
 	sed -e s/VERSION/$(VERSION)/g $< > $@
 
 test_ebin/%.beam : test_src/%.erl

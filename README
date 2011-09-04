@@ -102,6 +102,7 @@ Erlang PostgreSQL Database Client
   text        = <<"a">>
   varchar     = <<"a">>
   bytea       = <<1, 2>>
+  array       = [1, 2, 3]
 
   record      = {int2, time, text, ...} (decode only)
 
