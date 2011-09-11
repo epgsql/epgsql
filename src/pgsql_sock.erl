@@ -17,43 +17,45 @@
 
 %% -- client interface --
 
-start_link(Host, Username, Opts) ->
-    gen_server:start_link(?MODULE, [Host, Username, Opts], []).
+start_link(Host, Username, Password, Opts) ->
+    gen_server:start_link(?MODULE, [Host, Username, Password, Opts], []).
 
 cancel(S) ->
     gen_server:cast(S, cancel}).
 
 %% -- gen_server implementation --
 
-init([C, Host, Username, Opts]) ->
-    Opts2 = ["user", 0, Username, 0],
-    case proplists:get_value(database, Opts, undefined) of
-        undefined -> Opts3 = Opts2;
-        Database  -> Opts3 = [Opts2 | ["database", 0, Database, 0]]
-    end,
-
+init([Host, Username, Password, Opts]) ->
+    %% TODO split connect/query timeout?
+    Timeout = proplists:get_value(timeout, Opts, 5000),
     Port = proplists:get_value(port, Opts, 5432),
     SockOpts = [{active, false}, {packet, raw}, binary, {nodelay, true}],
-    %% TODO connect timeout
-    {ok, S} = gen_tcp:connect(Host, Port, SockOpts),
+    {ok, S} = gen_tcp:connect(Host, Port, SockOpts, Timeout),
 
     State = #state{
       mod  = gen_tcp,
       sock = S,
-      decoder = pgsql_wire:init([])},
+      decoder = pgsql_wire:init([]),
+      timeout = Timeout},
 
     case proplists:get_value(ssl, Opts) of
         T when T == true; T == required ->
             ok = gen_tcp:send(S, <<8:?int32, 80877103:?int32>>),
-            {ok, <<Code>>} = gen_tcp:recv(S, 1),
+            {ok, <<Code>>} = gen_tcp:recv(S, 1, Timeout),
             State2 = start_ssl(Code, T, Opts, State);
         _ ->
             State2 = State
     end,
 
-    setopts(State2, [{active, true}]),
+    Opts2 = ["user", 0, Username, 0],
+    case proplists:get_value(database, Opts, undefined) of
+        undefined -> Opts3 = Opts2;
+        Database  -> Opts3 = [Opts2 | ["database", 0, Database, 0]]
+    end,
     send([<<196608:?int32>>, Opts3, 0], State2),
-    {ok, State2}.
+%% TODO    Async   = proplists:get_value(async, Opts, undefined),
+%% TODO    setopts(State2, [{active, true}]),
+    {ok, initialize(auth(User, Password, State2))}.
 
 handle_call(Call, _From, State) ->
     {stop, {unsupported_call, Call}, State}.
@@ -89,8 +91,8 @@ code_change(_OldVsn, State, _Extra) ->
 %% -- internal functions --
 
 start_ssl($S, _Flag, Opts, State) ->
-    #state{sock = S1} = State,
-    case ssl:connect(S1, Opts) of
+    #state{sock = S1, timeout = Timeout} = State,
+    case ssl:connect(S1, Opts, Timeout) of
         {ok, S2}        -> State#state{mod = ssl, sock = S2};
         {error, Reason} -> exit({ssl_negotiation_failed, Reason})
     end;
