@@ -13,7 +13,7 @@
 -include("pgsql.hrl").
 -include("pgsql_binary.hrl").
 
--record(state, {mod, sock, tail, backend}).
+-record(state, {mod, sock, tail, backend, on_message}).
 
 %% -- client interface --
 
@@ -54,8 +54,10 @@ init([Host, Username, Password, Opts]) ->
     end,
     send([<<196608:?int32>>, Opts3, 0], State2),
 %% TODO    Async   = proplists:get_value(async, Opts, undefined),
-%% TODO    setopts(State2, [{active, true}]),
-    {ok, initialize(auth(User, Password, State2))}.
+    setopts(State2, [{active, true}]),
+    {ok,
+     State2#state{on_message = fun(M, S) -> auth(User, Password, M, S) end},
+     Timeout}.
 
 handle_call(Call, _From, State) ->
     {stop, {unsupported_call, Call}, State}.
@@ -80,10 +82,10 @@ handle_info({Error, _Sock, Reason}, State)
 handle_info({_, _Sock, Data}, #state{tail = Tail} = State) ->
     on_tail(State#state{tail = <<Tail/binary, Data/binary>>}.
 
-on_tail(#state{tail = Tail} = State) ->
+on_tail(#state{tail = Tail, on_message = OnMessage} = State) ->
     case pgsql_wire:decode_message(Tail) of
         {Message, Tail2} ->
-            on_tail(on_message(Message, State#{tail = Tail2}));
+            on_tail(OnMessage(Message, State#{tail = Tail2}));
         _ ->
             {noreply, State}
     end.
@@ -125,18 +127,9 @@ recv(#state{mod = Mod, sock = Sock, tail = Tail, timeout = Timeout} = State) ->
     {ok, Data} = Mod:recv(Sock, 0, Timeout),
     State#state{tail = <<Tail/binary, Data/binary>>}.
 
-auth(User, Password, State) ->
-    State2 = #state{tail = Tail} = recv(State),
-    case pgsql_wire:decode_message(Tail) of
-        {Message, Tail2} ->
-            State3 = State2#state{tail = Tail2},
-            case Message of ->
-                    %% AuthenticationOk
-                    {$R, <<0:?int32>>} ->
-                                    State3
-            end
-        _ -> auth(User, Password, State2)
-    end.
+%% AuthenticationOk
+auth(User, Password, {$R, <<0:?int32>>}, State) ->
+    State#state{on_message = fun on_message/2}.
 
 on_message({$N, Data}, State) ->
     %% TODO use it
