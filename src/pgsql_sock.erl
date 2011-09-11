@@ -78,12 +78,12 @@ handle_info({Error, _Sock, Reason}, State)
     {stop, {sock_error, Reason}, State};
 
 handle_info({_, _Sock, Data}, #state{tail = Tail} = State) ->
-    handle_messages(State#state{tail = <<Data/binary, Tail/binary>>}.
+    on_tail(State#state{tail = <<Tail/binary, Data/binary>>}.
 
-handle_messages(#state{tail = Tail} = State) ->
+on_tail(#state{tail = Tail} = State) ->
     case pgsql_wire:decode_message(Tail) of
         {Message, Tail2} ->
-            handle_messages(on_message(Message, State#{tail = Tail2}));
+            on_tail(on_message(Message, State#{tail = Tail2}));
         _ ->
             {noreply, State}
     end.
