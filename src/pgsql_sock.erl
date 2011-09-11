@@ -115,10 +115,10 @@ setopts(#state{mod = Mod, sock = Sock}, Opts) ->
         ssl     -> ssl:setopts(Sock, Opts)
     end.
 
-send(Data, State#state{mod = Mod, sock = Sock}) ->
+send(Data, #state{mod = Mod, sock = Sock} = State) ->
     Mod:send(Sock, pgsql_wire:encode(Data)).
 
-send(Type, Data, State#state{mod = Mod, sock = Sock}) ->
+send(Type, Data, #state{mod = Mod, sock = Sock} = State) ->
     Mod:send(Sock, pgsql_wire:encode(Type, Data)).
 
 auth(User, Password, State) ->
