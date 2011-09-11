@@ -38,6 +38,7 @@ decode_messages(Acc, Bin, State) ->
     {lists:reverse(Acc), State#state{tail = Bin}}.
 
 %% decode a single null-terminated string
+%% TODO signature changed, returns [Str, Rest], old code expects {Str, Rest}
 decode_string(Bin) ->
     binary_split(Bin, <<0>>).
 
