@@ -1,7 +1,7 @@
 -module(pgsql_wire).
 
 -export([init/1,
-         decode/2,
+         decode_message/1,
          decode_error/1,
          decode_strings/1,
          encode/2,
@@ -9,22 +9,17 @@
 
 -include("pgsql_binary.hrl").
 
--record(state, {options, tail}).
-
-init(Options) ->
-    #state{options = Options}.
-
-decode(Bin, #state{tail = Tail} = State) ->
-    decode_message(<<Bin/binary, Tail/binary>>, State).
-
-decode_message(<<Type:8, Len:?int32, Rest/binary>> = Bin, State) ->
+decode_message(<<Type:8, Len:?int32, Rest/binary>> = Bin) ->
     Len2 = Len - 4,
     case Rest of
         <<Data:Len2/binary, Tail/binary>> ->
-            {{Type, Data}, State{tail = Tail}};
+            {{Type, Data}, Tail};
         _Other ->
-            State#state{tail = Bin}
-    end.
+            Bin
+    end;
+
+decode_message(Bin) ->
+    Bin.
 
 %% decode a single null-terminated string
 %% TODO signature changed, returns [Str, Rest], old code expects {Str, Rest}
