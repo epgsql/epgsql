@@ -52,7 +52,7 @@ init([C, Host, Username, Opts]) ->
     end,
 
     setopts(State2, [{active, true}]),
-    send([<<196608:32>>, Opts3, 0], State2),
+    send([<<196608:?int32>>, Opts3, 0], State2),
     {ok, State2}.
 
 handle_call(Call, _From, State) ->
