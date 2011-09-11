@@ -121,10 +121,22 @@ send(Data, #state{mod = Mod, sock = Sock} = State) ->
 send(Type, Data, #state{mod = Mod, sock = Sock} = State) ->
     Mod:send(Sock, pgsql_wire:encode(Type, Data)).
 
+recv(#state{mod = Mod, sock = Sock, tail = Tail, timeout = Timeout} = State) ->
+    {ok, Data} = Mod:recv(Sock, 0, Timeout),
+    State#state{tail = <<Tail/binary, Data/binary>>}.
+
 auth(User, Password, State) ->
-    #state{sock = S, decoder = D} = State,
-    %% TODO receive authentication request, send response, wait AuthenticationOk
-    .
+    State2 = #state{tail = Tail} = recv(State),
+    case pgsql_wire:decode_message(Tail) of
+        {Message, Tail2} ->
+            State3 = State2#state{tail = Tail2},
+            case Message of ->
+                    %% AuthenticationOk
+                    {$R, <<0:?int32>>} ->
+                                    State3
+            end
+        _ -> auth(User, Password, State2)
+    end.
 
 on_message({$N, Data}, State) ->
     %% TODO use it
