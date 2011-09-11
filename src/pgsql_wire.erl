@@ -67,10 +67,10 @@ lower_atom(Str) when is_binary(Str) ->
 lower_atom(Str) when is_list(Str) ->
     list_to_atom(string:to_lower(Str)).
 
-encode(Data, State = #state{}) ->
+encode(Data) ->
     Bin = iolist_to_binary(Data),
     <<(byte_size(Bin) + 4):?int32, Bin/binary>>.
 
-encode(Type, Data, State = #state{}) ->
+encode(Type, Data) ->
     Bin = iolist_to_binary(Data),
     <<Type:8, (byte_size(Bin) + 4):?int32, Bin/binary>>.
