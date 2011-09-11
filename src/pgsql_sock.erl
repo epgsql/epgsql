@@ -121,6 +121,11 @@ send(Data, State#state{mod = Mod, sock = Sock, decoder = Decoder}) ->
 send(Type, Data, State#state{mod = Mod, sock = Sock, decoder = Decoder}) ->
     Mod:send(Sock, pgsql_wire:encode(Type, Data, Decoder)).
 
+auth(User, Password, State) ->
+    #state{sock = S, decoder = D} = State,
+    %% TODO receive authentication request, send response, wait AuthenticationOk
+    .
+
 on_message({$N, Data}, State) ->
     %% TODO use it
     {notice, pgsql_wire:decode_error(Data)},
