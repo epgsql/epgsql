@@ -1,7 +1,7 @@
 -module(pgsql_wire).
 
 -export([init/1,
-         decode_messages/2,
+         decode/2,
          decode_error/1,
          decode_strings/1,
          encode/2,
@@ -14,8 +14,8 @@
 init(Options) ->
     #state{options = Options}.
 
-decode_messages(Bin, #state{tail = Tail} = State) ->
-    decode_messages([], <<Bin/binary, Tail/binary>>, State).
+decode(Bin, #state{tail = Tail} = State) ->
+    decode_message(<<Bin/binary, Tail/binary>>, State).
 
 encode(Data, State = #state{}) ->
     Bin = iolist_to_binary(Data),
@@ -25,17 +25,14 @@ encode(Type, Data, State = #state{}) ->
     Bin = iolist_to_binary(Data),
     <<Type:8, (byte_size(Bin) + 4):?int32, Bin/binary>>.
 
-decode_messages(Acc, <<Type:8, Len:?int32, Rest/binary>> = Bin, State) ->
+decode_message(<<Type:8, Len:?int32, Rest/binary>> = Bin, State) ->
     Len2 = Len - 4,
     case Rest of
         <<Data:Len2/binary, Tail/binary>> ->
-            decode([{Type, Data} | Acc], Tail, State);
+            {{Type, Data}, State{tail = Tail}};
         _Other ->
-            {lists:reverse(Acc), State#state{tail = Bin}}
-    end;
-
-decode_messages(Acc, Bin, State) ->
-    {lists:reverse(Acc), State#state{tail = Bin}}.
+            State#state{tail = Bin}
+    end.
 
 %% decode a single null-terminated string
 %% TODO signature changed, returns [Str, Rest], old code expects {Str, Rest}
