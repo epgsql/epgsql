@@ -13,7 +13,7 @@
 -include("pgsql.hrl").
 -include("pgsql_binary.hrl").
 
--record(state, {mod, sock, decoder, backend}).
+-record(state, {mod, sock, tail, backend}).
 
 %% -- client interface --
 
@@ -77,10 +77,16 @@ handle_info({Error, _Sock, Reason}, State)
   when Error == tcp_error; Error == ssl_error ->
     {stop, {sock_error, Reason}, State};
 
-handle_info({_, _Sock, Data}, #state{decoder = Decoder} = State) ->
-    {Messages, Decoder2} = pgsql_wire:decode_messages(Data, Decoder),
-    State2 = State#{decoder = Decoder2},
-    {noreply, lists:foldl(fun on_mesage/2, State2, Messages)}.
+handle_info({_, _Sock, Data}, #state{tail = Tail} = State) ->
+    handle_messages(State#state{tail = <<Data/binary, Tail/binary>>}.
+
+handle_messages(#state{tail = Tail} = State) ->
+    case pgsql_wire:decode_message(Tail) of
+        {Message, Tail2} ->
+            handle_messages(on_message(Message, State#{tail = Tail2}));
+        _ ->
+            {noreply, State}
+    end.
 
 terminate(_Reason, _State) ->
     ok.
