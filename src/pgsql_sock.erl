@@ -55,7 +55,9 @@ handle_cast({connect, Host, Username, Password, Opts},
     %% TODO    Async   = proplists:get_value(async, Opts, undefined),
     setopts(State2, [{active, true}]),
     {noreply,
-     State2#state{on_message = fun(M, S) -> auth(Username, Password, M, S) end},
+     State2#state{on_message = fun(M, S) ->
+                                       auth(Username, Password, M, S)
+                               end},
      Timeout};
 
 handle_cast(cancel, State = #state{backend = {Pid, Key}}) ->
