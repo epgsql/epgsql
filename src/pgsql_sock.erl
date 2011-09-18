@@ -4,7 +4,7 @@
 
 -behavior(gen_server).
 
--export([start_link/4, cancel/1]).
+-export([start_link/0, cancel/1]).
 
 -export([handle_call/3, handle_cast/2, handle_info/2]).
 -export([init/1, code_change/3, terminate/2]).
@@ -17,12 +17,13 @@
                 data,
                 backend,
                 handler,
+                queue = queue:new(),
                 ready,
                 timeout}).
 
 %% -- client interface --
 
-start_link(Host, Username, Password, Opts) ->
+start_link() ->
     gen_server:start_link(?MODULE, [Host, Username, Password, Opts], []).
 
 cancel(S) ->
@@ -30,17 +31,14 @@ cancel(S) ->
 
 %% -- gen_server implementation --
 
-init([Host, Username, Password, Opts]) ->
-    gen_server:cast(self(), {connect, Host, Username, Password, Opts}),
+init([]) ->
+    {ok, #state{}}.
+
+handle_call({connect, Host, Username, Password, Opts},
+            From,
+            #state{queue = Queue} = State) ->
     %% TODO split connect/query timeout?
     Timeout = proplists:get_value(timeout, Opts, 5000),
-    {ok, #state{timeout = Timeout}}.
-
-handle_call(Call, _From, State) ->
-    {stop, {unsupported_call, Call}, State}.
-
-handle_cast({connect, Host, Username, Password, Opts},
-            #state{timeout = Timeout} = State) ->
     Port = proplists:get_value(port, Opts, 5432),
     SockOpts = [{active, false}, {packet, raw}, binary, {nodelay, true}],
     {ok, Sock} = gen_tcp:connect(Host, Port, SockOpts, Timeout),
@@ -63,8 +61,9 @@ handle_cast({connect, Host, Username, Password, Opts},
     {noreply,
      State2#state{handler = fun(M, S) ->
                                     auth(Username, Password, M, S)
-                            end},
-     Timeout};
+                            end,
+                 queue = queue:in(From, Queue)},
+     Timeout}.
 
 handle_cast(cancel, State = #state{backend = {Pid, Key}}) ->
     {ok, {Addr, Port}} = inet:peername(State#state.sock),
