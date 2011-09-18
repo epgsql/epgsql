@@ -12,7 +12,14 @@
 -include("pgsql.hrl").
 -include("pgsql_binary.hrl").
 
--record(state, {mod, sock, tail, backend, on_message, ready, timeout}).
+-record(state, {mod,
+                sock,
+                data,
+                backend,
+                on_message,
+                on_timeout,
+                ready,
+                timeout}).
 
 %% -- client interface --
 
@@ -77,15 +84,18 @@ handle_info({Error, Sock, Reason}, #state{sock = Sock} = State)
   when Error == tcp_error; Error == ssl_error ->
     {stop, {sock_error, Reason}, State};
 
-handle_info({_, Sock, Data}, #state{tail = Tail, sock = Sock} = State) ->
-    on_tail(State#state{tail = <<Tail/binary, Data/binary>>}).
+handle_info(timeout, #state{on_timeout = OnTimeout} = State) ->
+    OnTimeout(State);
 
-on_tail(#state{tail = Tail, on_message = OnMessage} = State) ->
-    case pgsql_wire:decode_message(Tail) of
-        {Message, Tail2} ->
-            on_tail(OnMessage(Message, State#state{tail = Tail2}));
+handle_info({_, Sock, Data2}, #state{data = Data, sock = Sock} = State) ->
+    on_data({infinity, State#state{data = <<Data/binary, Data2/binary>>}}).
+
+on_data({Timeout, #state{data = Data, on_message = OnMessage} = State}) ->
+    case pgsql_wire:decode_message(Data) of
+        {Message, Tail} ->
+            on_data(OnMessage(Message, State#state{data = Tail}));
         _ ->
-            {noreply, State}
+            {noreply, State, Timeout}
     end.
 
 terminate(_Reason, _State) ->
