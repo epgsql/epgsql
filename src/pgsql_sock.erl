@@ -89,12 +89,19 @@ handle_info(timeout, #state{on_timeout = OnTimeout} = State) ->
     OnTimeout(State);
 
 handle_info({_, Sock, Data2}, #state{data = Data, sock = Sock} = State) ->
-    on_data({State#state{data = <<Data/binary, Data2/binary>>}, infinity}).
+    loop(State#state{data = <<Data/binary, Data2/binary>>}, infinity).
 
-on_data({#state{data = Data, on_message = OnMessage} = State, Timeout}) ->
+loop(#state{data = Data, on_message = OnMessage} = State, Timeout) ->
     case pgsql_wire:decode_message(Data) of
         {Message, Tail} ->
-            on_data(OnMessage(Message, State#state{data = Tail}));
+            case OnMessage(Message, State#state{data = Tail}) of
+                {noreply, State2} ->
+                    loop(State2, infinity);
+                {noreply, State2, Timeout2} ->
+                    loop(State2, Timeout2);
+                R = {stop, _Reason2, _State2} ->
+                    R
+            end;
         _ ->
             {noreply, State, Timeout}
     end.
@@ -146,7 +153,7 @@ auth(_Username, _Password, {$R, <<0:?int32>>}, State) ->
 auth(_Username, Password, {$R, <<3:?int32>>}, State) ->
     #state{timeout = Timeout} = State,
     send(State, $p, [Password, 0]),
-    {State, Timeout};
+    {noreply, State, Timeout};
 
 %% AuthenticationMD5Password
 auth(Username, Password, {$R, <<5:?int32, Salt:4/binary>>}, State) ->
@@ -154,7 +161,7 @@ auth(Username, Password, {$R, <<5:?int32, Salt:4/binary>>}, State) ->
     Digest1 = hex(erlang:md5([Password, Username])),
     Str = ["md5", hex(erlang:md5([Digest1, Salt])), 0],
     send(State, $p, Str),
-    {State, Timeout};
+    {noreply, State, Timeout};
 
 auth(_Username, _Password, {$R, <<M:?int32, _/binary>>}, State) ->
     case M of
@@ -186,7 +193,8 @@ auth_timeout(State) ->
 
 
 initializing(_, State) ->
-    {infinity, State}.
+    %% TODO incomplete
+    {noreply, State#state{on_message = fun on_message/2}}.
 
 on_message({$N, Data}, State) ->
     %% TODO use it
