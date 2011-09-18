@@ -83,16 +83,16 @@ handle_info({Error, Sock, Reason}, #state{sock = Sock} = State)
   when Error == tcp_error; Error == ssl_error ->
     {stop, {sock_error, Reason}, State};
 
-handle_info(timeout, #state{on_timeout = OnTimeout} = State) ->
-    OnTimeout(State);
+handle_info(timeout, #state{handler = Handler} = State) ->
+    Handler(timeout, State);
 
 handle_info({_, Sock, Data2}, #state{data = Data, sock = Sock} = State) ->
     loop(State#state{data = <<Data/binary, Data2/binary>>}, infinity).
 
-loop(#state{data = Data, on_message = OnMessage} = State, Timeout) ->
+loop(#state{data = Data, handler = Handler} = State, Timeout) ->
     case pgsql_wire:decode_message(Data) of
         {Message, Tail} ->
-            case OnMessage(Message, State#state{data = Tail}) of
+            case Handler(Message, State#state{data = Tail}) of
                 {noreply, State2} ->
                     loop(State2, infinity);
                 {noreply, State2, Timeout2} ->
@@ -146,8 +146,7 @@ send(#state{mod = Mod, sock = Sock}, Type, Data) ->
 auth(_Username, _Password, {$R, <<0:?int32>>}, State) ->
     #state{timeout = Timeout} = State,
     {noreply,
-     State#state{on_message = fun initializing/2,
-                 on_timeout = fun initializing_timeout/1},
+     State#state{handler = fun initializing/2},
      Timeout};
 
 %% AuthenticationCleartextPassword
@@ -186,7 +185,7 @@ auth(_, _, {error, E}, State) ->
         Any         -> Why = Any
     end,
     %% TODO send error response
-    {stop, {error, Why}, State}.
+    {stop, {error, Why}, State};
 
 auth(_, _, timeout, State) ->
     %% TODO send error response
@@ -194,7 +193,7 @@ auth(_, _, timeout, State) ->
 
 initializing(timeout, State) ->
     %% TODO send error response
-    {stop, {error, timeout}, State}.
+    {stop, {error, timeout}, State};
 
 initializing(_, State) ->
     %% TODO incomplete
