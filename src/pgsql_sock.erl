@@ -153,7 +153,6 @@ on_message({$E, Data}, State) ->
     %% TODO use it
     {error, pgsql_wire:decode_error(Data)},
     {infinity, State};
-    State;
 
 on_message({$A, <<Pid:?int32, Strings/binary>>}, State) ->
     case pgsql_wire:decode_strings(Strings) of
