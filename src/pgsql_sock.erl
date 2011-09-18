@@ -4,8 +4,7 @@
 
 -behavior(gen_server).
 
--export([start_link/4, cancel/3]).
--export([decode_string/1, lower_atom/1]).
+-export([start_link/4, cancel/1]).
 
 -export([handle_call/3, handle_cast/2, handle_info/2]).
 -export([init/1, code_change/3, terminate/2]).
@@ -13,7 +12,7 @@
 -include("pgsql.hrl").
 -include("pgsql_binary.hrl").
 
--record(state, {mod, sock, tail, backend, on_message}).
+-record(state, {mod, sock, tail, backend, on_message, ready, timeout}).
 
 %% -- client interface --
 
@@ -21,31 +20,31 @@ start_link(Host, Username, Password, Opts) ->
     gen_server:start_link(?MODULE, [Host, Username, Password, Opts], []).
 
 cancel(S) ->
-    gen_server:cast(S, cancel}).
+    gen_server:cast(S, cancel).
 
 %% -- gen_server implementation --
 
 init([Host, Username, Password, Opts]) ->
+    gen_server:cast(self(), {connect, Host, Username, Password, Opts}),
     %% TODO split connect/query timeout?
     Timeout = proplists:get_value(timeout, Opts, 5000),
+    {ok, #state{timeout = Timeout}}.
+
+handle_call(Call, _From, State) ->
+    {stop, {unsupported_call, Call}, State}.
+
+handle_cast({connect, Host, Username, Password, Opts},
+            #state{timeout = Timeout} = State) ->
     Port = proplists:get_value(port, Opts, 5432),
     SockOpts = [{active, false}, {packet, raw}, binary, {nodelay, true}],
-    {ok, S} = gen_tcp:connect(Host, Port, SockOpts, Timeout),
+    {ok, Sock} = gen_tcp:connect(Host, Port, SockOpts, Timeout),
 
-    State = #state{
-      mod  = gen_tcp,
-      sock = S,
-      decoder = pgsql_wire:init([]),
-      timeout = Timeout},
-
-    case proplists:get_value(ssl, Opts) of
-        T when T == true; T == required ->
-            ok = gen_tcp:send(S, <<8:?int32, 80877103:?int32>>),
-            {ok, <<Code>>} = gen_tcp:recv(S, 1, Timeout),
-            State2 = start_ssl(Code, T, Opts, State);
-        _ ->
-            State2 = State
-    end,
+    State2 = case proplists:get_value(ssl, Opts) of
+                 T when T == true; T == required ->
+                     start_ssl(Sock, T, Opts, State);
+                 _ ->
+                     State#state{mod  = gen_tcp, sock = Sock}
+             end,
 
     Opts2 = ["user", 0, Username, 0],
     case proplists:get_value(database, Opts, undefined) of
@@ -53,14 +52,11 @@ init([Host, Username, Password, Opts]) ->
         Database  -> Opts3 = [Opts2 | ["database", 0, Database, 0]]
     end,
     send([<<196608:?int32>>, Opts3, 0], State2),
-%% TODO    Async   = proplists:get_value(async, Opts, undefined),
+    %% TODO    Async   = proplists:get_value(async, Opts, undefined),
     setopts(State2, [{active, true}]),
-    {ok,
-     State2#state{on_message = fun(M, S) -> auth(User, Password, M, S) end},
-     Timeout}.
-
-handle_call(Call, _From, State) ->
-    {stop, {unsupported_call, Call}, State}.
+    {noreply,
+     State2#state{on_message = fun(M, S) -> auth(Username, Password, M, S) end},
+     Timeout};
 
 handle_cast(cancel, State = #state{backend = {Pid, Key}}) ->
     {ok, {Addr, Port}} = inet:peername(State#state.sock),
@@ -71,6 +67,7 @@ handle_cast(cancel, State = #state{backend = {Pid, Key}}) ->
     gen_tcp:close(Sock),
     {noreply, State}.
 
+%% TODO match sock
 handle_info({Closed, _Sock}, State)
   when Closed == tcp_closed; Closed == ssl_closed ->
     {stop, sock_closed, State};
@@ -80,12 +77,12 @@ handle_info({Error, _Sock, Reason}, State)
     {stop, {sock_error, Reason}, State};
 
 handle_info({_, _Sock, Data}, #state{tail = Tail} = State) ->
-    on_tail(State#state{tail = <<Tail/binary, Data/binary>>}.
+    on_tail(State#state{tail = <<Tail/binary, Data/binary>>}).
 
 on_tail(#state{tail = Tail, on_message = OnMessage} = State) ->
     case pgsql_wire:decode_message(Tail) of
         {Message, Tail2} ->
-            on_tail(OnMessage(Message, State#{tail = Tail2}));
+            on_tail(OnMessage(Message, State#state{tail = Tail2}));
         _ ->
             {noreply, State}
     end.
@@ -98,17 +95,20 @@ code_change(_OldVsn, State, _Extra) ->
 
 %% -- internal functions --
 
-start_ssl($S, _Flag, Opts, State) ->
-    #state{sock = S1, timeout = Timeout} = State,
-    case ssl:connect(S1, Opts, Timeout) of
-        {ok, S2}        -> State#state{mod = ssl, sock = S2};
-        {error, Reason} -> exit({ssl_negotiation_failed, Reason})
-    end;
-
-start_ssl($N, Flag, _Opts, State) ->
-    case Flag of
-        true     -> State;
-        required -> exit(ssl_not_available)
+start_ssl(S, Flag, Opts, #state{timeout = Timeout} = State) ->
+    ok = gen_tcp:send(S, <<8:?int32, 80877103:?int32>>),
+    {ok, <<Code>>} = gen_tcp:recv(S, 1, Timeout),
+    case Code of
+        $S  ->
+            case ssl:connect(S, Opts, Timeout) of
+                {ok, S2}        -> State#state{mod = ssl, sock = S2};
+                {error, Reason} -> exit({ssl_negotiation_failed, Reason})
+            end;
+        $N ->
+            case Flag of
+                true     -> State;
+                required -> exit(ssl_not_available)
+            end
     end.
 
 setopts(#state{mod = Mod, sock = Sock}, Opts) ->
@@ -144,7 +144,7 @@ on_message({$S, Data}, State) ->
 
 on_message({$E, Data}, State) ->
     %% TODO use it
-    {error, decode_error(Data)},
+    {error, pgsql_wire:decode_error(Data)},
     State;
 
 on_message({$A, <<Pid:?int32, Strings/binary>>}, State) ->
