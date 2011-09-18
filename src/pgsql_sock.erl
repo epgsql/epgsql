@@ -16,8 +16,7 @@
                 sock,
                 data,
                 backend,
-                on_message,
-                on_timeout,
+                handler,
                 ready,
                 timeout}).
 
@@ -62,10 +61,9 @@ handle_cast({connect, Host, Username, Password, Opts},
     %% TODO    Async   = proplists:get_value(async, Opts, undefined),
     setopts(State2, [{active, true}]),
     {noreply,
-     State2#state{on_message = fun(M, S) ->
-                                       auth(Username, Password, M, S)
-                               end,
-                  on_timeout = fun auth_timeout/1},
+     State2#state{handler = fun(M, S) ->
+                                    auth(Username, Password, M, S)
+                            end},
      Timeout};
 
 handle_cast(cancel, State = #state{backend = {Pid, Key}}) ->
@@ -147,7 +145,10 @@ send(#state{mod = Mod, sock = Sock}, Type, Data) ->
 %% AuthenticationOk
 auth(_Username, _Password, {$R, <<0:?int32>>}, State) ->
     #state{timeout = Timeout} = State,
-    {State#state{on_message = fun initializing/2}, Timeout};
+    {noreply,
+     State#state{on_message = fun initializing/2,
+                 on_timeout = fun initializing_timeout/1},
+     Timeout};
 
 %% AuthenticationCleartextPassword
 auth(_Username, Password, {$R, <<3:?int32>>}, State) ->
@@ -178,7 +179,7 @@ auth(_Username, _Password, {$R, <<M:?int32, _/binary>>}, State) ->
 
 %% ErrorResponse
 %% TODO who decodes error ?
-auth(_Username, _Password, {error, E}, State) ->
+auth(_, _, {error, E}, State) ->
     case E#error.code of
         <<"28000">> -> Why = invalid_authorization_specification;
         <<"28P01">> -> Why = invalid_password;
@@ -187,14 +188,17 @@ auth(_Username, _Password, {error, E}, State) ->
     %% TODO send error response
     {stop, {error, Why}, State}.
 
-auth_timeout(State) ->
+auth(_, _, timeout, State) ->
     %% TODO send error response
     {stop, {error, timeout}, State}.
 
+initializing(timeout, State) ->
+    %% TODO send error response
+    {stop, {error, timeout}, State}.
 
 initializing(_, State) ->
     %% TODO incomplete
-    {noreply, State#state{on_message = fun on_message/2}}.
+    {noreply, State#state{handler = fun on_message/2}}.
 
 on_message({$N, Data}, State) ->
     %% TODO use it
