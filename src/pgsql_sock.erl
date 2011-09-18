@@ -69,16 +69,15 @@ handle_cast(cancel, State = #state{backend = {Pid, Key}}) ->
     gen_tcp:close(Sock),
     {noreply, State}.
 
-%% TODO match sock
-handle_info({Closed, _Sock}, State)
+handle_info({Closed, Sock}, #state{sock = Sock} = State)
   when Closed == tcp_closed; Closed == ssl_closed ->
     {stop, sock_closed, State};
 
-handle_info({Error, _Sock, Reason}, State)
+handle_info({Error, Sock, Reason}, #state{sock = Sock} = State)
   when Error == tcp_error; Error == ssl_error ->
     {stop, {sock_error, Reason}, State};
 
-handle_info({_, _Sock, Data}, #state{tail = Tail} = State) ->
+handle_info({_, Sock, Data}, #state{tail = Tail, sock = Sock} = State) ->
     on_tail(State#state{tail = <<Tail/binary, Data/binary>>}).
 
 on_tail(#state{tail = Tail, on_message = OnMessage} = State) ->
@@ -119,15 +118,11 @@ setopts(#state{mod = Mod, sock = Sock}, Opts) ->
         ssl     -> ssl:setopts(Sock, Opts)
     end.
 
-send(Data, #state{mod = Mod, sock = Sock} = State) ->
+send(Data, #state{mod = Mod, sock = Sock}) ->
     Mod:send(Sock, pgsql_wire:encode(Data)).
 
-send(Type, Data, #state{mod = Mod, sock = Sock} = State) ->
+send(Type, Data, #state{mod = Mod, sock = Sock}) ->
     Mod:send(Sock, pgsql_wire:encode(Type, Data)).
-
-recv(#state{mod = Mod, sock = Sock, tail = Tail, timeout = Timeout} = State) ->
-    {ok, Data} = Mod:recv(Sock, 0, Timeout),
-    State#state{tail = <<Tail/binary, Data/binary>>}.
 
 %% AuthenticationOk
 auth(User, Password, {$R, <<0:?int32>>}, State) ->
