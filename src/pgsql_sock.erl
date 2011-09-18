@@ -141,17 +141,18 @@ auth(User, Password, {$R, <<0:?int32>>}, State) ->
 on_message({$N, Data}, State) ->
     %% TODO use it
     {notice, pgsql_wire:decode_error(Data)},
-    State;
+    {infinity, State};
 
 on_message({$S, Data}, State) ->
     [Name, Value] = pgsql_wire:decode_strings(Data),
     %% TODO use it
     {parameter_status, Name, Value},
-    State;
+    {infinity, State};
 
 on_message({$E, Data}, State) ->
     %% TODO use it
     {error, pgsql_wire:decode_error(Data)},
+    {infinity, State};
     State;
 
 on_message({$A, <<Pid:?int32, Strings/binary>>}, State) ->
@@ -161,7 +162,7 @@ on_message({$A, <<Pid:?int32, Strings/binary>>}, State) ->
     end,
     %% TODO use it
     {notification, Channel, Pid, Payload},
-    State;
+    {infinity, State};
 
 on_message(_Msg, State) ->
-    State.
+    {infinity, State}.
