@@ -1,12 +1,11 @@
 -module(pgsql_wire).
 
--export([init/1,
-         decode_message/1,
+-export([decode_message/1,
          decode_error/1,
          decode_strings/1,
-         encode/2,
-         encode/3]).
+         encode/2]).
 
+-include("pgsql.hrl").
 -include("pgsql_binary.hrl").
 
 decode_message(<<Type:8, Len:?int32, Rest/binary>> = Bin) ->
@@ -24,7 +23,7 @@ decode_message(Bin) ->
 %% decode a single null-terminated string
 %% TODO signature changed, returns [Str, Rest], old code expects {Str, Rest}
 decode_string(Bin) ->
-    binary_split(Bin, <<0>>).
+    binary:split(Bin, <<0>>).
 
 %% decode multiple null-terminated string
 decode_strings(Bin) ->
