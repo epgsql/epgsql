@@ -18,6 +18,7 @@
                 backend,
                 handler,
                 queue = queue:new(),
+                async,
                 ready,
                 timeout}).
 
@@ -56,13 +57,14 @@ handle_call({connect, Host, Username, Password, Opts},
         Database  -> Opts3 = [Opts2 | ["database", 0, Database, 0]]
     end,
     send(State2, [<<196608:?int32>>, Opts3, 0]),
-    %% TODO    Async   = proplists:get_value(async, Opts, undefined),
+    Async   = proplists:get_value(async, Opts, undefined),
     setopts(State2, [{active, true}]),
     put(username, Username),
     put(password, Password),
     {noreply,
      State2#state{handler = auth,
-                  queue = queue:in(From, Queue)},
+                  queue = queue:in(From, Queue),
+                  async = Async},
      Timeout}.
 
 handle_cast(cancel, State = #state{backend = {Pid, Key}}) ->
