@@ -41,7 +41,7 @@ decode_fields(Bin) ->
 decode_fields(<<0>>, Acc) ->
     Acc;
 decode_fields(<<Type:8, Rest/binary>>, Acc) ->
-    {Str, Rest2} = decode_string(Rest),
+    [Str, Rest2] = decode_string(Rest),
     decode_fields(Rest2, [{Type, Str} | Acc]).
 
 %% decode ErrorResponse

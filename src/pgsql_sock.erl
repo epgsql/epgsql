@@ -234,11 +234,12 @@ on_message({$N, Data}, State) ->
     {notice, pgsql_wire:decode_error(Data)},
     {infinity, State};
 
+%% ParameterStatus
 on_message({$S, Data}, State) ->
     [Name, Value] = pgsql_wire:decode_strings(Data),
-    %% TODO use it
-    {parameter_status, Name, Value},
-    {infinity, State};
+    Parameters2 = lists:keystore(Name, 1, State#state.parameters,
+                                 {Name, Value}),
+    {noreply, State#state{parameters = Parameters2}};
 
 on_message({$E, Data}, State) ->
     %% TODO use it
