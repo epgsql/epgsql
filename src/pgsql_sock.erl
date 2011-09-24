@@ -151,9 +151,7 @@ reply(#state{queue = Q} = State, Message) ->
 %% AuthenticationOk
 auth({$R, <<0:?int32>>}, State) ->
     #state{timeout = Timeout} = State,
-    {noreply,
-     State#state{handler = initializing},
-     Timeout};
+    {noreply, State#state{handler = initializing}, Timeout};
 
 %% AuthenticationCleartextPassword
 auth({$R, <<3:?int32>>}, State) ->
