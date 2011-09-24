@@ -148,6 +148,12 @@ reply(#state{queue = Q} = State, Message) ->
     Pid ! Message,
     State#state{queue = Q2}.
 
+notify_async(#state{async = Pid}, Msg) ->
+    case is_pid(Pid) of
+        true  -> Pid ! {pgsql, self(), Msg};
+        false -> false
+    end.
+
 %% -- backend message handling --
 
 %% AuthenticationOk
@@ -233,10 +239,10 @@ initializing(Other, State) ->
     {noreply, State2} = on_message(Other, State),
     {noreply, State2, Timeout}.
 
+%% NoticeResponse
 on_message({$N, Data}, State) ->
-    %% TODO use it
-    {notice, pgsql_wire:decode_error(Data)},
-    {infinity, State};
+    notify_async(State, {notice, pgsql_wire:decode_error(Data)}),
+    {noreply, State};
 
 %% ParameterStatus
 on_message({$S, Data}, State) ->
@@ -245,23 +251,15 @@ on_message({$S, Data}, State) ->
                                  {Name, Value}),
     {noreply, State#state{parameters = Parameters2}};
 
-on_message({$E, Data}, State) ->
-    %% TODO use it
-    {error, pgsql_wire:decode_error(Data)},
-    {infinity, State};
-
+%% NotificationResponse
 on_message({$A, <<Pid:?int32, Strings/binary>>}, State) ->
     case pgsql_wire:decode_strings(Strings) of
         [Channel, Payload] -> ok;
         [Channel]          -> Payload = <<>>
     end,
     %% TODO use it
-    {notification, Channel, Pid, Payload},
-    {infinity, State};
-
-on_message(_Msg, State) ->
-    {infinity, State}.
-
+    notify_async(State, {notification, Channel, Pid, Payload}),
+    {noreply, State}.
 
 hex(Bin) ->
     HChar = fun(N) when N < 10 -> $0 + N;
