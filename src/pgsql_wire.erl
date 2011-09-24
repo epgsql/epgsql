@@ -3,6 +3,7 @@
 -export([decode_message/1,
          decode_error/1,
          decode_strings/1,
+         encode/1,
          encode/2]).
 
 -include("pgsql.hrl").
