@@ -142,7 +142,7 @@ send(#state{mod = Mod, sock = Sock}, Type, Data) ->
     Mod:send(Sock, pgsql_wire:encode(Type, Data)).
 
 reply(#state{queue = Q} = State, Message) ->
-    {{value, Pid}, Q2} = queue:out(Q),
+    {{value, {Pid, _}}, Q2} = queue:out(Q),
     Pid ! Message,
     State#state{queue = Q2}.
 
