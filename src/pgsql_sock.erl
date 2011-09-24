@@ -87,7 +87,7 @@ handle_info({Error, Sock, Reason}, #state{sock = Sock} = State)
     {stop, {sock_error, Reason}, State};
 
 handle_info(timeout, #state{handler = Handler} = State) ->
-    Handler(timeout, State);
+    ?MODULE:Handler(timeout, State);
 
 handle_info({_, Sock, Data2}, #state{data = Data, sock = Sock} = State) ->
     loop(State#state{data = <<Data/binary, Data2/binary>>}, infinity).
