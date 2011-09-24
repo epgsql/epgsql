@@ -182,7 +182,6 @@ auth({$R, <<M:?int32, _/binary>>}, State) ->
     {stop, Error, reply(State, Error)};
 
 %% ErrorResponse
-%% TODO who decodes error ?
 auth({error, E}, State) ->
     case E#error.code of
         <<"28000">> -> Why = invalid_authorization_specification;

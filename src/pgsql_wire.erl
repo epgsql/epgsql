@@ -12,7 +12,12 @@ decode_message(<<Type:8, Len:?int32, Rest/binary>> = Bin) ->
     Len2 = Len - 4,
     case Rest of
         <<Data:Len2/binary, Tail/binary>> ->
-            {{Type, Data}, Tail};
+            case Type of
+                $E ->
+                    {{error, decode_error(Data)}, Tail};
+                _ ->
+                    {{Type, Data}, Tail}
+            end;
         _Other ->
             Bin
     end;
