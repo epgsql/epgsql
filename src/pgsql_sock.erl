@@ -20,7 +20,9 @@
                 queue = queue:new(),
                 async,
                 ready,
-                timeout}).
+                timeout,
+                parameters,
+                txstatus}).
 
 %% -- client interface --
 
@@ -193,15 +195,36 @@ auth(timeout, State) ->
     Error = {error, timeout},
     {stop, Error, reply(State, Error)}.
 
-initializing(timeout, State) ->
-    %% TODO send error response
-    {stop, {error, timeout}, State};
+%% BackendKeyData
+initializing({$K, <<Pid:?int32, Key:?int32>>}, State) ->
+    #state{timeout = Timeout} = State,
+    State2 = State#state{backend = {Pid, Key}},
+    {noreply, State2, Timeout};
 
-initializing(_, State) ->
-    %% TODO incomplete
+initializing(timeout, State) ->
+    Error = {error, timeout},
+    {stop, Error, reply(State, Error)};
+
+%% ReadyForQuery
+initializing({$Z, <<Status:8>>}, State) ->
+    #state{parameters = Parameters} = State,
     erase(username),
     erase(password),
-    {noreply, State#state{handler = fun on_message/2}}.
+    %% TODO decode dates to now() format
+    case lists:keysearch(<<"integer_datetimes">>, 1, Parameters) of
+        {value, {_, <<"on">>}}  -> put(datetime_mod, pgsql_idatetime);
+        {value, {_, <<"off">>}} -> put(datetime_mod, pgsql_fdatetime)
+    end,
+    State2 = State#state{handler = on_message,
+                         txstatus = Status,
+                         ready = true},
+    {noreply, reply(State2, {ok, self()})};
+
+initializing({error, _} = Error, State) ->
+    {stop, Error, reply(State, Error)};
+
+initializing(Other, State) ->
+    on_message(Other, State).
 
 on_message({$N, Data}, State) ->
     %% TODO use it
