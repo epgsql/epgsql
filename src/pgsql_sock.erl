@@ -179,8 +179,7 @@ auth({$R, <<M:?int32, _/binary>>}, State) ->
         _ -> Method = unknown
     end,
     Error = {error, {unsupported_auth_method, Method}},
-    %% TODO send error response
-    {stop, Error, State};
+    {stop, Error, reply(State, Error)};
 
 %% ErrorResponse
 %% TODO who decodes error ?
@@ -190,12 +189,12 @@ auth({error, E}, State) ->
         <<"28P01">> -> Why = invalid_password;
         Any         -> Why = Any
     end,
-    %% TODO send error response
-    {stop, {error, Why}, State};
+    Error = {error, Why},
+    {stop, Error, reply(State, Error)};
 
 auth(timeout, State) ->
-    %% TODO send error response
-    {stop, {error, timeout}, State}.
+    Error = {error, timeout},
+    {stop, Error, reply(State, Error)}.
 
 initializing(timeout, State) ->
     %% TODO send error response
