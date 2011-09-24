@@ -24,7 +24,7 @@
 %% -- client interface --
 
 start_link() ->
-    gen_server:start_link(?MODULE, [Host, Username, Password, Opts], []).
+    gen_server:start_link(?MODULE, [], []).
 
 cancel(S) ->
     gen_server:cast(S, cancel).
@@ -58,11 +58,11 @@ handle_call({connect, Host, Username, Password, Opts},
     send(State2, [<<196608:?int32>>, Opts3, 0]),
     %% TODO    Async   = proplists:get_value(async, Opts, undefined),
     setopts(State2, [{active, true}]),
+    put(username, Username),
+    put(password, Password),
     {noreply,
-     State2#state{handler = fun(M, S) ->
-                                    auth(Username, Password, M, S)
-                            end,
-                 queue = queue:in(From, Queue)},
+     State2#state{handler = auth,
+                  queue = queue:in(From, Queue)},
      Timeout}.
 
 handle_cast(cancel, State = #state{backend = {Pid, Key}}) ->
@@ -91,7 +91,7 @@ handle_info({_, Sock, Data2}, #state{data = Data, sock = Sock} = State) ->
 loop(#state{data = Data, handler = Handler} = State, Timeout) ->
     case pgsql_wire:decode_message(Data) of
         {Message, Tail} ->
-            case Handler(Message, State#state{data = Tail}) of
+            case ?MODULE:Handler(Message, State#state{data = Tail}) of
                 {noreply, State2} ->
                     loop(State2, infinity);
                 {noreply, State2, Timeout2} ->
@@ -142,27 +142,27 @@ send(#state{mod = Mod, sock = Sock}, Type, Data) ->
 %% -- backend message handling --
 
 %% AuthenticationOk
-auth(_Username, _Password, {$R, <<0:?int32>>}, State) ->
+auth({$R, <<0:?int32>>}, State) ->
     #state{timeout = Timeout} = State,
     {noreply,
      State#state{handler = fun initializing/2},
      Timeout};
 
 %% AuthenticationCleartextPassword
-auth(_Username, Password, {$R, <<3:?int32>>}, State) ->
+auth({$R, <<3:?int32>>}, State) ->
     #state{timeout = Timeout} = State,
-    send(State, $p, [Password, 0]),
+    send(State, $p, [get(password), 0]),
     {noreply, State, Timeout};
 
 %% AuthenticationMD5Password
-auth(Username, Password, {$R, <<5:?int32, Salt:4/binary>>}, State) ->
+auth({$R, <<5:?int32, Salt:4/binary>>}, State) ->
     #state{timeout = Timeout} = State,
-    Digest1 = hex(erlang:md5([Password, Username])),
+    Digest1 = hex(erlang:md5([get(password), get(username)])),
     Str = ["md5", hex(erlang:md5([Digest1, Salt])), 0],
     send(State, $p, Str),
     {noreply, State, Timeout};
 
-auth(_Username, _Password, {$R, <<M:?int32, _/binary>>}, State) ->
+auth({$R, <<M:?int32, _/binary>>}, State) ->
     case M of
         2 -> Method = kerberosV5;
         4 -> Method = crypt;
@@ -177,7 +177,7 @@ auth(_Username, _Password, {$R, <<M:?int32, _/binary>>}, State) ->
 
 %% ErrorResponse
 %% TODO who decodes error ?
-auth(_, _, {error, E}, State) ->
+auth({error, E}, State) ->
     case E#error.code of
         <<"28000">> -> Why = invalid_authorization_specification;
         <<"28P01">> -> Why = invalid_password;
@@ -186,7 +186,7 @@ auth(_, _, {error, E}, State) ->
     %% TODO send error response
     {stop, {error, Why}, State};
 
-auth(_, _, timeout, State) ->
+auth(timeout, State) ->
     %% TODO send error response
     {stop, {error, timeout}, State}.
 
@@ -196,6 +196,8 @@ initializing(timeout, State) ->
 
 initializing(_, State) ->
     %% TODO incomplete
+    erase(username),
+    erase(password),
     {noreply, State#state{handler = fun on_message/2}}.
 
 on_message({$N, Data}, State) ->
