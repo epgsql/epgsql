@@ -196,7 +196,9 @@ auth(timeout, State) ->
     {stop, Error, reply(State, Error)};
 
 auth(Other, State) ->
-    on_message(Other, State).
+    #state{timeout = Timeout} = State,
+    {noreply, State2} = on_message(Other, State),
+    {noreply, State2, Timeout}.
 
 %% BackendKeyData
 initializing({$K, <<Pid:?int32, Key:?int32>>}, State) ->
@@ -227,7 +229,9 @@ initializing({error, _} = Error, State) ->
     {stop, Error, reply(State, Error)};
 
 initializing(Other, State) ->
-    on_message(Other, State).
+    #state{timeout = Timeout} = State,
+    {noreply, State2} = on_message(Other, State),
+    {noreply, State2, Timeout}.
 
 on_message({$N, Data}, State) ->
     %% TODO use it
