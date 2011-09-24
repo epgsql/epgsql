@@ -108,6 +108,7 @@ loop(#state{data = Data, handler = Handler} = State, Timeout) ->
     end.
 
 terminate(_Reason, _State) ->
+    %% TODO send termination msg, close socket
     ok.
 
 code_change(_OldVsn, State, _Extra) ->
