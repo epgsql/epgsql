@@ -149,6 +149,11 @@ reply(#state{queue = Q} = State, Message) ->
     Pid ! Message,
     State#state{queue = Q2}.
 
+gen_reply(#state{queue = Q} = State, Message) ->
+    {{value, From}, Q2} = queue:out(Q),
+    gen_server:reply(From, Message),
+    State#state{queue = Q2}.
+
 notify_async(#state{async = Pid}, Msg) ->
     case is_pid(Pid) of
         true  -> Pid ! {pgsql, self(), Msg};
@@ -186,7 +191,7 @@ auth({$R, <<M:?int32, _/binary>>}, State) ->
         _ -> Method = unknown
     end,
     Error = {error, {unsupported_auth_method, Method}},
-    {stop, Error, reply(State, Error)};
+    {stop, Error, gen_reply(State, Error)};
 
 %% ErrorResponse
 auth({error, E}, State) ->
@@ -196,11 +201,11 @@ auth({error, E}, State) ->
         Any         -> Why = Any
     end,
     Error = {error, Why},
-    {stop, Error, reply(State, Error)};
+    {stop, Error, gen_reply(State, Error)};
 
 auth(timeout, State) ->
     Error = {error, timeout},
-    {stop, Error, reply(State, Error)};
+    {stop, Error, gen_reply(State, Error)};
 
 auth(Other, State) ->
     #state{timeout = Timeout} = State,
@@ -215,7 +220,7 @@ initializing({$K, <<Pid:?int32, Key:?int32>>}, State) ->
 
 initializing(timeout, State) ->
     Error = {error, timeout},
-    {stop, Error, reply(State, Error)};
+    {stop, Error, gen_reply(State, Error)};
 
 %% ReadyForQuery
 initializing({$Z, <<Status:8>>}, State) ->
@@ -230,10 +235,10 @@ initializing({$Z, <<Status:8>>}, State) ->
     State2 = State#state{handler = on_message,
                          txstatus = Status,
                          ready = true},
-    {noreply, reply(State2, {ok, self()})};
+    {noreply, gen_reply(State2, {ok, self()})};
 
 initializing({error, _} = Error, State) ->
-    {stop, Error, reply(State, Error)};
+    {stop, Error, gen_reply(State, Error)};
 
 initializing(Other, State) ->
     #state{timeout = Timeout} = State,
