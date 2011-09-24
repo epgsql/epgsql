@@ -45,6 +45,7 @@ decode_fields(<<Type:8, Rest/binary>>, Acc) ->
     decode_fields(Rest2, [{Type, Str} | Acc]).
 
 %% decode ErrorResponse
+%% TODO add fields from http://www.postgresql.org/docs/9.0/interactive/protocol-error-fields.html
 decode_error(Bin) ->
     Fields = decode_fields(Bin),
     Error = #error{
