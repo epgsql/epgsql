@@ -193,7 +193,10 @@ auth({error, E}, State) ->
 
 auth(timeout, State) ->
     Error = {error, timeout},
-    {stop, Error, reply(State, Error)}.
+    {stop, Error, reply(State, Error)};
+
+auth(Other, State) ->
+    on_message(Other, State).
 
 %% BackendKeyData
 initializing({$K, <<Pid:?int32, Key:?int32>>}, State) ->
