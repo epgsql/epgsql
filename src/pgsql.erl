@@ -20,8 +20,8 @@ connect(Host, Username, Opts) ->
     connect(Host, Username, "", Opts).
 
 connect(Host, Username, Password, Opts) ->
-    {ok, C} = pgsql_connection:start_link(),
-    pgsql_connection:connect(C, Host, Username, Password, Opts).
+    {ok, C} = pgsql_sock:start_link(),
+    gen_server:call(C, {connect, Host, Username, Password, Opts}).
 
 close(C) when is_pid(C) ->
     catch pgsql_connection:stop(C),
