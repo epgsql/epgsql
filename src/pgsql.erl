@@ -24,7 +24,7 @@ connect(Host, Username, Password, Opts) ->
     pgsql_sock:connect(C, Host, Username, Password, Opts).
 
 close(C) ->
-    pgsl_sock:close(C).
+    pgsql_sock:close(C).
 
 get_parameter(C, Name) ->
     pgsql_sock:get_parameter(C, Name).
