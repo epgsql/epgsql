@@ -4,7 +4,8 @@
          decode_error/1,
          decode_strings/1,
          encode/1,
-         encode/2]).
+         encode/2,
+         encode_types/1]).
 
 -include("pgsql.hrl").
 -include("pgsql_binary.hrl").
@@ -81,3 +82,112 @@ encode(Data) ->
 encode(Type, Data) ->
     Bin = iolist_to_binary(Data),
     <<Type:8, (byte_size(Bin) + 4):?int32, Bin/binary>>.
+
+%% decode data
+decode_data(Columns, Bin) ->
+    decode_data(Columns, Bin, []).
+
+decode_data([], _Bin, Acc) ->
+    list_to_tuple(lists:reverse(Acc));
+decode_data([_C | T], <<-1:?int32, Rest/binary>>, Acc) ->
+    decode_data(T, Rest, [null | Acc]);
+decode_data([C | T], <<Len:?int32, Value:Len/binary, Rest/binary>>, Acc) ->
+    case C of
+        #column{type = Type, format = 1}   -> Value2 = pgsql_binary:decode(Type, Value);
+        #column{}                          -> Value2 = Value
+    end,
+    decode_data(T, Rest, [Value2 | Acc]).
+
+%% decode column information
+decode_columns(Count, Bin) ->
+    decode_columns(Count, Bin, []).
+
+decode_columns(0, _Bin, Acc) ->
+    lists:reverse(Acc);
+decode_columns(N, Bin, Acc) ->
+    {Name, Rest} = decode_string(Bin),
+    <<_Table_Oid:?int32, _Attrib_Num:?int16, Type_Oid:?int32,
+     Size:?int16, Modifier:?int32, Format:?int16, Rest2/binary>> = Rest,
+    Desc = #column{
+      name     = Name,
+      type     = pgsql_types:oid2type(Type_Oid),
+      size     = Size,
+      modifier = Modifier,
+      format   = Format},
+    decode_columns(N - 1, Rest2, [Desc | Acc]).
+
+%% decode command complete msg
+decode_complete(<<"SELECT", 0>>)        -> select;
+decode_complete(<<"SELECT", _/binary>>) -> select;
+decode_complete(<<"BEGIN", 0>>)         -> 'begin';
+decode_complete(<<"ROLLBACK", 0>>)      -> rollback;
+decode_complete(Bin) ->
+    {Str, _} = decode_string(Bin),
+    case string:tokens(binary_to_list(Str), " ") of
+        ["INSERT", _Oid, Rows] -> {insert, list_to_integer(Rows)};
+        ["UPDATE", Rows]       -> {update, list_to_integer(Rows)};
+        ["DELETE", Rows]       -> {delete, list_to_integer(Rows)};
+        ["MOVE", Rows]         -> {move, list_to_integer(Rows)};
+        ["FETCH", Rows]        -> {fetch, list_to_integer(Rows)};
+        [Type | _Rest]         -> pgsql_sock:lower_atom(Type)
+    end.
+
+%% encode types
+encode_types(Types) ->
+    encode_types(Types, 0, <<>>).
+
+encode_types([], Count, Acc) ->
+    <<Count:?int16, Acc/binary>>;
+
+encode_types([Type | T], Count, Acc) ->
+    case Type of
+        undefined -> Oid = 0;
+        _Any      -> Oid = pgsql_types:type2oid(Type)
+    end,
+    encode_types(T, Count + 1, <<Acc/binary, Oid:?int32>>).
+
+%% encode column formats
+encode_formats(Columns) ->
+    encode_formats(Columns, 0, <<>>).
+
+encode_formats([], Count, Acc) ->
+    <<Count:?int16, Acc/binary>>;
+
+encode_formats([#column{format = Format} | T], Count, Acc) ->
+    encode_formats(T, Count + 1, <<Acc/binary, Format:?int16>>).
+
+format(Type) ->
+    case pgsql_binary:supports(Type) of
+        true  -> 1;
+        false -> 0
+    end.
+
+%% encode parameters
+encode_parameters(Parameters) ->
+    encode_parameters(Parameters, 0, <<>>, <<>>).
+
+encode_parameters([], Count, Formats, Values) ->
+    <<Count:?int16, Formats/binary, Count:?int16, Values/binary>>;
+
+encode_parameters([P | T], Count, Formats, Values) ->
+    {Format, Value} = encode_parameter(P),
+    Formats2 = <<Formats/binary, Format:?int16>>,
+    Values2 = <<Values/binary, Value/binary>>,
+    encode_parameters(T, Count + 1, Formats2, Values2).
+
+%% encode parameter
+
+encode_parameter({Type, Value}) ->
+    case pgsql_binary:encode(Type, Value) of
+        Bin when is_binary(Bin) -> {1, Bin};
+        {error, unsupported}    -> encode_parameter(Value)
+    end;
+encode_parameter(A) when is_atom(A)    -> {0, encode_list(atom_to_list(A))};
+encode_parameter(B) when is_binary(B)  -> {0, <<(byte_size(B)):?int32, B/binary>>};
+encode_parameter(I) when is_integer(I) -> {0, encode_list(integer_to_list(I))};
+encode_parameter(F) when is_float(F)   -> {0, encode_list(float_to_list(F))};
+encode_parameter(L) when is_list(L)    -> {0, encode_list(L)}.
+
+encode_list(L) ->
+    Bin = list_to_binary(L),
+    <<(byte_size(Bin)):?int32, Bin/binary>>.
