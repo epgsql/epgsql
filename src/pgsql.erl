@@ -24,7 +24,7 @@ connect(Host, Username, Password, Opts) ->
     gen_server:call(C, {connect, Host, Username, Password, Opts}).
 
 close(C) when is_pid(C) ->
-    catch pgsql_connection:stop(C),
+    catch gen_server:call(C, stop),
     ok.
 
 get_parameter(C, Name) ->

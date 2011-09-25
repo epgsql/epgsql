@@ -70,7 +70,11 @@ handle_call({connect, Host, Username, Password, Opts},
      State2#state{handler = auth,
                   queue = queue:in(From, Queue),
                   async = Async},
-     Timeout}.
+     Timeout};
+
+handle_call(stop, From, #state{queue = Queue} = State) ->
+    %% TODO flush queue
+    {stop, normal, ok, State}.
 
 handle_cast(cancel, State = #state{backend = {Pid, Key}}) ->
     {ok, {Addr, Port}} = inet:peername(State#state.sock),
