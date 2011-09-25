@@ -33,7 +33,8 @@ decode_string(Bin) ->
 
 %% decode multiple null-terminated string
 decode_strings(Bin) ->
-    binary:split(Bin, <<0>>, [global, trim]).
+    [<<>> | T] = lists:reverse(binary:split(Bin, <<0>>, [global])),
+    lists:reverse(T).
 
 %% decode field
 decode_fields(Bin) ->
