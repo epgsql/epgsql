@@ -193,15 +193,8 @@ send(#state{mod = Mod, sock = Sock}, Data) ->
 send(#state{mod = Mod, sock = Sock}, Type, Data) ->
     Mod:send(Sock, pgsql_wire:encode(Type, Data)).
 
-reply(#state{queue = Q} = State, Message) ->
-    {{value, {Pid, _}}, Q2} = queue:out(Q),
-    Pid ! Message,
-    State#state{queue = Q2}.
-
 gen_reply(#state{queue = Q} = State, Message) ->
-    {{value, From}, Q2} = queue:out(Q),
-    gen_server:reply(From, Message),
-    State#state{queue = Q2}.
+    gen_server:reply(queue:get(Q), Message).
 
 notify_async(#state{async = Pid}, Msg) ->
     case is_pid(Pid) of
