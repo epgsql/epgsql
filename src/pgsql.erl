@@ -21,17 +21,16 @@ connect(Host, Username, Opts) ->
 
 connect(Host, Username, Password, Opts) ->
     {ok, C} = pgsql_sock:start_link(),
-    gen_server:call(C, {connect, Host, Username, Password, Opts}).
+    pgsql_sock:connect(C, Host, Username, Password, Opts).
 
-close(C) when is_pid(C) ->
-    catch gen_server:call(C, stop),
-    ok.
+close(C) ->
+    pgsl_sock:close(C).
 
 get_parameter(C, Name) ->
-    pgsql_connection:get_parameter(C, Name).
+    pgsql_sock:get_parameter(C, Name).
 
 squery(C, Sql) ->
-    ok = pgsql_connection:squery(C, Sql),
+    ok = pgsql_sock:squery(C, Sql),
     case receive_results(C, []) of
         [Result] -> Result;
         Results  -> Results
@@ -41,10 +40,12 @@ equery(C, Sql) ->
     equery(C, Sql, []).
 
 equery(C, Sql, Parameters) ->
-    case pgsql_connection:parse(C, "", Sql, []) of
-        {ok, #statement{types = Types} = S} ->
-            Typed_Parameters = lists:zip(Types, Parameters),
-            ok = pgsql_connection:equery(C, S, Typed_Parameters),
+    case parse(C, Sql) of
+        {ok, S} ->
+            ok = bind(C, S, Parameters),
+            ok = pgsql_sock:execute(C, S, "", 0),
+            ok = close(C, S),
+            ok = sync(C),
             receive_result(C, undefined);
         Error ->
             Error
@@ -59,7 +60,7 @@ parse(C, Sql, Types) ->
     parse(C, "", Sql, Types).
 
 parse(C, Name, Sql, Types) ->
-    pgsql_connection:parse(C, Name, Sql, Types).
+    pgsql_sock:parse(C, Name, Sql, Types).
 
 %% bind
 
@@ -67,7 +68,7 @@ bind(C, Statement, Parameters) ->
     bind(C, Statement, "", Parameters).
 
 bind(C, Statement, PortalName, Parameters) ->
-    pgsql_connection:bind(C, Statement, PortalName, Parameters).
+    pgsql_sock:bind(C, Statement, PortalName, Parameters).
 
 %% execute
 
@@ -78,25 +79,25 @@ execute(C, S, N) ->
     execute(C, S, "", N).
 
 execute(C, S, PortalName, N) ->
-    pgsql_connection:execute(C, S, PortalName, N),
+    pgsql_sock:execute(C, S, PortalName, N),
     receive_extended_result(C).
 
 %% statement/portal functions
 
 describe(C, #statement{name = Name}) ->
-    pgsql_connection:describe(C, statement, Name).
+    pgsql_sock:describe(C, statement, Name).
 
 describe(C, Type, Name) ->
-    pgsql_connection:describe(C, Type, Name).
+    pgsql_sock:describe(C, Type, Name).
 
 close(C, #statement{name = Name}) ->
-    pgsql_connection:close(C, statement, Name).
+    pgsql_sock:close(C, statement, Name).
 
 close(C, Type, Name) ->
-    pgsql_connection:close(C, Type, Name).
+    pgsql_sock:close(C, Type, Name).
 
 sync(C) ->
-    pgsql_connection:sync(C).
+    pgsql_sock:sync(C).
 
 %% misc helper functions
 with_transaction(C, F) ->

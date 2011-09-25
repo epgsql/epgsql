@@ -4,7 +4,18 @@
 
 -behavior(gen_server).
 
--export([start_link/0, cancel/1]).
+-export([start_link/0,
+         connect/5,
+         close/1,
+         get_parameter/2,
+         squery/2,
+         parse/4,
+         bind/4,
+         execute/4,
+         describe/3,
+         sync/1,
+         close/3,
+         cancel/1]).
 
 -export([handle_call/3, handle_cast/2, handle_info/2]).
 -export([init/1, code_change/3, terminate/2]).
@@ -31,6 +42,37 @@
 
 start_link() ->
     gen_server:start_link(?MODULE, [], []).
+
+connect(C, Host, Username, Password, Opts) ->
+    gen_server:call(C, {connect, Host, Username, Password, Opts}, infinity).
+
+close(C) when is_pid(C) ->
+    catch gen_server:call(C, stop, infinity),
+    ok.
+
+get_parameter(C, Name) ->
+    gen_server:call(C, {get_parameter, to_binary(Name)}).
+
+squery(C, Sql) ->
+    gen_server:call(C, {squery, Sql}, infinity).
+
+parse(C, Name, Sql, Types) ->
+    gen_server:call(C, {parse, Name, Sql, Types}, infinity).
+
+bind(C, Statement, PortalName, Parameters) ->
+    gen_server:call(C, {bind, Statement, PortalName, Parameters}, infinity).
+
+execute(C, Statement, PortalName, MaxRows) ->
+    gen_server:call(C, {execute, Statement, PortalName, MaxRows}, infinity).
+
+describe(C, Type, Name) ->
+    gen_server:call(C, {describe, Type, Name}, infinity).
+
+close(C, Type, Name) ->
+    gen_server:call(C, {close, Type, Name}, infinity).
+
+sync(C) ->
+    gen_server:call(C, sync, infinity).
 
 cancel(S) ->
     gen_server:cast(S, cancel).
@@ -271,6 +313,9 @@ on_message({$A, <<Pid:?int32, Strings/binary>>}, State) ->
     %% TODO use it
     notify_async(State, {notification, Channel, Pid, Payload}),
     {noreply, State}.
+
+to_binary(B) when is_binary(B) -> B;
+to_binary(L) when is_list(L)   -> list_to_binary(L).
 
 hex(Bin) ->
     HChar = fun(N) when N < 10 -> $0 + N;
