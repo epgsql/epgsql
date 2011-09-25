@@ -14,7 +14,7 @@
 
 -record(state, {mod,
                 sock,
-                data,
+                data = <<>>,
                 backend,
                 handler,
                 queue = queue:new(),
