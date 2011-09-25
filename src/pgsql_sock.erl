@@ -24,7 +24,7 @@
                 async,
                 ready,
                 timeout,
-                parameters,
+                parameters = [],
                 txstatus}).
 
 %% -- client interface --
