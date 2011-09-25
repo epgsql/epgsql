@@ -23,7 +23,7 @@
                 queue = queue:new(),
                 async,
                 ready,
-                timeout,
+                timeout = 5000,
                 parameters = [],
                 txstatus}).
 
