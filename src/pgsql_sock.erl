@@ -9,6 +9,9 @@
 -export([handle_call/3, handle_cast/2, handle_info/2]).
 -export([init/1, code_change/3, terminate/2]).
 
+%% state callbacks
+-export([auth/2, initializing/2, on_message/2]).
+
 -include("pgsql.hrl").
 -include("pgsql_binary.hrl").
 
