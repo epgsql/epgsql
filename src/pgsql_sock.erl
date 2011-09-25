@@ -116,7 +116,17 @@ handle_call({connect, Host, Username, Password, Opts},
 
 handle_call(stop, From, #state{queue = Queue} = State) ->
     %% TODO flush queue
-    {stop, normal, ok, State}.
+    {stop, normal, ok, State};
+
+handle_call({parse, Name, Sql, Types}, From, State) ->
+    #state{timeout = Timeout, queue = Queue} = State,
+    Bin = pgsql_wire:encode_types(Types),
+    send(State, $P, [Name, 0, Sql, 0, Bin]),
+    send(State, $D, [$S, Name, 0]),
+    send(State, $H, []),
+    S = #statement{name = Name},
+    State2 = State#state{queue = queue:in(From, Queue)},
+    {noreply, State2, Timeout}.
 
 handle_cast(cancel, State = #state{backend = {Pid, Key}}) ->
     {ok, {Addr, Port}} = inet:peername(State#state.sock),
