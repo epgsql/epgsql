@@ -197,8 +197,9 @@ auth({$R, <<M:?int32, _/binary>>}, State) ->
         8 -> Method = sspi;
         _ -> Method = unknown
     end,
-    Error = {error, {unsupported_auth_method, Method}},
-    {stop, Error, gen_reply(State, Error)};
+    {stop,
+     normal,
+     gen_reply(State, {error, {unsupported_auth_method, Method}})};
 
 %% ErrorResponse
 auth({error, E}, State) ->
@@ -207,12 +208,10 @@ auth({error, E}, State) ->
         <<"28P01">> -> Why = invalid_password;
         Any         -> Why = Any
     end,
-    Error = {error, Why},
-    {stop, Error, gen_reply(State, Error)};
+    {stop, normal, gen_reply(State, {error, Why})};
 
 auth(timeout, State) ->
-    Error = {error, timeout},
-    {stop, Error, gen_reply(State, Error)};
+    {stop, normal, gen_reply(State, {error, timeout})};
 
 auth(Other, State) ->
     #state{timeout = Timeout} = State,
@@ -226,8 +225,7 @@ initializing({$K, <<Pid:?int32, Key:?int32>>}, State) ->
     {noreply, State2, Timeout};
 
 initializing(timeout, State) ->
-    Error = {error, timeout},
-    {stop, Error, gen_reply(State, Error)};
+    {stop, normal, gen_reply(State, {error, timeout})};
 
 %% ReadyForQuery
 initializing({$Z, <<Status:8>>}, State) ->
@@ -245,7 +243,7 @@ initializing({$Z, <<Status:8>>}, State) ->
     {noreply, gen_reply(State2, {ok, self()})};
 
 initializing({error, _} = Error, State) ->
-    {stop, Error, gen_reply(State, Error)};
+    {stop, normal, gen_reply(State, Error)};
 
 initializing(Other, State) ->
     #state{timeout = Timeout} = State,
