@@ -3,9 +3,11 @@
 -export([decode_message/1,
          decode_error/1,
          decode_strings/1,
+         decode_columns/2,
          encode/1,
          encode/2,
-         encode_types/1]).
+         encode_types/1,
+         format/1]).
 
 -include("pgsql.hrl").
 -include("pgsql_binary.hrl").

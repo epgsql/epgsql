@@ -130,7 +130,6 @@ handle_cast(Req = {{_, _}, {parse, Name, Sql, Types}}, State) ->
     send(State, $P, [Name, 0, Sql, 0, Bin]),
     send(State, $D, [$S, Name, 0]),
     send(State, $H, []),
-    S = #statement{name = Name},
     {noreply, State#state{queue = queue:in(Req, Queue)}};
 
 handle_cast(cancel, State = #state{backend = {Pid, Key}}) ->
@@ -290,6 +289,36 @@ initializing({error, _} = Error, State) ->
 
 initializing(Other, State) ->
     on_message(Other, State).
+
+%% ParseComplete
+on_message({$1, <<>>}, State) ->
+    {noreply, State};
+
+%% ParameterDescription
+on_message({$t, <<_Count:?int16, Bin/binary>>}, State) ->
+    Types = [pgsql_types:oid2type(Oid) || <<Oid:?int32>> <= Bin],
+    notify(State, {types, Types}),
+    {noreply, State};
+
+%% RowDescription
+on_message({$T, <<Count:?int16, Bin/binary>>}, State) ->
+    #state{queue = Q} = State,
+    Columns = pgsql_wire:decode_columns(Count, Bin),
+    Columns2 = [C#column{format = pgsql_wire:format(C#column.type)} || C <- Columns],
+    notify(State, {columns, Columns2}),
+    {noreply, State#state{queue = queue:drop(Q)}};
+
+%% NoData
+on_message({$n, <<>>}, State) ->
+    #state{queue = Q} = State,
+    notify(State, no_data),
+    {noreply, State#state{queue = queue:drop(Q)}};
+
+on_message(Error = {error, _}, State) ->
+    #state{queue = Q} = State,
+    notify(State, Error),
+    %% TODO wrong for squery at least
+    {noreply, State#state{queue = queue:drop(Q)}};
 
 %% NoticeResponse
 on_message({$N, Data}, State) ->
