@@ -107,7 +107,7 @@ decode_columns(Count, Bin) ->
 decode_columns(0, _Bin, Acc) ->
     lists:reverse(Acc);
 decode_columns(N, Bin, Acc) ->
-    {Name, Rest} = decode_string(Bin),
+    [Name, Rest] = decode_string(Bin),
     <<_Table_Oid:?int32, _Attrib_Num:?int16, Type_Oid:?int32,
      Size:?int16, Modifier:?int32, Format:?int16, Rest2/binary>> = Rest,
     Desc = #column{
@@ -124,7 +124,7 @@ decode_complete(<<"SELECT", _/binary>>) -> select;
 decode_complete(<<"BEGIN", 0>>)         -> 'begin';
 decode_complete(<<"ROLLBACK", 0>>)      -> rollback;
 decode_complete(Bin) ->
-    {Str, _} = decode_string(Bin),
+    [Str, _] = decode_string(Bin),
     case string:tokens(binary_to_list(Str), " ") of
         ["INSERT", _Oid, Rows] -> {insert, list_to_integer(Rows)};
         ["UPDATE", Rows]       -> {update, list_to_integer(Rows)};
