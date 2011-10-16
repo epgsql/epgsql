@@ -195,7 +195,7 @@ receive_describe(C, Ref, Statement = #statement{}) ->
         {Ref, {types, Types}} ->
             receive_describe(C, Ref, Statement#statement{types = Types});
         {Ref, {columns, Columns}} ->
-            Statement#statement{columns = Columns};
+            {ok, Statement#statement{columns = Columns}};
         {Ref, no_data} ->
             Statement#statement{columns = []};
         {Ref, Error = {error, _}} ->
