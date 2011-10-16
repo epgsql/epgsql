@@ -21,7 +21,15 @@ connect(Host, Username, Opts) ->
 
 connect(Host, Username, Password, Opts) ->
     {ok, C} = pgsql_sock:start_link(),
-    pgsql_sock:connect(C, Host, Username, Password, Opts).
+    Ref = pgsql_sock:connect(C, Host, Username, Password, Opts),
+    receive
+        {Ref, connected} ->
+            {ok, C};
+        {Ref, Error = {error, _}} ->
+            Error;
+        {'EXIT', C, _Reason} ->
+            {error, closed}
+    end.
 
 close(C) ->
     pgsql_sock:close(C).

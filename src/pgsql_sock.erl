@@ -279,7 +279,7 @@ initializing({$Z, <<Status:8>>}, State) ->
         {value, {_, <<"on">>}}  -> put(datetime_mod, pgsql_idatetime);
         {value, {_, <<"off">>}} -> put(datetime_mod, pgsql_fdatetime)
     end,
-    notify(State, done),
+    notify(State, connected),
     {noreply, State#state{handler = on_message,
                          txstatus = Status,
                          queue = queue:drop(Queue)}};
