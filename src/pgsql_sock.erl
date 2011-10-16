@@ -212,7 +212,7 @@ send(#state{mod = Mod, sock = Sock}, Type, Data) ->
     Mod:send(Sock, pgsql_wire:encode(Type, Data)).
 
 notify(#state{queue = Q} = State, Message) ->
-    {_, From, Ref} = queue:get(Q),
+    {{From, Ref}, _} = queue:get(Q),
     From ! {Ref, Message}.
 
 notify_async(#state{async = Pid}, Msg) ->
