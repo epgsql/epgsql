@@ -84,7 +84,7 @@ cancel(S) ->
 init([]) ->
     {ok, #state{}}.
 
-handle_call({get_parameter, Name}, From, State) ->
+handle_call({get_parameter, Name}, _From, State) ->
     case lists:keysearch(Name, 1, State#state.parameters) of
         {value, {Name, Value}} -> Value;
         false                  -> Value = undefined
@@ -211,7 +211,7 @@ send(#state{mod = Mod, sock = Sock}, Data) ->
 send(#state{mod = Mod, sock = Sock}, Type, Data) ->
     Mod:send(Sock, pgsql_wire:encode(Type, Data)).
 
-notify(#state{queue = Q} = State, Message) ->
+notify(#state{queue = Q}, Message) ->
     {{From, Ref}, _} = queue:get(Q),
     From ! {Ref, Message}.
 
@@ -279,7 +279,7 @@ initializing({$Z, <<Status:8>>}, State) ->
         {value, {_, <<"on">>}}  -> put(datetime_mod, pgsql_idatetime);
         {value, {_, <<"off">>}} -> put(datetime_mod, pgsql_fdatetime)
     end,
-    notify(State, ok),
+    notify(State, done),
     {noreply, State#state{handler = on_message,
                          txstatus = Status,
                          queue = queue:drop(Queue)}};
