@@ -92,7 +92,7 @@ handle_call({get_parameter, Name}, _From, State) ->
     {reply, {ok, Value}, State}.
 
 handle_cast(Req = {{_, _}, {connect, Host, Username, Password, Opts}},
-            #state{queue = Queue} = State) ->
+            #state{queue = Q} = State) ->
     Timeout = proplists:get_value(timeout, Opts, 5000),
     Port = proplists:get_value(port, Opts, 5432),
     SockOpts = [{active, false}, {packet, raw}, binary, {nodelay, true}],
@@ -117,23 +117,23 @@ handle_cast(Req = {{_, _}, {connect, Host, Username, Password, Opts}},
     put(password, Password),
     {noreply,
      State2#state{handler = auth,
-                  queue = queue:in(Req, Queue),
+                  queue = queue:in(Req, Q),
                   async = Async}};
 
-handle_cast(stop, #state{queue = Queue} = State) ->
+handle_cast(stop, #state{queue = Q} = State) ->
     %% TODO flush queue
     {stop, normal, State};
 
 handle_cast(Req = {{_, _}, {parse, Name, Sql, Types}}, State) ->
-    #state{queue = Queue} = State,
+    #state{queue = Q} = State,
     Bin = pgsql_wire:encode_types(Types),
     send(State, $P, [Name, 0, Sql, 0, Bin]),
     send(State, $D, [$S, Name, 0]),
     send(State, $H, []),
-    {noreply, State#state{queue = queue:in(Req, Queue)}};
+    {noreply, State#state{queue = queue:in(Req, Q)}};
 
 handle_cast(Req = {{_,_}, {equery, Statement, Parameters}}, State) ->
-    #state{queue = Queue} = State,
+    #state{queue = Q} = State,
     #statement{name = StatementName, columns = Columns} = Statement,
     Bin1 = pgsql_wire:encode_parameters(Parameters),
     Bin2 = pgsql_wire:encode_formats(Columns),
@@ -141,7 +141,7 @@ handle_cast(Req = {{_,_}, {equery, Statement, Parameters}}, State) ->
     send(State, $E, ["", 0, <<0:?int32>>]),
     send(State, $C, [$S, "", 0]),
     send(State, $S, []),
-    {noreply, State#state{queue = queue:in(Req, Queue)}};
+    {noreply, State#state{queue = queue:in(Req, Q)}};
 
 handle_cast(cancel, State = #state{backend = {Pid, Key}}) ->
     {ok, {Addr, Port}} = inet:peername(State#state.sock),
@@ -281,7 +281,7 @@ initializing({$K, <<Pid:?int32, Key:?int32>>}, State) ->
 
 %% ReadyForQuery
 initializing({$Z, <<Status:8>>}, State) ->
-    #state{parameters = Parameters, queue = Queue} = State,
+    #state{parameters = Parameters, queue = Q} = State,
     erase(username),
     erase(password),
     %% TODO decode dates to now() format
@@ -292,7 +292,7 @@ initializing({$Z, <<Status:8>>}, State) ->
     notify(State, connected),
     {noreply, State#state{handler = on_message,
                          txstatus = Status,
-                         queue = queue:drop(Queue)}};
+                         queue = queue:drop(Q)}};
 
 initializing({error, _} = Error, State) ->
     notify(State, Error), 
