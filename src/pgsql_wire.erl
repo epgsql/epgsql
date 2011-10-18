@@ -6,6 +6,8 @@
          decode_columns/2,
          encode/1,
          encode/2,
+         decode_data/2,
+         decode_complete/1,
          encode_types/1,
          encode_formats/1,
          format/1,

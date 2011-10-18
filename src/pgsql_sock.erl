@@ -325,6 +325,35 @@ on_message({$n, <<>>}, State) ->
     notify(State, no_data),
     {noreply, State#state{queue = queue:drop(Q)}};
 
+%% BindComplete
+on_message({$2, <<>>}, State) ->
+    {noreply, State};
+
+%% CloseComplete
+on_message({$3, <<>>}, State) ->
+    {noreply, State};
+
+%% DataRow
+on_message({$D, <<_Count:?int16, Bin/binary>>}, State) ->
+    #state{queue = Q} = State,
+    %% TODO wrong for squery
+    {_, {equery, #statement{columns = Columns}, _}} = queue:get(Q),
+    Data = pgsql_wire:decode_data(Columns, Bin),
+    notify(State, {data, Data}),
+    {noreply, State};
+
+%% CommandComplete
+on_message({$C, Bin}, State) ->
+    Complete = pgsql_wire:decode_complete(Bin),
+    notify(State, {complete, Complete}),
+    {noreply, State};
+
+%% ReadyForQuery
+on_message({$Z, <<_Status:8>>}, State) ->
+    #state{queue = Q} = State,
+    notify(State, done),
+    {noreply, State#state{queue = queue:drop(Q)}};
+
 on_message(Error = {error, _}, State) ->
     #state{queue = Q} = State,
     notify(State, Error),
