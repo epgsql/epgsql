@@ -128,7 +128,7 @@ handle_cast(Req = {{_, _}, {parse, Name, Sql, Types}}, State) ->
     #state{queue = Q} = State,
     Bin = pgsql_wire:encode_types(Types),
     send(State, $P, [Name, 0, Sql, 0, Bin]),
-    send(State, $D, [$S, Name, 0]),
+    send(State, $D, [$S, Name, 0]), % TODO remove it
     send(State, $H, []),
     {noreply, State#state{queue = queue:in(Req, Q)}};
 
@@ -136,8 +136,10 @@ handle_cast(Req = {{_,_}, {equery, Statement, Parameters}}, State) ->
     #state{queue = Q} = State,
     #statement{name = StatementName, columns = Columns} = Statement,
     Bin1 = pgsql_wire:encode_parameters(Parameters),
+    %% TODO do we really need Columns here?
     Bin2 = pgsql_wire:encode_formats(Columns),
     send(State, $B, ["", 0, StatementName, 0, Bin1, Bin2]),
+    %% TODO send Describe there
     send(State, $E, ["", 0, <<0:?int32>>]),
     send(State, $C, [$S, "", 0]),
     send(State, $S, []),
@@ -317,6 +319,7 @@ on_message({$T, <<Count:?int16, Bin/binary>>}, State) ->
     Columns = pgsql_wire:decode_columns(Count, Bin),
     Columns2 = [C#column{format = pgsql_wire:format(C#column.type)} || C <- Columns],
     notify(State, {columns, Columns2}),
+    %% TODO wrong for squery
     {noreply, State#state{queue = queue:drop(Q)}};
 
 %% NoData
