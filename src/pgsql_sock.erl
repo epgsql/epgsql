@@ -132,6 +132,17 @@ handle_cast(Req = {{_, _}, {parse, Name, Sql, Types}}, State) ->
     send(State, $H, []),
     {noreply, State#state{queue = queue:in(Req, Queue)}};
 
+handle_cast(Req = {{_,_}, {equery, Statement, Parameters}}, State) ->
+    #state{queue = Queue} = State,
+    #statement{name = StatementName, columns = Columns} = Statement,
+    Bin1 = pgsql_wire:encode_parameters(Parameters),
+    Bin2 = pgsql_wire:encode_formats(Columns),
+    send(State, $B, ["", 0, StatementName, 0, Bin1, Bin2]),
+    send(State, $E, ["", 0, <<0:?int32>>]),
+    send(State, $C, [$S, "", 0]),
+    send(State, $S, []),
+    {noreply, State#state{queue = queue:in(Req, Queue)}};
+
 handle_cast(cancel, State = #state{backend = {Pid, Key}}) ->
     {ok, {Addr, Port}} = inet:peername(State#state.sock),
     SockOpts = [{active, false}, {packet, raw}, binary],

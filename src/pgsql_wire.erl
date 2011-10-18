@@ -7,7 +7,9 @@
          encode/1,
          encode/2,
          encode_types/1,
-         format/1]).
+         encode_formats/1,
+         format/1,
+         encode_parameters/1]).
 
 -include("pgsql.hrl").
 -include("pgsql_binary.hrl").
