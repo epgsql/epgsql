@@ -135,7 +135,7 @@ decode_complete(Bin) ->
         ["DELETE", Rows]       -> {delete, list_to_integer(Rows)};
         ["MOVE", Rows]         -> {move, list_to_integer(Rows)};
         ["FETCH", Rows]        -> {fetch, list_to_integer(Rows)};
-        [Type | _Rest]         -> pgsql_sock:lower_atom(Type)
+        [Type | _Rest]         -> lower_atom(Type)
     end.
 
 %% encode types

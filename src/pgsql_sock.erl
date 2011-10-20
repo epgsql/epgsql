@@ -35,6 +35,7 @@
                 queue = queue:new(),
                 async,
                 parameters = [],
+                columns,
                 txstatus}).
 
 %% -- client interface --
@@ -130,6 +131,11 @@ handle_cast(Req = {{_, _}, {parse, Name, Sql, Types}}, State) ->
     send(State, $P, [Name, 0, Sql, 0, Bin]),
     send(State, $D, [$S, Name, 0]), % TODO remove it
     send(State, $H, []),
+    {noreply, State#state{queue = queue:in(Req, Q)}};
+
+handle_cast(Req = {{_, _}, {squery, Sql}}, State) ->
+    #state{queue = Q} = State,
+    send(State, $Q, [Sql, 0]),
     {noreply, State#state{queue = queue:in(Req, Q)}};
 
 handle_cast(Req = {{_,_}, {equery, Statement, Parameters}}, State) ->
@@ -319,8 +325,14 @@ on_message({$T, <<Count:?int16, Bin/binary>>}, State) ->
     Columns = pgsql_wire:decode_columns(Count, Bin),
     Columns2 = [C#column{format = pgsql_wire:format(C#column.type)} || C <- Columns],
     notify(State, {columns, Columns2}),
-    %% TODO wrong for squery
-    {noreply, State#state{queue = queue:drop(Q)}};
+    {_, Req} = queue:get(Q),
+    State2 = case element(1, Req) of
+                 C when C == squery ->
+                     State#state{columns = Columns2};
+                 C when C == parse ->
+                     State#state{queue = queue:drop(Q)}
+             end,
+    {noreply, State2};
 
 %% NoData
 on_message({$n, <<>>}, State) ->
@@ -339,8 +351,13 @@ on_message({$3, <<>>}, State) ->
 %% DataRow
 on_message({$D, <<_Count:?int16, Bin/binary>>}, State) ->
     #state{queue = Q} = State,
-    %% TODO wrong for squery
-    {_, {equery, #statement{columns = Columns}, _}} = queue:get(Q),
+    Columns = case queue:get(Q) of
+                  %% TODO use colums from State
+                  {_, {equery, #statement{columns = C}, _}} ->
+                      C;
+                  {_, {squery, _}} ->
+                      State#state.columns
+              end,
     Data = pgsql_wire:decode_data(Columns, Bin),
     notify(State, {data, Data}),
     {noreply, State};
@@ -349,6 +366,11 @@ on_message({$D, <<_Count:?int16, Bin/binary>>}, State) ->
 on_message({$C, Bin}, State) ->
     Complete = pgsql_wire:decode_complete(Bin),
     notify(State, {complete, Complete}),
+    {noreply, State};
+
+%% EmptyQueryResponse
+on_message({$I, _Bin}, State) ->
+    notify(State, {complete, empty}),
     {noreply, State};
 
 %% ReadyForQuery
