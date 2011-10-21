@@ -239,6 +239,10 @@ notify_async(#state{async = Pid}, Msg) ->
         false -> false
     end.
 
+request_tag(#state{queue = Q} = State) ->
+    {_, Req} = queue:get(Q),
+    element(1, Req).
+
 %% -- backend message handling --
 
 %% AuthenticationOk
@@ -325,8 +329,7 @@ on_message({$T, <<Count:?int16, Bin/binary>>}, State) ->
     Columns = pgsql_wire:decode_columns(Count, Bin),
     Columns2 = [C#column{format = pgsql_wire:format(C#column.type)} || C <- Columns],
     notify(State, {columns, Columns2}),
-    {_, Req} = queue:get(Q),
-    State2 = case element(1, Req) of
+    State2 = case request_tag(State) of
                  C when C == squery ->
                      State#state{columns = Columns2};
                  C when C == parse ->
@@ -382,8 +385,13 @@ on_message({$Z, <<_Status:8>>}, State) ->
 on_message(Error = {error, _}, State) ->
     #state{queue = Q} = State,
     notify(State, Error),
-    %% TODO wrong for squery at least
-    {noreply, State#state{queue = queue:drop(Q)}};
+    State2 = case request_tag(State) of
+                 C when C == squery; C == equery ->
+                     State;
+                 _ ->
+                     State#state{queue = queue:drop(Q)}
+             end,
+    {noreply, State2};
 
 %% NoticeResponse
 on_message({$N, Data}, State) ->
