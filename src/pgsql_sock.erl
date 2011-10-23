@@ -136,14 +136,15 @@ handle_cast(Req = {_, {squery, Sql}}, State) ->
     send(State, $Q, [Sql, 0]),
     {noreply, State#state{queue = queue:in(Req, Q)}};
 
+%% TODO add fast_equery command that doesn't need parsed statement,
+%% uses default (text) column format,
+%% sends Describe after Bind to get RowDescription
 handle_cast(Req = {_, {equery, Statement, Parameters}}, State) ->
     #state{queue = Q} = State,
     #statement{name = StatementName, columns = Columns} = Statement,
     Bin1 = pgsql_wire:encode_parameters(Parameters),
-    %% TODO do we really need Columns here?
     Bin2 = pgsql_wire:encode_formats(Columns),
     send(State, $B, ["", 0, StatementName, 0, Bin1, Bin2]),
-    %% TODO send Describe there
     send(State, $E, ["", 0, <<0:?int32>>]),
     send(State, $C, [$S, "", 0]),
     send(State, $S, []),

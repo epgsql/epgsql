@@ -48,8 +48,8 @@ squery(C, Sql) ->
 equery(C, Sql) ->
     equery(C, Sql, []).
 
+%% TODO add fast_equery command that doesn't need parsed statement
 equery(C, Sql, Parameters) ->
-    %% TODO don't require reply from 'describe'
     case parse(C, Sql) of
         {ok, #statement{types = Types} = S} ->
             Typed_Parameters = lists:zip(Types, Parameters),
