@@ -214,7 +214,7 @@ receive_describe(C, Ref, Statement = #statement{}) ->
         {Ref, {columns, Columns}} ->
             {ok, Statement#statement{columns = Columns}};
         {Ref, no_data} ->
-            Statement#statement{columns = []};
+            {ok, Statement#statement{columns = []}};
         {Ref, Error = {error, _}} ->
             Error;
         {'EXIT', C, _Reason} ->
