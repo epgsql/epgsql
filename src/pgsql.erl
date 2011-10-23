@@ -184,8 +184,6 @@ receive_extended_result(C, Ref, Rows) ->
             end;
         {Ref, {complete, _Type}} ->
             {ok, lists:reverse(Rows)};
-        {Ref, timeout} ->
-            {error, timeout};
         {'EXIT', C, _Reason} ->
             {error, closed}
     end.
