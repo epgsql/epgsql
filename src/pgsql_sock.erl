@@ -428,9 +428,16 @@ on_message({$D, <<_Count:?int16, Bin/binary>>}, State) ->
 
 %% CommandComplete
 on_message({$C, Bin}, State) ->
+    #state{queue = Q} = State,
     Complete = pgsql_wire:decode_complete(Bin),
     notify(State, {complete, Complete}),
-    {noreply, State};
+    State2 = case request_tag(State) of
+                 C when C == execute ->
+                     State#state{queue = queue:drop(Q)};
+                 _ ->
+                     State
+             end,
+    {noreply, State2};
 
 %% EmptyQueryResponse
 on_message({$I, _Bin}, State) ->
