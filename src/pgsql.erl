@@ -70,7 +70,7 @@ parse(C, Sql, Types) ->
 parse(C, Name, Sql, Types) ->
     Ref = pgsql_sock:parse(C, Name, Sql, Types),
     case receive_describe(C, Ref, #statement{name = Name}) of
-        Res = {ok, S} ->
+        Res = {ok, _} ->
             Res;
         Error ->
             Ref2 = pgsql_sock:sync(C),
@@ -85,7 +85,14 @@ bind(C, Statement, Parameters) ->
 
 bind(C, Statement, PortalName, Parameters) ->
     Ref = pgsql_sock:bind(C, Statement, PortalName, Parameters),
-    receive_atom(C, Ref, ok, ok).
+    case receive_atom(C, Ref, ok, ok) of
+        ok ->
+            ok;
+        Error ->
+            Ref2 = pgsql_sock:sync(C),
+            receive_atom(C, Ref2, done, ok),
+            Error
+    end.
 
 %% execute
 
