@@ -345,6 +345,14 @@ on_message({$n, <<>>}, State) ->
 
 %% BindComplete
 on_message({$2, <<>>}, State) ->
+    #state{queue = Q} = State,
+    %% TODO remove this workaround, send Describe on handle_cast(equery)
+    case queue:get(Q) of
+        {_, {equery, #statement{columns = C}, _}} ->
+            notify(State, {columns, C});
+        _ ->
+            ok
+    end,
     {noreply, State};
 
 %% CloseComplete
