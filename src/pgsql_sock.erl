@@ -156,7 +156,7 @@ handle_cast(Req = {_, {bind, Statement, PortalName, Parameters}}, State) ->
     #statement{name = StatementName, columns = Columns, types = Types} = Statement,
     Typed_Parameters = lists:zip(Types, Parameters),
     Bin1 = pgsql_wire:encode_parameters(Typed_Parameters),
-    Bin2 = pgqsl_wire:encode_formats(Columns),
+    Bin2 = pgsql_wire:encode_formats(Columns),
     send(State, $B, [PortalName, 0, StatementName, 0, Bin1, Bin2]),
     send(State, $H, []),
     {noreply, State#state{queue = queue:in(Req, Q)}};
