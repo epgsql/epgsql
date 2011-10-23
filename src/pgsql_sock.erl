@@ -379,7 +379,7 @@ on_message({$T, <<Count:?int16, Bin/binary>>}, State) ->
     State2 = case request_tag(State) of
                  C when C == squery ->
                      State#state{columns = Columns2};
-                 C when C == parse ->
+                 C when C == parse; C == describe ->
                      State#state{queue = queue:drop(Q)}
              end,
     {noreply, State2};
