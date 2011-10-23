@@ -56,8 +56,6 @@ equery(C, Sql, Parameters) ->
             Ref = pgsql_sock:equery(C, S, Typed_Parameters),
             receive_result(C, Ref, undefined);
         Error ->
-            Ref = pgsql_sock:sync(C),
-            receive_atom(C, Ref, done, ok),
             Error
     end.
 
@@ -71,7 +69,14 @@ parse(C, Sql, Types) ->
 
 parse(C, Name, Sql, Types) ->
     Ref = pgsql_sock:parse(C, Name, Sql, Types),
-    receive_describe(C, Ref, #statement{name = Name}).
+    case receive_describe(C, Ref, #statement{name = Name}) of
+        Res = {ok, S} ->
+            Res;
+        Error ->
+            Ref2 = pgsql_sock:sync(C),
+            receive_atom(C, Ref2, done, ok),
+            Error
+    end.
 
 %% bind
 
