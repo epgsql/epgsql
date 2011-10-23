@@ -109,10 +109,11 @@ describe(C, Type, Name) ->
     pgsql_sock:describe(C, Type, Name).
 
 close(C, #statement{name = Name}) ->
-    pgsql_sock:close(C, statement, Name).
+    close(C, statement, Name).
 
 close(C, Type, Name) ->
-    pgsql_sock:close(C, Type, Name).
+    Ref = pgsql_sock:close(C, Type, Name),
+    receive_atom(C, Ref, ok, ok).
 
 sync(C) ->
     Ref = pgsql_sock:sync(C),

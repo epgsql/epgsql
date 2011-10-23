@@ -398,7 +398,15 @@ on_message({$2, <<>>}, State) ->
 
 %% CloseComplete
 on_message({$3, <<>>}, State) ->
-    {noreply, State};
+    #state{queue = Q} = State,
+    State2 = case request_tag(State) of
+                 C when C == close ->
+                     notify(State, ok),
+                     State#state{queue = queue:drop(Q)};
+                 _ ->
+                     State
+             end,
+    {noreply, State2};
 
 %% DataRow
 on_message({$D, <<_Count:?int16, Bin/binary>>}, State) ->
