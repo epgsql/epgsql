@@ -125,14 +125,6 @@ handle_cast(stop, #state{queue = Q} = State) ->
     %% TODO flush queue
     {stop, normal, State};
 
-handle_cast(Req = {{_, _}, {parse, Name, Sql, Types}}, State) ->
-    #state{queue = Q} = State,
-    Bin = pgsql_wire:encode_types(Types),
-    send(State, $P, [Name, 0, Sql, 0, Bin]),
-    send(State, $D, [$S, Name, 0]), % TODO remove it
-    send(State, $H, []),
-    {noreply, State#state{queue = queue:in(Req, Q)}};
-
 handle_cast(Req = {{_, _}, {squery, Sql}}, State) ->
     #state{queue = Q} = State,
     send(State, $Q, [Sql, 0]),
@@ -149,6 +141,14 @@ handle_cast(Req = {{_,_}, {equery, Statement, Parameters}}, State) ->
     send(State, $E, ["", 0, <<0:?int32>>]),
     send(State, $C, [$S, "", 0]),
     send(State, $S, []),
+    {noreply, State#state{queue = queue:in(Req, Q)}};
+
+handle_cast(Req = {{_, _}, {parse, Name, Sql, Types}}, State) ->
+    #state{queue = Q} = State,
+    Bin = pgsql_wire:encode_types(Types),
+    send(State, $P, [Name, 0, Sql, 0, Bin]),
+    send(State, $D, [$S, Name, 0]), % TODO remove it
+    send(State, $H, []),
     {noreply, State#state{queue = queue:in(Req, Q)}};
 
 handle_cast(cancel, State = #state{backend = {Pid, Key}}) ->
