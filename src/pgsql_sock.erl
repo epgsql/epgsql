@@ -375,11 +375,11 @@ on_message({$t, <<_Count:?int16, Bin/binary>>}, State) ->
 on_message({$T, <<Count:?int16, Bin/binary>>}, State) ->
     #state{queue = Q} = State,
     Columns = pgsql_wire:decode_columns(Count, Bin),
-    Columns2 = [C#column{format = pgsql_wire:format(C#column.type)} || C <- Columns],
-    notify(State, {columns, Columns2}),
+    notify(State, {columns, Columns}),
     State2 = case request_tag(State) of
                  C when C == squery ->
-                     State#state{columns = Columns2};
+                     %% TODO drop them on completion
+                     State#state{columns = Columns};
                  C when C == parse; C == describe ->
                      State#state{queue = queue:drop(Q)}
              end,

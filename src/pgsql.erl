@@ -197,7 +197,8 @@ receive_describe(C, Ref, Statement = #statement{}) ->
         {Ref, {types, Types}} ->
             receive_describe(C, Ref, Statement#statement{types = Types});
         {Ref, {columns, Columns}} ->
-            {ok, Statement#statement{columns = Columns}};
+            Columns2 = [Col#column{format = pgsql_wire:format(Col#column.type)} || Col <- Columns],
+            {ok, Statement#statement{columns = Columns2}};
         {Ref, no_data} ->
             {ok, Statement#statement{columns = []}};
         {Ref, Error = {error, _}} ->
