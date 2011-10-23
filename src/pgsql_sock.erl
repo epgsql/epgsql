@@ -125,12 +125,12 @@ handle_cast(stop, #state{queue = Q} = State) ->
     %% TODO flush queue
     {stop, normal, State};
 
-handle_cast(Req = {{_, _}, {squery, Sql}}, State) ->
+handle_cast(Req = {_, {squery, Sql}}, State) ->
     #state{queue = Q} = State,
     send(State, $Q, [Sql, 0]),
     {noreply, State#state{queue = queue:in(Req, Q)}};
 
-handle_cast(Req = {{_,_}, {equery, Statement, Parameters}}, State) ->
+handle_cast(Req = {_, {equery, Statement, Parameters}}, State) ->
     #state{queue = Q} = State,
     #statement{name = StatementName, columns = Columns} = Statement,
     Bin1 = pgsql_wire:encode_parameters(Parameters),
@@ -143,12 +143,53 @@ handle_cast(Req = {{_,_}, {equery, Statement, Parameters}}, State) ->
     send(State, $S, []),
     {noreply, State#state{queue = queue:in(Req, Q)}};
 
-handle_cast(Req = {{_, _}, {parse, Name, Sql, Types}}, State) ->
+handle_cast(Req = {_, {parse, Name, Sql, Types}}, State) ->
     #state{queue = Q} = State,
     Bin = pgsql_wire:encode_types(Types),
     send(State, $P, [Name, 0, Sql, 0, Bin]),
     send(State, $D, [$S, Name, 0]), % TODO remove it
     send(State, $H, []),
+    {noreply, State#state{queue = queue:in(Req, Q)}};
+
+handle_cast(Req = {_, {bind, Statement, PortalName, Parameters}}, State) ->
+    #state{queue = Q} = State,
+    #statement{name = StatementName, columns = Columns, types = Types} = Statement,
+    Typed_Parameters = lists:zip(Types, Parameters),
+    Bin1 = pgsql_wire:encode_parameters(Typed_Parameters),
+    Bin2 = pgqsl_wire:encode_formats(Columns),
+    send(State, $B, [PortalName, 0, StatementName, 0, Bin1, Bin2]),
+    send(State, $H, []),
+    {noreply, State#state{queue = queue:in(Req, Q)}};
+
+handle_cast(Req = {_, {execute, _, PortalName, MaxRows}}, State) ->
+    #state{queue = Q} = State,
+    send(State, $E, [PortalName, 0, <<MaxRows:?int32>>]),
+    send(State, $H, []),
+    {noreply, State#state{queue = queue:in(Req, Q)}};
+
+handle_cast(Req = {_, {describe, Type, Name}}, State) ->
+    #state{queue = Q} = State,
+    case Type of
+        statement -> Type2 = $S;
+        portal    -> Type2 = $P
+    end,
+    send(State, $D, [Type2, Name, 0]),
+    send(State, $H, []),
+    {noreply, State#state{queue = queue:in(Req, Q)}};
+
+handle_cast(Req = {_, {close, Type, Name}}, State) ->
+    #state{queue = Q} = State,
+    case Type of
+        statement -> Type2 = $S;
+        portal    -> Type2 = $P
+    end,
+    send(State, $C, [Type2, Name, 0]),
+    send(State, $H, []),
+    {noreply, State#state{queue = queue:in(Req, Q)}};
+
+handle_cast(Req = {_, sync}, State) ->
+    #state{queue = Q} = State,
+    send(State, $S, []),
     {noreply, State#state{queue = queue:in(Req, Q)}};
 
 handle_cast(cancel, State = #state{backend = {Pid, Key}}) ->
@@ -239,7 +280,7 @@ notify_async(#state{async = Pid}, Msg) ->
         false -> false
     end.
 
-request_tag(#state{queue = Q} = State) ->
+request_tag(#state{queue = Q}) ->
     {_, Req} = queue:get(Q),
     element(1, Req).
 

@@ -77,7 +77,8 @@ bind(C, Statement, Parameters) ->
     bind(C, Statement, "", Parameters).
 
 bind(C, Statement, PortalName, Parameters) ->
-    pgsql_sock:bind(C, Statement, PortalName, Parameters).
+    Ref = pgsql_sock:bind(C, Statement, PortalName, Parameters),
+    receive_atom(C, Ref, ok, ok).
 
 %% execute
 
@@ -102,6 +103,7 @@ describe(C, statement, Name) ->
     receive_describe(C, Ref, #statement{name = Name});
 
 describe(C, Type, Name) ->
+    %% TODO unknown result format of Describe portal
     pgsql_sock:describe(C, Type, Name).
 
 close(C, #statement{name = Name}) ->
@@ -111,7 +113,8 @@ close(C, Type, Name) ->
     pgsql_sock:close(C, Type, Name).
 
 sync(C) ->
-    pgsql_sock:sync(C).
+    Ref = pgsql_sock:sync(C),
+    receive_atom(C, Ref, done, ok).
 
 %% misc helper functions
 with_transaction(C, F) ->
@@ -122,6 +125,7 @@ with_transaction(C, F) ->
     catch
         _:Why ->
             squery(C, "ROLLBACK"),
+            %% TODO hides error stacktrace
             {rollback, Why}
     end.
 
@@ -196,6 +200,16 @@ receive_describe(C, Ref, Statement = #statement{}) ->
             {ok, Statement#statement{columns = Columns}};
         {Ref, no_data} ->
             Statement#statement{columns = []};
+        {Ref, Error = {error, _}} ->
+            Error;
+        {'EXIT', C, _Reason} ->
+            {error, closed}
+    end.
+
+receive_atom(C, Ref, Receive, Return) ->
+    receive
+        {Ref, Receive} ->
+            Return;
         {Ref, Error = {error, _}} ->
             Error;
         {'EXIT', C, _Reason} ->
