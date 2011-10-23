@@ -69,14 +69,7 @@ parse(C, Sql, Types) ->
 
 parse(C, Name, Sql, Types) ->
     Ref = pgsql_sock:parse(C, Name, Sql, Types),
-    case receive_describe(C, Ref, #statement{name = Name}) of
-        Res = {ok, _} ->
-            Res;
-        Error ->
-            Ref2 = pgsql_sock:sync(C),
-            receive_atom(C, Ref2, done, ok),
-            Error
-    end.
+    sync_on_error(C, receive_describe(C, Ref, #statement{name = Name})).
 
 %% bind
 
@@ -85,14 +78,7 @@ bind(C, Statement, Parameters) ->
 
 bind(C, Statement, PortalName, Parameters) ->
     Ref = pgsql_sock:bind(C, Statement, PortalName, Parameters),
-    case receive_atom(C, Ref, ok, ok) of
-        ok ->
-            ok;
-        Error ->
-            Ref2 = pgsql_sock:sync(C),
-            receive_atom(C, Ref2, done, ok),
-            Error
-    end.
+    sync_on_error(C, receive_atom(C, Ref, ok, ok)).
 
 %% execute
 
@@ -108,13 +94,12 @@ execute(C, S, PortalName, N) ->
 
 %% statement/portal functions
 
-describe(C, Statement = #statement{name = Name}) ->
-    Ref = pgsql_sock:describe(C, statement, Name),
-    receive_describe(C, Ref, Statement).
+describe(C, #statement{name = Name}) ->
+    describe(C, statement, Name).
 
 describe(C, statement, Name) ->
     Ref = pgsql_sock:describe(C, statement, Name),
-    receive_describe(C, Ref, #statement{name = Name});
+    sync_on_error(C, receive_describe(C, Ref, #statement{name = Name}));
 
 describe(C, Type, Name) ->
     %% TODO unknown result format of Describe portal
@@ -230,3 +215,12 @@ receive_atom(C, Ref, Receive, Return) ->
         {'EXIT', C, _Reason} ->
             {error, closed}
     end.
+
+sync_on_error(C, Error = {error, _}) ->
+    Ref = pgsql_sock:sync(C),
+    receive_atom(C, Ref, done, ok),
+    Error;
+
+sync_on_error(_C, R) ->
+    R.
+
