@@ -56,6 +56,8 @@ equery(C, Sql, Parameters) ->
             Ref = pgsql_sock:equery(C, S, Typed_Parameters),
             receive_result(C, Ref, undefined);
         Error ->
+            Ref = pgsql_sock:sync(C),
+            receive_atom(C, Ref, done, ok),
             Error
     end.
 
