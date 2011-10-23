@@ -432,6 +432,12 @@ on_message({$D, <<_Count:?int16, Bin/binary>>}, State) ->
     notify(State, {data, Data}),
     {noreply, State};
 
+%% PortalSuspended
+on_message({$s, <<>>}, State) ->
+    #state{queue = Q} = State,
+    notify(State, suspended),
+    {noreply, State#state{queue = queue:drop(Q)}};
+
 %% CommandComplete
 on_message({$C, Bin}, State) ->
     #state{queue = Q} = State,
