@@ -387,14 +387,16 @@ on_message({$n, <<>>}, State) ->
 %% BindComplete
 on_message({$2, <<>>}, State) ->
     #state{queue = Q} = State,
-    %% TODO remove this workaround, send Describe on handle_cast(equery)
-    case queue:get(Q) of
-        {_, {equery, #statement{columns = C}, _}} ->
-            notify(State, {columns, C});
-        _ ->
-            ok
+    State2 = case queue:get(Q) of
+                 {_, {equery, #statement{columns = C}, _}} ->
+                     %% TODO remove this workaround, send Describe on handle_cast(equery)
+                     notify(State, {columns, C}),
+                     State;
+                 {_, {bind, _, _, _}} ->
+                     notify(State, ok),
+                     State#state{queue = queue:drop(Q)}
     end,
-    {noreply, State};
+    {noreply, State2};
 
 %% CloseComplete
 on_message({$3, <<>>}, State) ->
@@ -414,6 +416,8 @@ on_message({$D, <<_Count:?int16, Bin/binary>>}, State) ->
     Columns = case queue:get(Q) of
                   %% TODO use colums from State
                   {_, {equery, #statement{columns = C}, _}} ->
+                      C;
+                  {_, {execute, #statement{columns = C}, _, _}} ->
                       C;
                   {_, {squery, _}} ->
                       State#state.columns
