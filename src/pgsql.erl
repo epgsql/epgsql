@@ -164,8 +164,6 @@ receive_result(C, Ref, Cols, Rows) ->
             {ok, Cols, lists:reverse(Rows)};
         {Ref, done} ->
             done;
-        {Ref, timeout} ->
-            throw({error, timeout});
         {'EXIT', C, _Reason} ->
             throw({error, closed})
     end.
