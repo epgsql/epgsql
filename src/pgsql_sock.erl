@@ -394,10 +394,13 @@ on_message({$T, <<Count:?int16, Bin/binary>>}, State) ->
                  squery ->
                      State#state{columns = Columns};
                  C when C == parse; C == describe_statement ->
-                     %% TODO set binary format to supported columns
+                     Columns2 =
+                         [Col#column{format = pgsql_wire:format(
+                                                Col#column.type)}
+                          || Col <- Columns],
                      reply(State,
                            {ok, State#state.statement#statement{
-                                              columns = Columns}});
+                                              columns = Columns2}});
                  describe_portal ->
                      reply(State, {ok, Columns})
              end,
