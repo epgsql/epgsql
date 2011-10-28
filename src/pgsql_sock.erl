@@ -477,12 +477,12 @@ on_message({$C, Bin}, State) ->
 
 %% EmptyQueryResponse
 on_message({$I, _Bin}, State) ->
-    %% TODO check expected result format
     State2 = case command_tag(State) of
                  execute ->
-                     reply(State, empty);
+                     reply(State, {ok, [], []});
                  C when C == squery; C == equery ->
-                     State#state{results = [empty | State#state.results]}
+                     State#state{
+                       results = [{ok, [], []} | State#state.results]}
              end,
     {noreply, State2};
 
