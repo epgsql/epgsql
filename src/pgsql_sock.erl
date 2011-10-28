@@ -449,7 +449,7 @@ on_message({$D, <<_Count:?int16, Bin/binary>>}, State) ->
                       State#state.columns
               end,
     Data = pgsql_wire:decode_data(Columns, Bin),
-    {noreply, State#state{rows = [Data, State#state.rows]}};
+    {noreply, State#state{rows = [Data | State#state.rows]}};
 
 %% PortalSuspended
 on_message({$s, <<>>}, State) ->
