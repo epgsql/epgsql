@@ -210,6 +210,7 @@ handle_cast(Req = {_, sync}, State) ->
 handle_cast(cancel, State = #state{backend = {Pid, Key}}) ->
     {ok, {Addr, Port}} = inet:peername(State#state.sock),
     SockOpts = [{active, false}, {packet, raw}, binary],
+    %% TODO timeout
     {ok, Sock} = gen_tcp:connect(Addr, Port, SockOpts),
     Msg = <<16:?int32, 80877102:?int32, Pid:?int32, Key:?int32>>,
     ok = gen_tcp:send(Sock, Msg),
@@ -390,13 +391,14 @@ on_message({$t, <<_Count:?int16, Bin/binary>>}, State) ->
 on_message({$T, <<Count:?int16, Bin/binary>>}, State) ->
     Columns = pgsql_wire:decode_columns(Count, Bin),
     State2 = case command_tag(State) of
-                 C when C == squery ->
+                 squery ->
                      State#state{columns = Columns};
                  C when C == parse; C == describe_statement ->
+                     %% TODO set binary format to supported columns
                      reply(State,
                            {ok, State#state.statement#statement{
                                               columns = Columns}});
-                 C when C == describe_portal ->
+                 describe_portal ->
                      reply(State, {ok, Columns})
              end,
     {noreply, State2};
@@ -526,7 +528,6 @@ on_message({$A, <<Pid:?int32, Strings/binary>>}, State) ->
         [Channel, Payload] -> ok;
         [Channel]          -> Payload = <<>>
     end,
-    %% TODO use it
     notify_async(State, {notification, Channel, Pid, Payload}),
     {noreply, State}.
 
