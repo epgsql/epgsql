@@ -487,7 +487,7 @@ on_message({$I, _Bin}, State) ->
     {noreply, State2};
 
 %% ReadyForQuery
-on_message({$Z, <<_Status:8>>}, State) ->
+on_message({$Z, <<Status:8>>}, State) ->
     State2 = case command_tag(State) of
                  squery ->
                      case State#state.results of
@@ -502,7 +502,7 @@ on_message({$Z, <<_Status:8>>}, State) ->
                  sync ->
                      reply(State, ok)
              end,
-    {noreply, State2};
+    {noreply, State2#state{txstatus = Status}};
 
 on_message(Error = {error, _}, State) ->
     State2 = case command_tag(State) of
