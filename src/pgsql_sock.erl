@@ -36,7 +36,7 @@
                 async,
                 parameters = [],
                 statement,
-                columns,
+                columns = [],
                 rows = [],
                 results = [],
                 sync_required,
@@ -291,7 +291,7 @@ reply(State = #state{queue = Q}, Message) ->
     From ! {Ref, Message},
     State#state{queue = queue:drop(Q),
                 statement = undefined,
-                columns = undefined,
+                columns = [],
                 rows = [],
                 results = []}.
 
