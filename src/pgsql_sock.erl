@@ -475,7 +475,7 @@ on_message({$C, Bin}, State) ->
     State2 = case {Command, Complete} of
                  {execute, {_, Count}} ->
                      reply(State, {ok, Count, Rows});
-                 {execute, {_}} ->
+                 {execute, _} ->
                      reply(State, {ok, Rows});
                  {C, {_, Count}} when C == squery; C == equery ->
                      case Rows of
@@ -485,7 +485,7 @@ on_message({$C, Bin}, State) ->
                              add_result(State,
                                         {ok, Count, get_columns(State), Rows})
                      end;
-                 {C, {_}} when C == squery; C == equery ->
+                 {C, _} when C == squery; C == equery ->
                      add_result(State, {ok, get_columns(State), Rows})
              end,
     {noreply, State2};
