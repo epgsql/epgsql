@@ -311,6 +311,17 @@ command_tag(#state{queue = Q}) ->
     {_, Req} = queue:get(Q),
     element(1, Req).
 
+get_columns(State) ->
+    #state{queue = Q, columns = Columns} = State,
+    case queue:get(Q) of
+        {_, {equery, #statement{columns = C}, _}} ->
+            C;
+        {_, {execute, #statement{columns = C}, _, _}} ->
+            C;
+        {_, {squery, _}} ->
+            Columns
+    end.
+
 %% -- backend message handling --
 
 %% AuthenticationOk
@@ -445,19 +456,8 @@ on_message({$3, <<>>}, State) ->
 
 %% DataRow
 on_message({$D, <<_Count:?int16, Bin/binary>>}, State) ->
-    #state{queue = Q} = State,
-    Columns = case queue:get(Q) of
-                  {_, {equery, #statement{columns = C}, _}} ->
-                      C;
-                  {_, {execute, #statement{columns = C}, _, _}} ->
-                      C;
-                  {_, {squery, _}} ->
-                      State#state.columns
-              end,
-    Data = pgsql_wire:decode_data(Columns, Bin),
-    {noreply, State#state{rows = [Data | State#state.rows],
-                          columns = Columns %TODO workaround for equery,execute
-                         }};
+    Data = pgsql_wire:decode_data(get_columns(State), Bin),
+    {noreply, State#state{rows = [Data | State#state.rows]}};
 
 %% PortalSuspended
 on_message({$s, <<>>}, State) ->
@@ -469,11 +469,11 @@ on_message({$C, Bin}, State) ->
                  {_Type, Count} ->
                      case State#state.rows of
                          [] -> {ok, Count};
-                         _ -> {ok, Count, State#state.columns,
+                         _ -> {ok, Count, get_columns(State),
                                lists:reverse(State#state.rows)}
                      end;
                  _Type ->
-                     {ok, State#state.columns, lists:reverse(State#state.rows)}
+                     {ok, get_columns(State), lists:reverse(State#state.rows)}
              end,
     State2 = case command_tag(State) of
                  execute ->
