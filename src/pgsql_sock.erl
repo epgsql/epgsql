@@ -309,7 +309,11 @@ notify_async(#state{async = Pid}, Msg) ->
 
 command_tag(#state{queue = Q}) ->
     {_, Req} = queue:get(Q),
-    element(1, Req).
+    if is_tuple(Req) ->
+            element(1, Req);
+       is_atom(Req) ->
+            Req
+    end.
 
 get_columns(State) ->
     #state{queue = Q, columns = Columns} = State,
