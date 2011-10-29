@@ -469,24 +469,24 @@ on_message({$s, <<>>}, State) ->
 
 %% CommandComplete
 on_message({$C, Bin}, State) ->
-    ResultHead = case pgsql_wire:decode_complete(Bin) of
-                     {_Type, Count} ->
-                         [ok, Count];
-                     _Type ->
-                         [ok]
-                 end,
-    State2 = case command_tag(State) of
-                 execute ->
-                     reply(State,
-                           list_to_tuple(
-                             ResultHead ++ [lists:reverse(State#state.rows)]));
-                 C when C == squery; C == equery ->
-                     Result = case State#state.rows of
-                                  [] -> ResultHead;
-                                  _ -> ResultHead ++ [get_columns(State)] ++
-                                           [lists:reverse(State#state.rows)]
-                              end,
-                     add_result(State, list_to_tuple(Result))
+    Complete = pgsql_wire:decode_complete(Bin),
+    Command = command_tag(State),
+    Rows = lists:reverse(State#state.rows),
+    State2 = case {Command, Complete} of
+                 {execute, {_, Count}} ->
+                     reply(State, {ok, Count, Rows});
+                 {execute, {_}} ->
+                     reply(State, {ok, Rows});
+                 {C, {_, Count}} when C == squery; C == equery ->
+                     case Rows of
+                         [] ->
+                             add_result(State, {ok, Count});
+                         _ ->
+                             add_result(State,
+                                        {ok, Count, get_columns(State), Rows})
+                     end;
+                 {C, {_}} when C == squery; C == equery ->
+                     add_result(State, {ok, get_columns(State), Rows})
              end,
     {noreply, State2};
 
