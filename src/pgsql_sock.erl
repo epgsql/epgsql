@@ -471,7 +471,9 @@ on_message({$C, Bin}, State) ->
                  execute ->
                      reply(State, Result);
                  C when C == squery; C == equery ->
-                     State#state{results = [Result | State#state.results]}
+                     State#state{columns = [],
+                                 rows = [],
+                                 results = [Result | State#state.results]}
              end,
     {noreply, State2};
 
