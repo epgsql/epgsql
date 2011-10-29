@@ -295,6 +295,12 @@ reply(State = #state{queue = Q}, Message) ->
                 rows = [],
                 results = []}.
 
+add_result(State = #state{results = Results}, Result) ->
+    State#state{statement = undefined,
+                columns = [],
+                rows = [],
+                results = [Result | Results]}.
+
 notify_async(#state{async = Pid}, Msg) ->
     case is_pid(Pid) of
         true  -> Pid ! {pgsql, self(), Msg};
@@ -471,9 +477,7 @@ on_message({$C, Bin}, State) ->
                  execute ->
                      reply(State, Result);
                  C when C == squery; C == equery ->
-                     State#state{columns = [],
-                                 rows = [],
-                                 results = [Result | State#state.results]}
+                     add_result(State, Result)
              end,
     {noreply, State2};
 
@@ -483,8 +487,7 @@ on_message({$I, _Bin}, State) ->
                  execute ->
                      reply(State, {ok, [], []});
                  C when C == squery; C == equery ->
-                     State#state{
-                       results = [{ok, [], []} | State#state.results]}
+                     add_result(State, {ok, [], []})
              end,
     {noreply, State2};
 
@@ -509,7 +512,7 @@ on_message({$Z, <<Status:8>>}, State) ->
 on_message(Error = {error, _}, State) ->
     State2 = case command_tag(State) of
                  C when C == squery; C == equery ->
-                     State#state{results = [Error | State#state.results]};
+                     add_result(State, Error);
                  _ ->
                      sync_required(reply(State, Error))
              end,
