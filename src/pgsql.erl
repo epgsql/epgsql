@@ -9,6 +9,7 @@
 -export([bind/3, bind/4, execute/2, execute/3, execute/4]).
 -export([close/2, close/3, sync/1]).
 -export([with_transaction/2]).
+-export([receive_result/2, sync_on_error/2]).
 
 -include("pgsql.hrl").
 
@@ -123,8 +124,6 @@ with_transaction(C, F) ->
             %% TODO hides error stacktrace
             {rollback, Why}
     end.
-
-%% -- internal functions --
 
 receive_result(C, Ref) ->
     %% TODO timeout
