@@ -1,4 +1,5 @@
 %%% Copyright (C) 2008 - Will Glozer.  All rights reserved.
+%%% Copyright (C) 2011 - Anton Lebedevich.  All rights reserved.
 
 -module(pgsql).
 
