@@ -135,7 +135,7 @@ handle_cast(Req = {_, {connect, Host, Username, Password, Opts}}, State) ->
                   async = Async}};
 
 handle_cast(stop, State) ->
-    {stop, normal, flush_queue(State, {error, stop})};
+    {stop, normal, flush_queue(State, {error, closed})};
 
 handle_cast(Req = {_, {squery, Sql}}, State) ->
     #state{queue = Q} = State,
