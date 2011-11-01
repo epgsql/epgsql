@@ -37,7 +37,6 @@ decode_message(Bin) ->
     Bin.
 
 %% decode a single null-terminated string
-%% TODO signature changed, returns [Str, Rest], old code expects {Str, Rest}
 decode_string(Bin) ->
     binary:split(Bin, <<0>>).
 

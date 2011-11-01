@@ -161,7 +161,7 @@ handle_cast(Req = {_, {parse, Name, Sql, Types}}, State) ->
     #state{queue = Q} = State,
     Bin = pgsql_wire:encode_types(Types),
     send(State, $P, [Name, 0, Sql, 0, Bin]),
-    send(State, $D, [$S, Name, 0]), % TODO remove it
+    send(State, $D, [$S, Name, 0]),
     send(State, $H, []),
     {noreply, State#state{queue = queue:in(Req, Q)}};
 
@@ -231,19 +231,6 @@ handle_info({Error, Sock, Reason}, #state{sock = Sock} = State)
 handle_info({_, Sock, Data2}, #state{data = Data, sock = Sock} = State) ->
     loop(State#state{data = <<Data/binary, Data2/binary>>}).
 
-loop(#state{data = Data, handler = Handler} = State) ->
-    case pgsql_wire:decode_message(Data) of
-        {Message, Tail} ->
-            case ?MODULE:Handler(Message, State#state{data = Tail}) of
-                {noreply, State2} ->
-                    loop(State2);
-                R = {stop, _Reason2, _State2} ->
-                    R
-            end;
-        _ ->
-            {noreply, State}
-    end.
-
 terminate(_Reason, _State) ->
     %% TODO send termination msg, close socket ??
     ok.
@@ -287,6 +274,19 @@ send(#state{mod = Mod, sock = Sock}, Data) ->
 send(#state{mod = Mod, sock = Sock}, Type, Data) ->
     Mod:send(Sock, pgsql_wire:encode(Type, Data)).
 
+loop(#state{data = Data, handler = Handler} = State) ->
+    case pgsql_wire:decode_message(Data) of
+        {Message, Tail} ->
+            case ?MODULE:Handler(Message, State#state{data = Tail}) of
+                {noreply, State2} ->
+                    loop(State2);
+                R = {stop, _Reason2, _State2} ->
+                    R
+            end;
+        _ ->
+            {noreply, State}
+    end.
+
 reply(State = #state{queue = Q}, Message) ->
     {{From, Ref}, _} = queue:get(Q),
     From ! {Ref, Message},
@@ -326,6 +326,28 @@ get_columns(State) ->
         {_, {squery, _}} ->
             Columns
     end.
+
+sync_required(#state{queue = Q} = State) ->
+    case queue:is_empty(Q) of
+        false ->
+            case command_tag(State) of
+                sync ->
+                    State;
+                _ ->
+                    sync_required(reply(State, {error, sync_required}))
+            end;
+        true ->
+            State#state{sync_required = true}
+    end.
+
+to_binary(B) when is_binary(B) -> B;
+to_binary(L) when is_list(L)   -> list_to_binary(L).
+
+hex(Bin) ->
+    HChar = fun(N) when N < 10 -> $0 + N;
+               (N) when N < 16 -> $W + N
+            end,
+    <<<<(HChar(H)), (HChar(L))>> || <<H:4, L:4>> <= Bin>>.
 
 %% -- backend message handling --
 
@@ -546,25 +568,3 @@ on_message({$A, <<Pid:?int32, Strings/binary>>}, State) ->
     end,
     notify_async(State, {notification, Channel, Pid, Payload}),
     {noreply, State}.
-
-sync_required(#state{queue = Q} = State) ->
-    case queue:is_empty(Q) of
-        false ->
-            case command_tag(State) of
-                sync ->
-                    State;
-                _ ->
-                    sync_required(reply(State, {error, sync_required}))
-            end;
-        true ->
-            State#state{sync_required = true}
-    end.
-
-to_binary(B) when is_binary(B) -> B;
-to_binary(L) when is_list(L)   -> list_to_binary(L).
-
-hex(Bin) ->
-    HChar = fun(N) when N < 10 -> $0 + N;
-               (N) when N < 16 -> $W + N
-            end,
-    <<<<(HChar(H)), (HChar(L))>> || <<H:4, L:4>> <= Bin>>.
