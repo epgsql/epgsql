@@ -106,7 +106,7 @@ handle_call(Command, From, State) ->
     Req = {{call, From}, Command},
     command(Command, State#state{queue = queue:in(Req, Q)}).
 
-handle_cast(Req = {{From, Ref}, Command}, State) ->
+handle_cast({{From, Ref}, Command}, State) ->
     #state{queue = Q} = State,
     Req = {{cast, From, Ref}, Command},
     command(Command, State#state{queue = queue:in(Req, Q)});
