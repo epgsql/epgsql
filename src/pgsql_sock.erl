@@ -36,7 +36,7 @@
                 queue = queue:new(),
                 async,
                 parameters = [],
-                statement,
+                types = [],
                 columns = [],
                 rows = [],
                 results = [],
@@ -291,13 +291,13 @@ reply(State = #state{queue = Q}, Message) ->
     {{From, Ref}, _} = queue:get(Q),
     From ! {Ref, Message},
     State#state{queue = queue:drop(Q),
-                statement = undefined,
+                types = [],
                 columns = [],
                 rows = [],
                 results = []}.
 
 add_result(State = #state{results = Results}, Result) ->
-    State#state{statement = undefined,
+    State#state{types = [],
                 columns = [],
                 rows = [],
                 results = [Result | Results]}.
@@ -326,6 +326,14 @@ get_columns(State) ->
         {_, {squery, _}} ->
             Columns
     end.
+
+make_statement(State) ->
+    #state{queue = Q, types = Types, columns = Columns} = State,
+    Name = case queue:get(Q) of
+               {_, {parse, N, _, _}} -> N;
+               {_, {describe_statement, N}} -> N
+           end,
+    #statement{name = Name, types = Types, columns = Columns}.
 
 sync_required(#state{queue = Q} = State) ->
     case queue:is_empty(Q) of
@@ -429,19 +437,13 @@ on_message({$1, <<>>}, State) ->
 
 %% ParameterDescription
 on_message({$t, <<_Count:?int16, Bin/binary>>}, State) ->
-    #state{queue = Q} = State,
     Types = [pgsql_types:oid2type(Oid) || <<Oid:?int32>> <= Bin],
-    Name = case queue:get(Q) of
-               {_, {parse, N, _, _}} -> N;
-               {_, {describe_statement, N}} -> N
-           end,
-    {noreply, State#state{statement = #statement{name = Name,
-                                                 types = Types}}};
+    {noreply, State#state{types = Types}};
 
 %% RowDescription
 on_message({$T, <<Count:?int16, Bin/binary>>}, State) ->
     Columns = pgsql_wire:decode_columns(Count, Bin),
-    State2 = case command_tag(State) of
+    State3 = case command_tag(State) of
                  squery ->
                      State#state{columns = Columns};
                  C when C == parse; C == describe_statement ->
@@ -449,20 +451,18 @@ on_message({$T, <<Count:?int16, Bin/binary>>}, State) ->
                          [Col#column{format = pgsql_wire:format(
                                                 Col#column.type)}
                           || Col <- Columns],
-                     reply(State,
-                           {ok, State#state.statement#statement{
-                                              columns = Columns2}});
+                     State2 = State#state{columns = Columns2},
+                     reply(State2, {ok, make_statement(State2)});
                  describe_portal ->
                      reply(State, {ok, Columns})
              end,
-    {noreply, State2};
+    {noreply, State3};
 
 %% NoData
 on_message({$n, <<>>}, State) ->
     State2 = case command_tag(State) of
                  C when C == parse; C == describe_statement ->
-                     reply(State,
-                           {ok, State#state.statement#statement{columns= []}});
+                     reply(State, {ok, make_statement(State)});
                  describe_portal ->
                      reply(State, {ok, []})
              end,
