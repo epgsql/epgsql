@@ -411,7 +411,7 @@ auth({error, E}, State) ->
         <<"28P01">> -> Why = invalid_password;
         Any         -> Why = Any
     end,
-    {stop, normal, finish(State, Error)};
+    {stop, normal, finish(State, {error, Why})};
 
 auth(Other, State) ->
     on_message(Other, State).
