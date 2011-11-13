@@ -51,6 +51,7 @@ start_link() ->
 connect(C, Host, Username, Password, Opts) ->
     cast(C, {connect, Host, Username, Password, Opts}).
 
+%% TODO extract API functions
 close(C) when is_pid(C) ->
     catch gen_server:cast(C, stop),
     ok.
@@ -100,6 +101,7 @@ handle_call({get_parameter, Name}, _From, State) ->
     end,
     {reply, {ok, Value}, State}.
 
+%% TODO request format broken
 handle_cast({{From, Ref}, Command}, State = #state{sync_required = true})
   when Command /= sync ->
     From ! {Ref, {error, sync_required}},
