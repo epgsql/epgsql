@@ -243,8 +243,12 @@ finish(State, Result) ->
     finish(State, Result, Result).
 
 finish(State = #state{queue = Q}, Notice, Result) ->
-    {{cast, From, Ref}, _} = queue:get(Q),
-    From ! {Ref, Result},
+    case queue:get(Q) of
+        {{cast, From, Ref}, _} ->
+            From ! {Ref, Result};
+        {{call, From}, _} ->
+            gen_server:reply(From, Result)
+    end,
     State#state{queue = queue:drop(Q),
                 types = [],
                 columns = [],
