@@ -19,7 +19,7 @@
 %% -- client interface --
 
 start_link() ->
-    pgqsq_sock:start_link().
+    pgsq_sock:start_link().
 
 connect(C, Host, Username, Password, Opts) ->
     cast(C, {connect, Host, Username, Password, Opts}).
