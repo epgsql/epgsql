@@ -6,17 +6,8 @@
 -behavior(gen_server).
 
 -export([start_link/0,
-         connect/5,
          close/1,
          get_parameter/2,
-         squery/2,
-         equery/3,
-         parse/4,
-         bind/4,
-         execute/4,
-         describe/3,
-         close/3,
-         sync/1,
          cancel/1]).
 
 -export([handle_call/3, handle_cast/2, handle_info/2]).
@@ -48,43 +39,12 @@
 start_link() ->
     gen_server:start_link(?MODULE, [], []).
 
-connect(C, Host, Username, Password, Opts) ->
-    cast(C, {connect, Host, Username, Password, Opts}).
-
-%% TODO extract API functions
 close(C) when is_pid(C) ->
     catch gen_server:cast(C, stop),
     ok.
 
 get_parameter(C, Name) ->
     gen_server:call(C, {get_parameter, to_binary(Name)}, infinity).
-
-squery(C, Sql) ->
-    cast(C, {squery, Sql}).
-
-equery(C, Statement, Parameters) ->
-    cast(C, {equery, Statement, Parameters}).
-
-parse(C, Name, Sql, Types) ->
-    cast(C, {parse, Name, Sql, Types}).
-
-bind(C, Statement, PortalName, Parameters) ->
-    cast(C, {bind, Statement, PortalName, Parameters}).
-
-execute(C, Statement, PortalName, MaxRows) ->
-    cast(C, {execute, Statement, PortalName, MaxRows}).
-
-describe(C, statement, Name) ->
-    cast(C, {describe_statement, Name});
-
-describe(C, portal, Name) ->
-    cast(C, {describe_portal, Name}).
-
-close(C, Type, Name) ->
-    cast(C, {close, Type, Name}).
-
-sync(C) ->
-    cast(C, sync).
 
 cancel(S) ->
     gen_server:cast(S, cancel).
@@ -144,11 +104,6 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 %% -- internal functions --
-
-cast(C, Command) ->
-    Ref = make_ref(),
-    gen_server:cast(C, {{self(), Ref}, Command}),
-    Ref.
 
 command(Command, State = #state{sync_required = true})
   when Command /= sync ->
@@ -214,8 +169,7 @@ command({bind, Statement, PortalName, Parameters}, State) ->
     send(State, $H, []),
     {noreply, State};
 
-%% TODO unused parameter?
-command({execute, _, PortalName, MaxRows}, State) ->
+command({execute, _Statement, PortalName, MaxRows}, State) ->
     send(State, $E, [PortalName, 0, <<MaxRows:?int32>>]),
     send(State, $H, []),
     {noreply, State};
