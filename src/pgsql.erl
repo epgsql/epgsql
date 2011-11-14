@@ -92,9 +92,12 @@ execute(C, S, PortalName, N) ->
 describe(C, #statement{name = Name}) ->
     describe(C, statement, Name).
 
+describe(C, statement, Name) ->
+    sync_on_error(C, gen_server:call(C, {describe_statement, Name}, infinity));
+
 %% TODO unknown result format of Describe portal
-describe(C, Type, Name) ->
-    sync_on_error(C, gen_server:call(C, {describe, Type, Name}, infinity)).
+describe(C, portal, Name) ->
+    sync_on_error(C, gen_server:call(C, {describe_portal, Name}, infinity)).
 
 close(C, #statement{name = Name}) ->
     close(C, statement, Name).
