@@ -118,8 +118,9 @@ with_transaction(C, F) ->
             {rollback, Why}
     end.
 
-sync_on_error(C, {error, _}) ->
-    sync(C);
+sync_on_error(C, Error = {error, _}) ->
+    ok = sync(C),
+    Error;
 
 sync_on_error(_C, R) ->
     R.
