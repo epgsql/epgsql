@@ -1,7 +1,7 @@
 -module(pgsql_tests).
 
 -export([run_tests/0]).
-%%-compile([export_all]).
+-compile([export_all]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("public_key/include/public_key.hrl").
@@ -12,28 +12,28 @@
 
 -define(ssl_apps, [crypto, public_key, ssl]).
 
-connect_test() ->
-    connect_only([]).
+connect_test(Module) ->
+    connect_only(Module, []).
 
-connect_to_db_test() ->
-    connect_only([{database, "epgsql_test_db1"}]).
+connect_to_db_test(Module) ->
+    connect_only(Module, [{database, "epgsql_test_db1"}]).
 
-connect_as_test() ->
-    connect_only(["epgsql_test", [{database, "epgsql_test_db1"}]]).
+connect_as_test(Module) ->
+    connect_only(Module, ["epgsql_test", [{database, "epgsql_test_db1"}]]).
 
-connect_with_cleartext_test() ->
-    connect_only(["epgsql_test_cleartext",
+connect_with_cleartext_test(Module) ->
+    connect_only(Module, ["epgsql_test_cleartext",
                   "epgsql_test_cleartext",
                   [{database, "epgsql_test_db1"}]]).
 
-connect_with_md5_test() ->
-    connect_only(["epgsql_test_md5",
+connect_with_md5_test(Module) ->
+    connect_only(Module, ["epgsql_test_md5",
                   "epgsql_test_md5",
                   [{database, "epgsql_test_db1"}]]).
 
-connect_with_invalid_user_test() ->
+connect_with_invalid_user_test(Module) ->
     {error, Why} =
-        pgsql:connect(?host,
+        Module:connect(?host,
                       "epgsql_test_invalid",
                       "epgsql_test_invalid",
                       [{port, ?port}, {database, "epgsql_test_db1"}]),
@@ -42,9 +42,9 @@ connect_with_invalid_user_test() ->
         invalid_password                    -> ok  % >= 9.0
     end.
 
-connect_with_invalid_password_test() ->
+connect_with_invalid_password_test(Module) ->
     {error, Why} =
-        pgsql:connect(?host,
+        Module:connect(?host,
                       "epgsql_test_md5",
                       "epgsql_test_invalid",
                       [{port, ?port}, {database, "epgsql_test_db1"}]),
@@ -54,16 +54,17 @@ connect_with_invalid_password_test() ->
     end.
 
 
-connect_with_ssl_test() ->
+connect_with_ssl_test(Module) ->
     lists:foreach(fun application:start/1, ?ssl_apps),
     with_connection(
+      Module,
       fun(C) ->
-              {ok, _Cols, [{true}]} = pgsql:equery(C, "select ssl_is_used()")
+              {ok, _Cols, [{true}]} = Module:equery(C, "select ssl_is_used()")
       end,
       "epgsql_test",
       [{ssl, true}]).
 
-connect_with_client_cert_test() ->
+connect_with_client_cert_test(Module) ->
     lists:foreach(fun application:start/1, ?ssl_apps),
     Dir = filename:join(filename:dirname(code:which(pgsql_tests)), "../test_data"),
     File = fun(Name) -> filename:join(Dir, Name) end,
@@ -74,367 +75,403 @@ connect_with_client_cert_test() ->
     Serial2 = list_to_binary(integer_to_list(Serial)),
 
     with_connection(
+      Module,
       fun(C) ->
-              {ok, _, [{true}]} = pgsql:equery(C, "select ssl_is_used()"),
-              {ok, _, [{Serial2}]} = pgsql:equery(C, "select ssl_client_serial()")
+              {ok, _, [{true}]} = Module:equery(C, "select ssl_is_used()"),
+              {ok, _, [{Serial2}]} = Module:equery(C, "select ssl_client_serial()")
       end,
       "epgsql_test_cert",
       [{ssl, true}, {keyfile, File("epgsql.key")}, {certfile, File("epgsql.crt")}]).
 
-select_test() ->
+select_test(Module) ->
     with_connection(
+      Module,
       fun(C) ->
-              {ok, Cols, Rows} = pgsql:squery(C, "select * from test_table1"),
+              {ok, Cols, Rows} = Module:squery(C, "select * from test_table1"),
               [#column{name = <<"id">>, type = int4, size = 4},
                #column{name = <<"value">>, type = text, size = -1}] = Cols,
               [{<<"1">>, <<"one">>}, {<<"2">>, <<"two">>}] = Rows
       end).
 
-insert_test() ->
+insert_test(Module) ->
     with_rollback(
+      Module,
       fun(C) ->
-              {ok, 1} = pgsql:squery(C, "insert into test_table1 (id, value) values (3, 'three')")
+              {ok, 1} = Module:squery(C, "insert into test_table1 (id, value) values (3, 'three')")
       end).
 
-update_test() ->
+update_test(Module) ->
     with_rollback(
+      Module,
       fun(C) ->
-              {ok, 1} = pgsql:squery(C, "insert into test_table1 (id, value) values (3, 'three')"),
-              {ok, 1} = pgsql:squery(C, "insert into test_table1 (id, value) values (4, 'four')"),
-              {ok, 2} = pgsql:squery(C, "update test_table1 set value = 'foo' where id > 2"),
-              {ok, _, [{<<"2">>}]} = pgsql:squery(C, "select count(*) from test_table1 where value = 'foo'")
+              {ok, 1} = Module:squery(C, "insert into test_table1 (id, value) values (3, 'three')"),
+              {ok, 1} = Module:squery(C, "insert into test_table1 (id, value) values (4, 'four')"),
+              {ok, 2} = Module:squery(C, "update test_table1 set value = 'foo' where id > 2"),
+              {ok, _, [{<<"2">>}]} = Module:squery(C, "select count(*) from test_table1 where value = 'foo'")
       end).
 
-delete_test() ->
+delete_test(Module) ->
     with_rollback(
+      Module,
       fun(C) ->
-              {ok, 1} = pgsql:squery(C, "insert into test_table1 (id, value) values (3, 'three')"),
-              {ok, 1} = pgsql:squery(C, "insert into test_table1 (id, value) values (4, 'four')"),
-              {ok, 2} = pgsql:squery(C, "delete from test_table1 where id > 2"),
-              {ok, _, [{<<"2">>}]} = pgsql:squery(C, "select count(*) from test_table1")
+              {ok, 1} = Module:squery(C, "insert into test_table1 (id, value) values (3, 'three')"),
+              {ok, 1} = Module:squery(C, "insert into test_table1 (id, value) values (4, 'four')"),
+              {ok, 2} = Module:squery(C, "delete from test_table1 where id > 2"),
+              {ok, _, [{<<"2">>}]} = Module:squery(C, "select count(*) from test_table1")
       end).
 
-create_and_drop_table_test() ->
+create_and_drop_table_test(Module) ->
     with_rollback(
+      Module,
       fun(C) ->
-              {ok, [], []} = pgsql:squery(C, "create table test_table3 (id int4)"),
-              {ok, [#column{type = int4}], []} = pgsql:squery(C, "select * from test_table3"),
-              {ok, [], []} = pgsql:squery(C, "drop table test_table3")
+              {ok, [], []} = Module:squery(C, "create table test_table3 (id int4)"),
+              {ok, [#column{type = int4}], []} = Module:squery(C, "select * from test_table3"),
+              {ok, [], []} = Module:squery(C, "drop table test_table3")
       end).
 
-cursor_test() ->
+cursor_test(Module) ->
     with_connection(
+      Module,
       fun(C) ->
-              {ok, [], []} = pgsql:squery(C, "begin"),
-              {ok, [], []} = pgsql:squery(C, "declare c cursor for select id from test_table1"),
-              {ok, 2} = pgsql:squery(C, "move forward 2 from c"),
-              {ok, 1} = pgsql:squery(C, "move backward 1 from c"),
-              {ok, 1, _Cols, [{<<"2">>}]} = pgsql:squery(C, "fetch next from c"),
-              {ok, [], []} = pgsql:squery(C, "close c")
+              {ok, [], []} = Module:squery(C, "begin"),
+              {ok, [], []} = Module:squery(C, "declare c cursor for select id from test_table1"),
+              {ok, 2} = Module:squery(C, "move forward 2 from c"),
+              {ok, 1} = Module:squery(C, "move backward 1 from c"),
+              {ok, 1, _Cols, [{<<"2">>}]} = Module:squery(C, "fetch next from c"),
+              {ok, [], []} = Module:squery(C, "close c")
       end).
 
-multiple_result_test() ->
+multiple_result_test(Module) ->
     with_connection(
+      Module,
       fun(C) ->
-              [{ok, _, [{<<"1">>}]}, {ok, _, [{<<"2">>}]}] = pgsql:squery(C, "select 1; select 2"),
-              [{ok, _, [{<<"1">>}]}, {error, #error{}}] = pgsql:squery(C, "select 1; select foo;")
+              [{ok, _, [{<<"1">>}]}, {ok, _, [{<<"2">>}]}] = Module:squery(C, "select 1; select 2"),
+              [{ok, _, [{<<"1">>}]}, {error, #error{}}] = Module:squery(C, "select 1; select foo;")
       end).
 
-extended_select_test() ->
+extended_select_test(Module) ->
     with_connection(
+      Module,
       fun(C) ->
-              {ok, Cols, Rows} = pgsql:equery(C, "select * from test_table1", []),
+              {ok, Cols, Rows} = Module:equery(C, "select * from test_table1", []),
               [#column{name = <<"id">>, type = int4, size = 4},
                #column{name = <<"value">>, type = text, size = -1}] = Cols,
               [{1, <<"one">>}, {2, <<"two">>}] = Rows
       end).
 
-extended_sync_ok_test() ->
+extended_sync_ok_test(Module) ->
     with_connection(
+      Module,
       fun(C) ->
-              {ok, _Cols, [{<<"one">>}]} = pgsql:equery(C, "select value from test_table1 where id = $1", [1]),
-              {ok, _Cols, [{<<"two">>}]} = pgsql:equery(C, "select value from test_table1 where id = $1", [2])
+              {ok, _Cols, [{<<"one">>}]} = Module:equery(C, "select value from test_table1 where id = $1", [1]),
+              {ok, _Cols, [{<<"two">>}]} = Module:equery(C, "select value from test_table1 where id = $1", [2])
       end).
 
-extended_sync_error_test() ->
+extended_sync_error_test(Module) ->
     with_connection(
+      Module,
       fun(C) ->
-              {error, #error{}} = pgsql:equery(C, "select _alue from test_table1 where id = $1", [1]),
-              {ok, _Cols, [{<<"one">>}]} = pgsql:equery(C, "select value from test_table1 where id = $1", [1])
+              {error, #error{}} = Module:equery(C, "select _alue from test_table1 where id = $1", [1]),
+              {ok, _Cols, [{<<"one">>}]} = Module:equery(C, "select value from test_table1 where id = $1", [1])
       end).
 
-returning_from_insert_test() ->
+returning_from_insert_test(Module) ->
     with_rollback(
+      Module,
       fun(C) ->
-              {ok, 1, _Cols, [{3}]} = pgsql:equery(C, "insert into test_table1 (id) values (3) returning id")
+              {ok, 1, _Cols, [{3}]} = Module:equery(C, "insert into test_table1 (id) values (3) returning id")
       end).
 
-returning_from_update_test() ->
+returning_from_update_test(Module) ->
     with_rollback(
+      Module,
       fun(C) ->
-              {ok, 2, _Cols, [{1}, {2}]} = pgsql:equery(C, "update test_table1 set value = 'hi' returning id")
+              {ok, 2, _Cols, [{1}, {2}]} = Module:equery(C, "update test_table1 set value = 'hi' returning id")
       end).
 
-returning_from_delete_test() ->
+returning_from_delete_test(Module) ->
     with_rollback(
+      Module,
       fun(C) ->
-              {ok, 2, _Cols, [{1}, {2}]} = pgsql:equery(C, "delete from test_table1 returning id")
+              {ok, 2, _Cols, [{1}, {2}]} = Module:equery(C, "delete from test_table1 returning id")
       end).
 
-parse_test() ->
+parse_test(Module) ->
     with_connection(
+      Module,
       fun(C) ->
-              {ok, S} = pgsql:parse(C, "select * from test_table1"),
+              {ok, S} = Module:parse(C, "select * from test_table1"),
               [#column{name = <<"id">>}, #column{name = <<"value">>}] = S#statement.columns,
-              ok = pgsql:close(C, S),
-              ok = pgsql:sync(C)
+              ok = Module:close(C, S),
+              ok = Module:sync(C)
       end).
 
-parse_column_format_test() ->
+parse_column_format_test(Module) ->
     with_connection(
+      Module,
       fun(C) ->
-              {ok, S} = pgsql:parse(C, "select 1::int4, false::bool, 2.0::float4"),
+              {ok, S} = Module:parse(C, "select 1::int4, false::bool, 2.0::float4"),
               [#column{type = int4},
                #column{type = bool},
                #column{type = float4}] = S#statement.columns,
-              ok = pgsql:bind(C, S, []),
-              {ok, [{1, false, 2.0}]} = pgsql:execute(C, S, 0),
-              ok = pgsql:close(C, S),
-              ok = pgsql:sync(C)
+              ok = Module:bind(C, S, []),
+              {ok, [{1, false, 2.0}]} = Module:execute(C, S, 0),
+              ok = Module:close(C, S),
+              ok = Module:sync(C)
       end).
 
-parse_error_test() ->
+parse_error_test(Module) ->
     with_connection(
+      Module,
       fun(C) ->
-              {error, #error{}} = pgsql:parse(C, "select _ from test_table1"),
-              {ok, S} = pgsql:parse(C, "select * from test_table1"),
+              {error, #error{}} = Module:parse(C, "select _ from test_table1"),
+              {ok, S} = Module:parse(C, "select * from test_table1"),
               [#column{name = <<"id">>}, #column{name = <<"value">>}] = S#statement.columns,
-              ok = pgsql:close(C, S),
-              ok = pgsql:sync(C)
+              ok = Module:close(C, S),
+              ok = Module:sync(C)
       end).
 
-parse_and_close_test() ->
+parse_and_close_test(Module) ->
     with_connection(
+      Module,
       fun(C) ->
-              Parse = fun() -> pgsql:parse(C, "test", "select * from test_table1", []) end,
+              Parse = fun() -> Module:parse(C, "test", "select * from test_table1", []) end,
               {ok, S} = Parse(),
               {error, #error{code = <<"42P05">>}} = Parse(),
-              pgsql:close(C, S),
+              Module:close(C, S),
               {ok, S} = Parse(),
-              ok = pgsql:sync(C)
+              ok = Module:sync(C)
       end).
 
-bind_test() ->
+bind_test(Module) ->
     with_connection(
+      Module,
       fun(C) ->
-              {ok, S} = pgsql:parse(C, "select value from test_table1 where id = $1"),
-              ok = pgsql:bind(C, S, [1]),
-              ok = pgsql:close(C, S),
-              ok = pgsql:sync(C)
+              {ok, S} = Module:parse(C, "select value from test_table1 where id = $1"),
+              ok = Module:bind(C, S, [1]),
+              ok = Module:close(C, S),
+              ok = Module:sync(C)
       end).
 
-bind_parameter_format_test() ->
+bind_parameter_format_test(Module) ->
     with_connection(
+      Module,
       fun(C) ->
-              {ok, S} = pgsql:parse(C, "select $1, $2, $3", [int2, text, bool]),
+              {ok, S} = Module:parse(C, "select $1, $2, $3", [int2, text, bool]),
               [int2, text, bool] = S#statement.types,
-              ok = pgsql:bind(C, S, [1, "hi", true]),
-              {ok, [{1, <<"hi">>, true}]} = pgsql:execute(C, S, 0),
-              ok = pgsql:close(C, S),
-              ok = pgsql:sync(C)
+              ok = Module:bind(C, S, [1, "hi", true]),
+              {ok, [{1, <<"hi">>, true}]} = Module:execute(C, S, 0),
+              ok = Module:close(C, S),
+              ok = Module:sync(C)
       end).
 
-bind_error_test() ->
+bind_error_test(Module) ->
     with_connection(
+      Module,
       fun(C) ->
-              {ok, S} = pgsql:parse(C, "select $1::char"),
-              {error, #error{}} = pgsql:bind(C, S, [0]),
-              ok = pgsql:bind(C, S, [$A]),
-              ok = pgsql:close(C, S),
-              ok = pgsql:sync(C)
+              {ok, S} = Module:parse(C, "select $1::char"),
+              {error, #error{}} = Module:bind(C, S, [0]),
+              ok = Module:bind(C, S, [$A]),
+              ok = Module:close(C, S),
+              ok = Module:sync(C)
       end).
 
-bind_and_close_test() ->
+bind_and_close_test(Module) ->
     with_connection(
+      Module,
       fun(C) ->
-              {ok, S} = pgsql:parse(C, "select * from test_table1"),
-              ok = pgsql:bind(C, S, "one", []),
-              {error, #error{code = <<"42P03">>}} = pgsql:bind(C, S, "one", []),
-              ok = pgsql:close(C, portal, "one"),
-              ok = pgsql:bind(C, S, "one", []),
-              ok = pgsql:sync(C)
+              {ok, S} = Module:parse(C, "select * from test_table1"),
+              ok = Module:bind(C, S, "one", []),
+              {error, #error{code = <<"42P03">>}} = Module:bind(C, S, "one", []),
+              ok = Module:close(C, portal, "one"),
+              ok = Module:bind(C, S, "one", []),
+              ok = Module:sync(C)
       end).
 
-execute_error_test() ->
+execute_error_test(Module) ->
     with_connection(
+      Module,
       fun(C) ->
-          {ok, S} = pgsql:parse(C, "insert into test_table1 (id, value) values ($1, $2)"),
-          ok = pgsql:bind(C, S, [1, <<"foo">>]),
-          {error, #error{code = <<"23505">>}} = pgsql:execute(C, S, 0),
-          {error, sync_required} = pgsql:bind(C, S, [3, <<"quux">>]),
-          ok = pgsql:sync(C),
-          ok = pgsql:bind(C, S, [3, <<"quux">>]),
-          {ok, _} = pgsql:execute(C, S, 0),
-          {ok, 1} = pgsql:squery(C, "delete from test_table1 where id = 3")
+          {ok, S} = Module:parse(C, "insert into test_table1 (id, value) values ($1, $2)"),
+          ok = Module:bind(C, S, [1, <<"foo">>]),
+          {error, #error{code = <<"23505">>}} = Module:execute(C, S, 0),
+          {error, sync_required} = Module:bind(C, S, [3, <<"quux">>]),
+          ok = Module:sync(C),
+          ok = Module:bind(C, S, [3, <<"quux">>]),
+          {ok, _} = Module:execute(C, S, 0),
+          {ok, 1} = Module:squery(C, "delete from test_table1 where id = 3")
       end).
 
-describe_test() ->
+describe_test(Module) ->
     with_connection(
+      Module,
       fun(C) ->
-              {ok, S} = pgsql:parse(C, "select * from test_table1"),
+              {ok, S} = Module:parse(C, "select * from test_table1"),
               [#column{name = <<"id">>}, #column{name = <<"value">>}] = S#statement.columns,
-              {ok, S} = pgsql:describe(C, S),
-              ok = pgsql:close(C, S),
-              ok = pgsql:sync(C)
+              {ok, S} = Module:describe(C, S),
+              ok = Module:close(C, S),
+              ok = Module:sync(C)
       end).
 
-describe_with_param_test() ->
+describe_with_param_test(Module) ->
     with_connection(
+      Module,
       fun(C) ->
-              {ok, S} = pgsql:parse(C, "select id from test_table1 where id = $1"),
+              {ok, S} = Module:parse(C, "select id from test_table1 where id = $1"),
               [int4] = S#statement.types,
               [#column{name = <<"id">>}] = S#statement.columns,
-              {ok, S} = pgsql:describe(C, S),
-              ok = pgsql:close(C, S),
-              ok = pgsql:sync(C)
+              {ok, S} = Module:describe(C, S),
+              ok = Module:close(C, S),
+              ok = Module:sync(C)
       end).
 
-describe_named_test() ->
+describe_named_test(Module) ->
     with_connection(
+      Module,
       fun(C) ->
-              {ok, S} = pgsql:parse(C, "name", "select * from test_table1", []),
+              {ok, S} = Module:parse(C, "name", "select * from test_table1", []),
               [#column{name = <<"id">>}, #column{name = <<"value">>}] = S#statement.columns,
-              {ok, S} = pgsql:describe(C, S),
-              ok = pgsql:close(C, S),
-              ok = pgsql:sync(C)
+              {ok, S} = Module:describe(C, S),
+              ok = Module:close(C, S),
+              ok = Module:sync(C)
       end).
 
-describe_error_test() ->
+describe_error_test(Module) ->
     with_connection(
+      Module,
       fun(C) ->
-              {error, #error{}} = pgsql:describe(C, statement, ""),
-              {ok, S} = pgsql:parse(C, "select * from test_table1"),
-              {ok, S} = pgsql:describe(C, statement, ""),
-              ok = pgsql:sync(C)
+              {error, #error{}} = Module:describe(C, statement, ""),
+              {ok, S} = Module:parse(C, "select * from test_table1"),
+              {ok, S} = Module:describe(C, statement, ""),
+              ok = Module:sync(C)
 
       end).
 
-portal_test() ->
+portal_test(Module) ->
     with_connection(
+      Module,
       fun(C) ->
-              {ok, S} = pgsql:parse(C, "select value from test_table1"),
-              ok = pgsql:bind(C, S, []),
-              {partial, [{<<"one">>}]} = pgsql:execute(C, S, 1),
-              {partial, [{<<"two">>}]} = pgsql:execute(C, S, 1),
-              {ok, []} = pgsql:execute(C, S,1),
-              ok = pgsql:close(C, S),
-              ok = pgsql:sync(C)
+              {ok, S} = Module:parse(C, "select value from test_table1"),
+              ok = Module:bind(C, S, []),
+              {partial, [{<<"one">>}]} = Module:execute(C, S, 1),
+              {partial, [{<<"two">>}]} = Module:execute(C, S, 1),
+              {ok, []} = Module:execute(C, S,1),
+              ok = Module:close(C, S),
+              ok = Module:sync(C)
       end).
 
-returning_test() ->
+returning_test(Module) ->
     with_rollback(
+      Module,
       fun(C) ->
-              {ok, S} = pgsql:parse(C, "update test_table1 set value = $1 returning id"),
-              ok = pgsql:bind(C, S, ["foo"]),
-              {ok, 2, [{1}, {2}]} = pgsql:execute(C, S),
-              ok = pgsql:sync(C)
+              {ok, S} = Module:parse(C, "update test_table1 set value = $1 returning id"),
+              ok = Module:bind(C, S, ["foo"]),
+              {ok, 2, [{1}, {2}]} = Module:execute(C, S),
+              ok = Module:sync(C)
       end).
 
-multiple_statement_test() ->
+multiple_statement_test(Module) ->
     with_connection(
+      Module,
       fun(C) ->
-              {ok, S1} = pgsql:parse(C, "one", "select value from test_table1 where id = 1", []),
-              ok = pgsql:bind(C, S1, []),
-              {partial, [{<<"one">>}]} = pgsql:execute(C, S1, 1),
-              {ok, S2} = pgsql:parse(C, "two", "select value from test_table1 where id = 2", []),
-              ok = pgsql:bind(C, S2, []),
-              {partial, [{<<"two">>}]} = pgsql:execute(C, S2, 1),
-              {ok, []} = pgsql:execute(C, S1, 1),
-              {ok, []} = pgsql:execute(C, S2, 1),
-              ok = pgsql:close(C, S1),
-              ok = pgsql:close(C, S2),
-              ok = pgsql:sync(C)
+              {ok, S1} = Module:parse(C, "one", "select value from test_table1 where id = 1", []),
+              ok = Module:bind(C, S1, []),
+              {partial, [{<<"one">>}]} = Module:execute(C, S1, 1),
+              {ok, S2} = Module:parse(C, "two", "select value from test_table1 where id = 2", []),
+              ok = Module:bind(C, S2, []),
+              {partial, [{<<"two">>}]} = Module:execute(C, S2, 1),
+              {ok, []} = Module:execute(C, S1, 1),
+              {ok, []} = Module:execute(C, S2, 1),
+              ok = Module:close(C, S1),
+              ok = Module:close(C, S2),
+              ok = Module:sync(C)
       end).
 
-multiple_portal_test() ->
+multiple_portal_test(Module) ->
     with_connection(
+      Module,
       fun(C) ->
-              {ok, S} = pgsql:parse(C, "select value from test_table1 where id = $1"),
-              ok = pgsql:bind(C, S, "one", [1]),
-              ok = pgsql:bind(C, S, "two", [2]),
-              {ok, [{<<"one">>}]} = pgsql:execute(C, S, "one", 0),
-              {ok, [{<<"two">>}]} = pgsql:execute(C, S, "two", 0),
-              ok = pgsql:close(C, S),
-              ok = pgsql:sync(C)
+              {ok, S} = Module:parse(C, "select value from test_table1 where id = $1"),
+              ok = Module:bind(C, S, "one", [1]),
+              ok = Module:bind(C, S, "two", [2]),
+              {ok, [{<<"one">>}]} = Module:execute(C, S, "one", 0),
+              {ok, [{<<"two">>}]} = Module:execute(C, S, "two", 0),
+              ok = Module:close(C, S),
+              ok = Module:sync(C)
       end).
 
-execute_function_test() ->
+execute_function_test(Module) ->
     with_rollback(
+      Module,
       fun(C) ->
-              {ok, _Cols1, [{3}]} = pgsql:equery(C, "select insert_test1(3, 'three')"),
-              {ok, _Cols2, [{<<>>}]} = pgsql:equery(C, "select do_nothing()")
+              {ok, _Cols1, [{3}]} = Module:equery(C, "select insert_test1(3, 'three')"),
+              {ok, _Cols2, [{<<>>}]} = Module:equery(C, "select do_nothing()")
       end).
 
-parameter_get_test() ->
+parameter_get_test(Module) ->
     with_connection(
+      Module,
       fun(C) ->
-              {ok, <<"off">>} = pgsql:get_parameter(C, "is_superuser")
+              {ok, <<"off">>} = Module:get_parameter(C, "is_superuser")
       end).
 
-parameter_set_test() ->
+parameter_set_test(Module) ->
     with_connection(
+      Module,
       fun(C) ->
-              {ok, [], []} = pgsql:squery(C, "set DateStyle = 'ISO, MDY'"),
-              {ok, <<"ISO, MDY">>} = pgsql:get_parameter(C, "DateStyle"),
-              {ok, _Cols, [{<<"2000-01-02">>}]} = pgsql:squery(C, "select '2000-01-02'::date"),
-              {ok, [], []} = pgsql:squery(C, "set DateStyle = 'German'"),
-              {ok, <<"German, DMY">>} = pgsql:get_parameter(C, "DateStyle"),
-              {ok, _Cols, [{<<"02.01.2000">>}]} = pgsql:squery(C, "select '2000-01-02'::date")
+              {ok, [], []} = Module:squery(C, "set DateStyle = 'ISO, MDY'"),
+              {ok, <<"ISO, MDY">>} = Module:get_parameter(C, "DateStyle"),
+              {ok, _Cols, [{<<"2000-01-02">>}]} = Module:squery(C, "select '2000-01-02'::date"),
+              {ok, [], []} = Module:squery(C, "set DateStyle = 'German'"),
+              {ok, <<"German, DMY">>} = Module:get_parameter(C, "DateStyle"),
+              {ok, _Cols, [{<<"02.01.2000">>}]} = Module:squery(C, "select '2000-01-02'::date")
       end).
 
-numeric_type_test() ->
-    check_type(int2, "1", 1, [0, 256, -32768, +32767]),
-    check_type(int4, "1", 1, [0, 512, -2147483648, +2147483647]),
-    check_type(int8, "1", 1, [0, 1024, -9223372036854775808, +9223372036854775807]),
-    check_type(float4, "1.0", 1.0, [0.0, 1.23456, -1.23456]),
-    check_type(float8, "1.0", 1.0, [0.0, 1.23456789012345, -1.23456789012345]).
+numeric_type_test(Module) ->
+    check_type(Module, int2, "1", 1, [0, 256, -32768, +32767]),
+    check_type(Module, int4, "1", 1, [0, 512, -2147483648, +2147483647]),
+    check_type(Module, int8, "1", 1, [0, 1024, -9223372036854775808, +9223372036854775807]),
+    check_type(Module, float4, "1.0", 1.0, [0.0, 1.23456, -1.23456]),
+    check_type(Module, float8, "1.0", 1.0, [0.0, 1.23456789012345, -1.23456789012345]).
 
-character_type_test() ->
+character_type_test(Module) ->
     Alpha = unicode:characters_to_binary([16#03B1]),
     Ka    = unicode:characters_to_binary([16#304B]),
     One   = unicode:characters_to_binary([16#10D360]),
-    check_type(bpchar, "'A'", $A, [1, $1, 16#7F, Alpha, Ka, One], "c_char"),
-    check_type(text, "'hi'", <<"hi">>, [<<"">>, <<"hi">>]),
-    check_type(varchar, "'hi'", <<"hi">>, [<<"">>, <<"hi">>]).
+    check_type(Module, bpchar, "'A'", $A, [1, $1, 16#7F, Alpha, Ka, One], "c_char"),
+    check_type(Module, text, "'hi'", <<"hi">>, [<<"">>, <<"hi">>]),
+    check_type(Module, varchar, "'hi'", <<"hi">>, [<<"">>, <<"hi">>]).
 
-date_time_type_test() ->
+date_time_type_test(Module) ->
     with_connection(
+      Module,
       fun(C) ->
-              case pgsql:get_parameter(C, "integer_datetimes") of
+              case Module:get_parameter(C, "integer_datetimes") of
                   {ok, <<"on">>}  -> MaxTsDate = 294276;
                   {ok, <<"off">>} -> MaxTsDate = 5874897
               end,
 
-              check_type(date, "'2008-01-02'", {2008,1,2}, [{-4712,1,1}, {5874897,1,1}]),
-              check_type(time, "'00:01:02'", {0,1,2.0}, [{0,0,0.0}, {24,0,0.0}]),
-              check_type(timetz, "'00:01:02-01'", {{0,1,2.0},1*60*60},
+              check_type(Module, date, "'2008-01-02'", {2008,1,2}, [{-4712,1,1}, {5874897,1,1}]),
+              check_type(Module, time, "'00:01:02'", {0,1,2.0}, [{0,0,0.0}, {24,0,0.0}]),
+              check_type(Module, timetz, "'00:01:02-01'", {{0,1,2.0},1*60*60},
                          [{{0,0,0.0},0}, {{24,0,0.0},-13*60*60}]),
-              check_type(timestamp, "'2008-01-02 03:04:05'", {{2008,1,2},{3,4,5.0}},
+              check_type(Module, timestamp, "'2008-01-02 03:04:05'", {{2008,1,2},{3,4,5.0}},
                          [{{-4712,1,1},{0,0,0.0}}, {{MaxTsDate,12,31}, {23,59,59.0}}]),
-              check_type(interval, "'1 hour 2 minutes 3.1 seconds'", {{1,2,3.1},0,0},
+              check_type(Module, interval, "'1 hour 2 minutes 3.1 seconds'", {{1,2,3.1},0,0},
                          [{{0,0,0.0},0,-178000000 * 12}, {{0,0,0.0},0,178000000 * 12}])
       end).
 
-misc_type_test() ->
-    check_type(bool, "true", true, [true, false]),
-    check_type(bytea, "E'\001\002'", <<1,2>>, [<<>>, <<0,128,255>>]).
+misc_type_test(Module) ->
+    check_type(Module, bool, "true", true, [true, false]),
+    check_type(Module, bytea, "E'\001\002'", <<1,2>>, [<<>>, <<0,128,255>>]).
 
-array_type_test() ->
+array_type_test(Module) ->
     with_connection(
+      Module,
       fun(C) ->
           Select = fun(Type, V) ->
                        Query = "select $1::" ++ Type,
-                       {ok, _Cols, [{V}]} = pgsql:equery(C, Query, [V])
+                       {ok, _Cols, [{V}]} = Module:equery(C, Query, [V])
                    end,
           Select("int2[]", []),
           Select("int2[]", [1, 2, 3, 4]),
@@ -447,49 +484,52 @@ array_type_test() ->
           Select("text[]", [<<"one">>, <<"two>">>])
       end).
 
-text_format_test() ->
+text_format_test(Module) ->
     with_connection(
+      Module,
       fun(C) ->
               Select = fun(Type, V) ->
                                V2 = list_to_binary(V),
                                Query = "select $1::" ++ Type,
-                               {ok, _Cols, [{V2}]} = pgsql:equery(C, Query, [V]),
-                               {ok, _Cols, [{V2}]} = pgsql:equery(C, Query, [V2])
+                               {ok, _Cols, [{V2}]} = Module:equery(C, Query, [V]),
+                               {ok, _Cols, [{V2}]} = Module:equery(C, Query, [V2])
                        end,
               Select("inet", "127.0.0.1"),
               Select("numeric", "123456")
       end).
 
-connect_timeout_test() ->
-    {error, timeout} = pgsql:connect(?host, [{port, ?port}, {timeout, 0}]).
+connect_timeout_test(Module) ->
+    {error, timeout} = Module:connect(?host, [{port, ?port}, {timeout, 0}]).
 
-query_timeout_test() ->
+query_timeout_test(Module) ->
     with_connection(
+      Module,
       fun(C) ->
-              {error, timeout} = pgsql:squery(C, "select pg_sleep(1)"),
-              {error, timeout} = pgsql:equery(C, "select pg_sleep(2)"),
-              {ok, _Cols, [{1}]} = pgsql:equery(C, "select 1")
+              {error, timeout} = Module:squery(C, "select pg_sleep(1)"),
+              {error, timeout} = Module:equery(C, "select pg_sleep(2)"),
+              {ok, _Cols, [{1}]} = Module:equery(C, "select 1")
       end,
       [{timeout, 10}]).
 
-execute_timeout_test() ->
+execute_timeout_test(Module) ->
     with_connection(
+      Module,
       fun(C) ->
-              {ok, S} = pgsql:parse(C, "select pg_sleep($1)"),
-              ok = pgsql:bind(C, S, [2]),
-              {error, timeout} = pgsql:execute(C, S, 0),
-              ok = pgsql:bind(C, S, [0]),
-              {ok, [{<<>>}]} = pgsql:execute(C, S, 0),
-              ok = pgsql:close(C, S),
-              ok = pgsql:sync(C)
+              {ok, S} = Module:parse(C, "select pg_sleep($1)"),
+              ok = Module:bind(C, S, [2]),
+              {error, timeout} = Module:execute(C, S, 0),
+              ok = Module:bind(C, S, [0]),
+              {ok, [{<<>>}]} = Module:execute(C, S, 0),
+              ok = Module:close(C, S),
+              ok = Module:sync(C)
       end,
       [{timeout, 10}]).
 
-connection_closed_test() ->
+connection_closed_test(Module) ->
     P = self(),
     F = fun() ->
                 process_flag(trap_exit, true),
-                {ok, C} = pgsql:connect(?host, [{port, ?port}]),
+                {ok, C} = Module:connect(?host, [{port, ?port}]),
                 P ! {connected, C},
                 receive
                     Any -> P ! Any
@@ -499,33 +539,34 @@ connection_closed_test() ->
     receive
         {connected, C} ->
             timer:sleep(100),
-            pgsql:close(C),
+            Module:close(C),
             {'EXIT', C, _} = receive R -> R end
     end,
     flush().
 
-active_connection_closed_test() ->
+active_connection_closed_test(Module) ->
     P = self(),
     F = fun() ->
                 process_flag(trap_exit, true),
-                {ok, C} = pgsql:connect(?host, [{port, ?port}]),
+                {ok, C} = Module:connect(?host, [{port, ?port}]),
                 P ! {connected, C},
-                R = pgsql:squery(C, "select pg_sleep(10)"),
+                R = Module:squery(C, "select pg_sleep(10)"),
                 P ! R
         end,
     spawn_link(F),
     receive
         {connected, C} ->
             timer:sleep(100),
-            pgsql:close(C),
+            Module:close(C),
             {error, closed} = receive R -> R end
     end,
     flush().
 
-warning_notice_test() ->
+warning_notice_test(Module) ->
     with_connection(
+      Module,
       fun(C) ->
-          {ok, _, _} = pgsql:squery(C, "select 'test\\n'"),
+          {ok, _, _} = Module:squery(C, "select 'test\\n'"),
           receive
               {pgsql, C, {notice, #error{code = <<"22P06">>}}} -> ok
           after
@@ -534,12 +575,13 @@ warning_notice_test() ->
       end,
       [{async, self()}]).
 
-listen_notify_test() ->
+listen_notify_test(Module) ->
     with_connection(
+      Module,
       fun(C) ->
-          {ok, [], []}     = pgsql:squery(C, "listen epgsql_test"),
-          {ok, _, [{Pid}]} = pgsql:equery(C, "select pg_backend_pid()"),
-          {ok, [], []}     = pgsql:squery(C, "notify epgsql_test"),
+          {ok, [], []}     = Module:squery(C, "listen epgsql_test"),
+          {ok, _, [{Pid}]} = Module:equery(C, "select pg_backend_pid()"),
+          {ok, [], []}     = Module:squery(C, "notify epgsql_test"),
           receive
               {pgsql, C, {notification, <<"epgsql_test">>, Pid, <<>>}} -> ok
           after
@@ -548,13 +590,14 @@ listen_notify_test() ->
       end,
       [{async, self()}]).
 
-listen_notify_payload_test() ->
+listen_notify_payload_test(Module) ->
     with_min_version(
+      Module,
       9.0,
       fun(C) ->
-          {ok, [], []}     = pgsql:squery(C, "listen epgsql_test"),
-          {ok, _, [{Pid}]} = pgsql:equery(C, "select pg_backend_pid()"),
-          {ok, [], []}     = pgsql:squery(C, "notify epgsql_test, 'test!'"),
+          {ok, [], []}     = Module:squery(C, "listen epgsql_test"),
+          {ok, _, [{Pid}]} = Module:equery(C, "select pg_backend_pid()"),
+          {ok, [], []}     = Module:squery(C, "notify epgsql_test, 'test!'"),
           receive
               {pgsql, C, {notification, <<"epgsql_test">>, Pid, <<"test!">>}} -> ok
           after
@@ -563,7 +606,7 @@ listen_notify_payload_test() ->
       end,
       [{async, self()}]).
 
-application_test() ->
+application_test(_Module) ->
     lists:foreach(fun application:start/1, ?ssl_apps),
     ok = application:start(epgsql).
 
@@ -575,7 +618,7 @@ run_tests() ->
     eunit:test(Mods, []).
 
 all_test_() ->
-    Functions =
+    Tests =
         lists:map(
           fun({Name, _}) ->
                   fun(X) -> ?MODULE:Name(X) end
@@ -587,52 +630,55 @@ all_test_() ->
                         _ -> false
                     end
             end,
-            ?MODULE:module_info(functions))).
+            ?MODULE:module_info(functions))),
+    {with, pgsql, Tests}.
 
 %% -- internal functions --
 
-connect_only(Args) ->
+connect_only(Module, Args) ->
     TestOpts = [{port, ?port}],
     case Args of
         [User, Opts]       -> Args2 = [User, TestOpts ++ Opts];
         [User, Pass, Opts] -> Args2 = [User, Pass, TestOpts ++ Opts];
         Opts               -> Args2 = [TestOpts ++ Opts]
     end,
-    {ok, C} = apply(pgsql, connect, [?host | Args2]),
-    pgsql:close(C),
+    {ok, C} = apply(Module, connect, [?host | Args2]),
+    Module:close(C),
     flush().
 
-with_connection(F) ->
-    with_connection(F, "epgsql_test", []).
+with_connection(Module, F) ->
+    with_connection(Module, F, "epgsql_test", []).
 
-with_connection(F, Args) ->
-    with_connection(F, "epgsql_test", Args).
+with_connection(Module, F, Args) ->
+    with_connection(Module, F, "epgsql_test", Args).
 
-with_connection(F, Username, Args) ->
+with_connection(Module, F, Username, Args) ->
     Args2 = [{port, ?port}, {database, "epgsql_test_db1"} | Args],
-    {ok, C} = pgsql:connect(?host, Username, Args2),
+    {ok, C} = Module:connect(?host, Username, Args2),
     try
         F(C)
     after
-        pgsql:close(C)
+        Module:close(C)
     end,
     flush().
 
-with_rollback(F) ->
+with_rollback(Module, F) ->
     with_connection(
+      Module,
       fun(C) ->
               try
-                  pgsql:squery(C, "begin"),
+                  Module:squery(C, "begin"),
                   F(C)
                   after
-                      pgsql:squery(C, "rollback")
+                      Module:squery(C, "rollback")
                   end
       end).
 
-with_min_version(Min, F, Args) ->
+with_min_version(Module, Min, F, Args) ->
     with_connection(
+      Module,
       fun(C) ->
-          {ok, Bin} = pgsql:get_parameter(C, <<"server_version">>),
+          {ok, Bin} = Module:get_parameter(C, <<"server_version">>),
           {ok, [{float, 1, Ver} | _], _} = erl_scan:string(binary_to_list(Bin)),
           case Ver >= Min of
               true  -> F(C);
@@ -641,25 +687,26 @@ with_min_version(Min, F, Args) ->
       end,
       Args).
 
-check_type(Type, In, Out, Values) ->
+check_type(Module, Type, In, Out, Values) ->
     Column = "c_" ++ atom_to_list(Type),
-    check_type(Type, In, Out, Values, Column).
+    check_type(Module, Type, In, Out, Values, Column).
 
-check_type(Type, In, Out, Values, Column) ->
+check_type(Module, Type, In, Out, Values, Column) ->
     with_connection(
+      Module,
       fun(C) ->
               Select = io_lib:format("select ~s::~w", [In, Type]),
-              {ok, [#column{type = Type}], [{Out}]} = pgsql:equery(C, Select),
+              {ok, [#column{type = Type}], [{Out}]} = Module:equery(C, Select),
               Sql = io_lib:format("insert into test_table2 (~s) values ($1) returning ~s", [Column, Column]),
-              {ok, #statement{columns = [#column{type = Type}]} = S} = pgsql:parse(C, Sql),
+              {ok, #statement{columns = [#column{type = Type}]} = S} = Module:parse(C, Sql),
               Insert = fun(V) ->
-                               pgsql:bind(C, S, [V]),
-                               {ok, 1, [{V2}]} = pgsql:execute(C, S),
+                               Module:bind(C, S, [V]),
+                               {ok, 1, [{V2}]} = Module:execute(C, S),
                                case compare(Type, V, V2) of
                                    true  -> ok;
                                    false -> ?debugFmt("~p =/= ~p~n", [V, V2]), ?assert(false)
                                end,
-                               ok = pgsql:sync(C)
+                               ok = Module:sync(C)
                        end,
               lists:foreach(Insert, [null | Values])
       end).
