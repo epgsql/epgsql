@@ -621,7 +621,7 @@ all_test_() ->
     Tests =
         lists:map(
           fun({Name, _}) ->
-                  fun(X) -> ?MODULE:Name(X) end
+                  {Name, fun(X) -> ?MODULE:Name(X) end}
           end,
           lists:filter(
             fun({Name, Arity}) ->
@@ -631,7 +631,17 @@ all_test_() ->
                     end
             end,
             ?MODULE:module_info(functions))),
-    {with, pgsql, Tests}.
+    WithParameter =
+        fun(Module) ->
+                lists:map(
+                  fun({Name, Test}) ->
+                          {lists:flatten(
+                             io_lib:format("~s(~s)", [Name, Module])),
+                           fun() -> Test(Module) end}
+                  end,
+                  Tests)
+        end,
+    WithParameter(pgsql).
 
 %% -- internal functions --
 
