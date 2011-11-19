@@ -1,6 +1,7 @@
 -module(pgsql_tests).
 
 -export([run_tests/0]).
+%%-compile([export_all]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("public_key/include/public_key.hrl").
@@ -572,6 +573,21 @@ run_tests() ->
     Files = filelib:wildcard("test_ebin/*tests.beam"),
     Mods = [list_to_atom(filename:basename(F, ".beam")) || F <- Files],
     eunit:test(Mods, []).
+
+all_test_() ->
+    Functions =
+        lists:map(
+          fun({Name, _}) ->
+                  fun(X) -> ?MODULE:Name(X) end
+          end,
+          lists:filter(
+            fun({Name, Arity}) ->
+                    case {lists:suffix("_test", atom_to_list(Name)), Arity} of
+                        {true, 1} -> true;
+                        _ -> false
+                    end
+            end,
+            ?MODULE:module_info(functions))).
 
 %% -- internal functions --
 
