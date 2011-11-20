@@ -65,5 +65,5 @@ cancel(C) ->
 
 cast(C, Command) ->
     Ref = make_ref(),
-    gen_server:cast(C, {{self(), Ref}, Command}),
+    gen_server:cast(C, {{cast, self(), Ref}, Command}),
     Ref.
