@@ -608,7 +608,8 @@ listen_notify_payload_test(Module) ->
 
 application_test(_Module) ->
     lists:foreach(fun application:start/1, ?ssl_apps),
-    ok = application:start(epgsql).
+    ok = application:start(epgsql),
+    ok = application:stop(epgsql).
 
 %% -- run all tests --
 
