@@ -540,8 +540,12 @@ on_message({$Z, <<Status:8>>}, State) ->
                              finish(State, done, lists:reverse(Results))
                      end;
                  equery ->
-                     [Result] = State#state.results,
-                     finish(State, done, Result);
+                     case State#state.results of
+                         [Result] ->
+                             finish(State, done, Result);
+                         [] ->
+                             finish(State, done)
+                     end;
                  sync ->
                      finish(State, ok)
              end,
