@@ -631,7 +631,7 @@ all_test_() ->
                     end
             end,
             ?MODULE:module_info(functions))),
-    WithParameter =
+    WithModule =
         fun(Module) ->
                 lists:map(
                   fun({Name, Test}) ->
@@ -641,7 +641,9 @@ all_test_() ->
                   end,
                   Tests)
         end,
-    WithParameter(pgsql).
+    [WithModule(pgsql),
+     WithModule(pgsql_cast),
+     WithModule(pgsql_incremental)].
 
 %% -- internal functions --
 
