@@ -247,9 +247,9 @@ finish(State, Result) ->
 finish(State = #state{queue = Q}, Notice, Result) ->
     case queue:get(Q) of
         {{cast, From, Ref}, _} ->
-            From ! {Ref, Result};
+            From ! {self(), Ref, Result};
         {{incremental, From, Ref}, _} ->
-            From ! {Ref, Notice};
+            From ! {self(), Ref, Notice};
         {{call, From}, _} ->
             gen_server:reply(From, Result)
     end,
@@ -262,7 +262,7 @@ finish(State = #state{queue = Q}, Notice, Result) ->
 add_result(State = #state{queue = Q, results = Results}, Notice, Result) ->
     Results2 = case queue:get(Q) of
                    {{incremental, From, Ref}, _} ->
-                       From ! {Ref, Notice},
+                       From ! {self(), Ref, Notice},
                        Results;
                    _ ->
                        [Result | Results]
@@ -275,7 +275,7 @@ add_result(State = #state{queue = Q, results = Results}, Notice, Result) ->
 add_row(State = #state{queue = Q, rows = Rows}, Data) ->
     Rows2 = case queue:get(Q) of
                 {{incremental, From, Ref}, _} ->
-                    From ! {Ref, {data, Data}},
+                    From ! {self(), Ref, {data, Data}},
                     Rows;
                 _ ->
                     [Data | Rows]
@@ -285,7 +285,7 @@ add_row(State = #state{queue = Q, rows = Rows}, Data) ->
 notify(State = #state{queue = Q}, Notice) ->
     case queue:get(Q) of
         {{incremental, From, Ref}, _} ->
-            From ! {Ref, Notice};
+            From ! {self(), Ref, Notice};
         _ ->
             ignore
     end,
