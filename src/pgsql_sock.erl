@@ -468,7 +468,8 @@ on_message({$n, <<>>}, State) ->
 on_message({$2, <<>>}, State) ->
     State2 = case command_tag(State) of
                  equery ->
-                     State;
+                     %% TODO send Describe as a part of equery, needs text format support
+                     notify(State, {columns, get_columns(State)});
                  bind ->
                      finish(State, ok)
              end,
