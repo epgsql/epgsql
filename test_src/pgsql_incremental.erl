@@ -115,7 +115,7 @@ close(C, Type, Name) ->
 
 sync(C) ->
     Ref = ipgsql:sync(C),
-    receive_atom(C, Ref, done, ok).
+    receive_atom(C, Ref, ok, ok).
 
 %% misc helper functions
 with_transaction(C, F) ->
@@ -218,7 +218,7 @@ receive_atom(C, Ref, Receive, Return) ->
 
 sync_on_error(C, Error = {error, _}) ->
     Ref = ipgsql:sync(C),
-    receive_atom(C, Ref, done, ok),
+    receive_atom(C, Ref, ok, ok),
     Error;
 
 sync_on_error(_C, R) ->
