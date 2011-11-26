@@ -415,7 +415,7 @@ date_time_type_test() ->
               check_type(timetz, "'00:01:02-01'", {{0,1,2.0},1*60*60},
                          [{{0,0,0.0},0}, {{24,0,0.0},-13*60*60}]),
               check_type(timestamp, "'2008-01-02 03:04:05'", {{2008,1,2},{3,4,5.0}},
-                         [{{-4712,1,1},{0,0,0.0}}, {{MaxTsDate,12,31}, {23,59,59.0}}]),
+                         [{{-4712,1,1},{0,0,0.0}}, {{MaxTsDate,12,31}, {23,59,59.0}}, {1322,334285,440966}]),
               check_type(interval, "'1 hour 2 minutes 3.1 seconds'", {{1,2,3.1},0,0},
                          [{{0,0,0.0},0,-178000000 * 12}, {{0,0,0.0},0,178000000 * 12}])
       end).
@@ -647,6 +647,7 @@ check_type(Type, In, Out, Values, Column) ->
 compare(_Type, null, null) -> true;
 compare(float4, V1, V2)    -> abs(V2 - V1) < 0.000001;
 compare(float8, V1, V2)    -> abs(V2 - V1) < 0.000000000000001;
+compare(timestamp, V1 = {_,_,_}, V2) -> calendar:now_to_local_time(V1) =:= V2;
 compare(_Type, V1, V2)     -> V1 =:= V2.
 
 %% flush mailbox
