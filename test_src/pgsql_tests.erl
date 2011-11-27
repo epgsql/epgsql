@@ -647,7 +647,7 @@ check_type(Type, In, Out, Values, Column) ->
 compare(_Type, null, null) -> true;
 compare(float4, V1, V2)    -> abs(V2 - V1) < 0.000001;
 compare(float8, V1, V2)    -> abs(V2 - V1) < 0.000000000000001;
-compare(timestamp, V1 = {_,_,_}, V2) -> calendar:now_to_local_time(V1) =:= V2;
+compare(timestamp, V1 = {_,_,_}, V2) -> calendar:now_to_universal_time(V1) =:= V2;
 compare(_Type, V1, V2)     -> V1 =:= V2.
 
 %% flush mailbox
