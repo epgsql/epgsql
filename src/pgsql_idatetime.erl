@@ -8,7 +8,7 @@
 -define(int64, 1/big-signed-unit:64).
 
 -define(postgres_epoc_jdate, 2451545).
--define(postgres_epoc_usecs, 946674000000000).
+-define(postgres_epoc_usecs, 946684800000000).
 
 -define(mins_per_hour, 60).
 -define(secs_per_minute, 60).
