@@ -416,6 +416,7 @@ date_time_type_test() ->
                          [{{0,0,0.0},0}, {{24,0,0.0},-13*60*60}]),
               check_type(timestamp, "'2008-01-02 03:04:05'", {{2008,1,2},{3,4,5.0}},
                          [{{-4712,1,1},{0,0,0.0}}, {{MaxTsDate,12,31}, {23,59,59.0}}, {1322,334285,440966}]),
+              check_type(timestamptz, "'2011-01-02 03:04:05+3'", {{2011, 1, 2}, {0, 4, 5.0}}, [{1324,875970,286983}]),
               check_type(interval, "'1 hour 2 minutes 3.1 seconds'", {{1,2,3.1},0,0},
                          [{{0,0,0.0},0,-178000000 * 12}, {{0,0,0.0},0,178000000 * 12}])
       end).
@@ -647,7 +648,8 @@ check_type(Type, In, Out, Values, Column) ->
 compare(_Type, null, null) -> true;
 compare(float4, V1, V2)    -> abs(V2 - V1) < 0.000001;
 compare(float8, V1, V2)    -> abs(V2 - V1) < 0.000000000000001;
-compare(timestamp, V1 = {_, _, MS}, {D2, {H2, M2, S2}}) ->
+compare(Type, V1 = {_, _, MS}, {D2, {H2, M2, S2}}) when Type == timestamp;
+                                                        Type == timestamptz ->
     {D1, {H1, M1, S1}} = calendar:now_to_universal_time(V1),
     ({D1, H1, M1} =:= {D2, H2, M2}) and (abs(S1 + MS/1000000 - S2) < 0.000000000000001);
 compare(_Type, V1, V2)     -> V1 =:= V2.
