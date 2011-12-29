@@ -106,6 +106,8 @@ Erlang PostgreSQL Database Client
 
   record      = {int2, time, text, ...} (decode only)
 
+  timestamp and timestamptz parameters can take erlang:now() format {MegaSeconds, Seconds, MicroSeconds}
+
 * Errors
 
   Errors originating from the PostgreSQL backend are returned as {error, #error{}},
