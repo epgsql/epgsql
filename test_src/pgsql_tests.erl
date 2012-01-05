@@ -520,9 +520,15 @@ active_connection_closed_test() ->
 warning_notice_test() ->
     with_connection(
       fun(C) ->
-          {ok, _, _} = pgsql:squery(C, "select 'test\\n'"),
+          Q = "create function pg_temp.raise() returns void as $$
+               begin
+                 raise warning 'oops';
+               end;
+               $$ language plpgsql;
+               select pg_temp.raise()",
+          [{ok, _, _}, _] = pgsql:squery(C, Q),
           receive
-              {pgsql, C, {notice, #error{code = <<"22P06">>}}} -> ok
+              {pgsql, C, {notice, #error{message = <<"oops">>}}} -> ok
           after
               100 -> erlang:error(didnt_receive_notice)
           end
