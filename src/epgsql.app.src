@@ -1,6 +1,6 @@
 {application, epgsql,
  [{description, "PostgreSQL Client"},
-  {vsn, "VERSION"},
+  {vsn, git},
   {modules, [pgsql, pgsql_binary, pgsql_connection, pgsql_fdatetime,
              pgsql_idatetime, pgsql_sock, pgsql_types]},
   {registered, []},

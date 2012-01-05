@@ -1,5 +1,5 @@
 NAME		:= epgsql
-VERSION		:= 1.4
+VERSION		:= $(shell git describe --always --tags)
 
 ERL  		:= erl
 ERLC 		:= erlc
@@ -43,7 +43,7 @@ ebin/%.beam : src/%.erl
 	$(ERLC) $(ERLC_FLAGS) -o $(dir $@) $<
 
 ebin/%.app : src/%.app.src Makefile
-	sed -e s/VERSION/$(VERSION)/g $< > $@
+	sed -e s/git/\"$(VERSION)\"/g $< > $@
 
 test_ebin/%.beam : test_src/%.erl
 	$(ERLC) $(ERLC_FLAGS) -o $(dir $@) $<
