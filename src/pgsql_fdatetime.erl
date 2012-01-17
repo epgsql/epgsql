@@ -7,6 +7,7 @@
 -include("pgsql_binary.hrl").
 
 -define(postgres_epoc_jdate, 2451545).
+-define(postgres_epoc_secs, 946684800).
 
 -define(mins_per_hour, 60).
 -define(secs_per_day, 86400.0).
@@ -23,7 +24,9 @@ decode(interval, <<N:1/big-float-unit:64, D:?int32, M:?int32>>) -> {f2time(N), D
 encode(date, D)         -> <<4:?int32, (date2j(D) - ?postgres_epoc_jdate):1/big-signed-unit:32>>;
 encode(time, T)         -> <<8:?int32, (time2f(T)):1/big-float-unit:64>>;
 encode(timetz, {T, TZ}) -> <<12:?int32, (time2f(T)):1/big-float-unit:64, TZ:?int32>>;
+encode(timestamp, TS = {_, _, _})   -> <<8:?int32, (now2f(TS)):1/big-float-unit:64>>;
 encode(timestamp, TS)   -> <<8:?int32, (timestamp2f(TS)):1/big-float-unit:64>>;
+encode(timestamptz, TS = {_, _, _})   -> <<8:?int32, (now2f(TS)):1/big-float-unit:64>>;
 encode(timestamptz, TS) -> <<8:?int32, (timestamp2f(TS)):1/big-float-unit:64>>;
 encode(interval, {T, D, M}) -> <<16:?int32, (time2f(T)):1/big-float-unit:64, D:?int32, M:?int32>>.
 
@@ -93,6 +96,9 @@ f2timestamp2(D, T) ->
 timestamp2f({Date, Time}) ->
     D = date2j(Date) - ?postgres_epoc_jdate,
     D * ?secs_per_day + time2f(Time).
+
+now2f({MegaSecs, Secs, MicroSecs}) ->
+    MegaSecs * 1000000 + Secs + MicroSecs / 1000000.0 - ?postgres_epoc_secs.
 
 tmodulo(T, U) ->
     case T < 0 of
