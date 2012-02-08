@@ -95,6 +95,12 @@ handle_info({Error, Sock, Reason}, #state{sock = Sock} = State)
     Why = {sock_error, Reason},
     {stop, Why, flush_queue(State, {error, Why})};
 
+handle_info({inet_reply, _, ok}, State) ->
+    {noreply, State};
+
+handle_info({inet_reply, _, Status}, State) ->
+    {stop, Status, flush_queue(State, {error, Status})};
+
 handle_info({_, Sock, Data2}, #state{data = Data, sock = Sock} = State) ->
     loop(State#state{data = <<Data/binary, Data2/binary>>}).
 
@@ -223,10 +229,24 @@ setopts(#state{mod = Mod, sock = Sock}, Opts) ->
     end.
 
 send(#state{mod = Mod, sock = Sock}, Data) ->
-    Mod:send(Sock, pgsql_wire:encode(Data)).
+    do_send(Mod, Sock, pgsql_wire:encode(Data)).
 
 send(#state{mod = Mod, sock = Sock}, Type, Data) ->
-    Mod:send(Sock, pgsql_wire:encode(Type, Data)).
+    do_send(Mod, Sock, pgsql_wire:encode(Type, Data)).
+
+do_send(gen_tcp, Sock, Bin) ->
+    try erlang:port_command(Sock, Bin) of
+        false ->
+            {error,busy};
+        true ->
+            ok
+    catch
+        error:_Error ->
+            {error,einval}
+    end;
+
+do_send(Mod, Sock, Bin) ->
+    Mod:send(Sock, Bin).
 
 loop(#state{data = Data, handler = Handler} = State) ->
     case pgsql_wire:decode_message(Data) of
