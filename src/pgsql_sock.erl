@@ -182,6 +182,25 @@ command({execute, _Statement, PortalName, MaxRows}, State) ->
     send(State, $H, []),
     {noreply, State};
 
+command({execute_batch, Batch}, State) ->
+    #state{mod = Mod, sock = Sock} = State,
+    do_send(
+      Mod, Sock,
+      lists:map(
+        fun({Statement, PortalName, Parameters, MaxRows}) ->
+                #statement{name = StatementName,
+                           columns = Columns,
+                           types = Types} = Statement,
+                Typed_Parameters = lists:zip(Types, Parameters),
+                Bin1 = pgsql_wire:encode_parameters(Typed_Parameters),
+                Bin2 = pgsql_wire:encode_formats(Columns),
+                [pgsql_wire:encode($B, [PortalName, 0, StatementName, 0,
+                                        Bin1, Bin2]),
+                 pgsql_wire:encode($E, [PortalName, 0, <<MaxRows:?int32>>])]
+        end,
+        Batch)),
+    {noreply, State};
+
 command({describe_statement, Name}, State) ->
     send(State, $D, [$S, Name, 0]),
     send(State, $H, []),
