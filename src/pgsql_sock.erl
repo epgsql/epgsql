@@ -255,8 +255,6 @@ send(#state{mod = Mod, sock = Sock}, Type, Data) ->
 
 do_send(gen_tcp, Sock, Bin) ->
     try erlang:port_command(Sock, Bin) of
-        false ->
-            {error,busy};
         true ->
             ok
     catch
