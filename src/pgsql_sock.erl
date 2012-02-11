@@ -186,7 +186,7 @@ command({execute_batch, Batch}, State) ->
     #state{mod = Mod, sock = Sock} = State,
     BindExecute =
         lists:map(
-          fun({Statement, PortalName, Parameters, MaxRows}) ->
+          fun({Statement, PortalName, Parameters}) ->
                   #statement{name = StatementName,
                              columns = Columns,
                              types = Types} = Statement,
@@ -195,7 +195,7 @@ command({execute_batch, Batch}, State) ->
                   Bin2 = pgsql_wire:encode_formats(Columns),
                   [pgsql_wire:encode($B, [PortalName, 0, StatementName, 0,
                                           Bin1, Bin2]),
-                   pgsql_wire:encode($E, [PortalName, 0, <<MaxRows:?int32>>])]
+                   pgsql_wire:encode($E, [PortalName, 0, <<0:?int32>>])]
           end,
           Batch),
     Sync = pgsql_wire:encode($S, []),
