@@ -8,7 +8,7 @@
 -export([connect/2, connect/3, connect/4, close/1]).
 -export([get_parameter/2, squery/2, equery/2, equery/3]).
 -export([parse/2, parse/3, parse/4, describe/2, describe/3]).
--export([bind/3, bind/4, execute/2, execute/3, execute/4]).
+-export([bind/3, bind/4, execute/2, execute/3, execute/4, execute_batch/2]).
 -export([close/2, close/3, sync/1]).
 -export([with_transaction/2]).
 -export([receive_result/2, sync_on_error/2]).
@@ -91,6 +91,10 @@ execute(C, S, N) ->
 
 execute(C, S, PortalName, N) ->
     Ref = apgsql:execute(C, S, PortalName, N),
+    receive_result(C, Ref).
+
+execute_batch(C, Batch) ->
+    Ref = apgsql:execute_batch(C, Batch),
     receive_result(C, Ref).
 
 %% statement/portal functions

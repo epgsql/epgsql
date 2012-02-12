@@ -8,7 +8,7 @@
 -export([connect/2, connect/3, connect/4, close/1]).
 -export([get_parameter/2, squery/2, equery/2, equery/3]).
 -export([parse/2, parse/3, parse/4, describe/2, describe/3]).
--export([bind/3, bind/4, execute/2, execute/3, execute/4]).
+-export([bind/3, bind/4, execute/2, execute/3, execute/4, execute_batch/2]).
 -export([close/2, close/3, sync/1]).
 -export([with_transaction/2]).
 
@@ -92,6 +92,13 @@ execute(C, S, N) ->
 execute(C, S, PortalName, N) ->
     Ref = ipgsql:execute(C, S, PortalName, N),
     receive_extended_result(C, Ref).
+
+execute_batch(C, Batch) ->
+    Ref = ipgsql:execute_batch(C, Batch),
+    case receive_results(C, Ref, []) of
+        [Result] -> Result;
+        Results  -> Results
+    end.
 
 %% statement/portal functions
 
