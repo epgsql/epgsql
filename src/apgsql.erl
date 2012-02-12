@@ -11,6 +11,7 @@
          parse/4,
          bind/4,
          execute/4,
+         execute_batch/2,
          describe/3,
          close/3,
          sync/1,
@@ -44,6 +45,9 @@ bind(C, Statement, PortalName, Parameters) ->
 
 execute(C, Statement, PortalName, MaxRows) ->
     cast(C, {execute, Statement, PortalName, MaxRows}).
+
+execute_batch(C, Batch) ->
+    cast(C, {execute_batch, Batch}).
 
 describe(C, statement, Name) ->
     cast(C, {describe_statement, Name});
