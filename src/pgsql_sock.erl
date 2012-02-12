@@ -193,9 +193,9 @@ command({execute_batch, Batch}, State) ->
                   Typed_Parameters = lists:zip(Types, Parameters),
                   Bin1 = pgsql_wire:encode_parameters(Typed_Parameters),
                   Bin2 = pgsql_wire:encode_formats(Columns),
-                  [pgsql_wire:encode($B, ["", 0, StatementName, 0,
+                  [pgsql_wire:encode($B, [0, StatementName, 0,
                                           Bin1, Bin2]),
-                   pgsql_wire:encode($E, ["", 0, <<0:?int32>>])]
+                   pgsql_wire:encode($E, [0, <<0:?int32>>])]
           end,
           Batch),
     Sync = pgsql_wire:encode($S, []),
