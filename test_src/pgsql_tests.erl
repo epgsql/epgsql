@@ -149,6 +149,16 @@ multiple_result_test(Module) ->
               [{ok, _, [{<<"1">>}]}, {error, #error{}}] = Module:squery(C, "select 1; select foo;")
       end).
 
+execute_batch_test(Module) ->
+    with_connection(
+      Module,
+      fun(C) ->
+              {ok, S1} = Module:parse(C, "one", "select $1", [int4]),
+              {ok, S2} = Module:parse(C, "two", "select $1 + $2", [int4, int4]),
+              [{ok, [{1}]}, {ok, [{3}]}] =
+                  Module:execute_batch(C, [{S1, [1]}, {S2, [1, 2]}])
+      end).
+
 extended_select_test(Module) ->
     with_connection(
       Module,
