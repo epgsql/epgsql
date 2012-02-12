@@ -31,6 +31,7 @@
                 columns = [],
                 rows = [],
                 results = [],
+                batch = [],
                 sync_required,
                 txstatus}).
 
@@ -295,9 +296,11 @@ finish(State = #state{queue = Q}, Notice, Result) ->
                 types = [],
                 columns = [],
                 rows = [],
-                results = []}.
+                results = [],
+                batch = []}.
 
-add_result(State = #state{queue = Q, results = Results}, Notice, Result) ->
+add_result(State, Notice, Result) ->
+    #state{queue = Q, results = Results, batch = Batch} = State,
     Results2 = case queue:get(Q) of
                    {{incremental, From, Ref}, _} ->
                        From ! {self(), Ref, Notice},
@@ -305,10 +308,15 @@ add_result(State = #state{queue = Q, results = Results}, Notice, Result) ->
                    _ ->
                        [Result | Results]
                end,
+    Batch2 = case Batch of
+                 [] -> [];
+                 _ -> tl(Batch)
+             end,
     State#state{types = [],
                 columns = [],
                 rows = [],
-                results = Results2}.
+                results = Results2,
+                batch = Batch2}.
 
 add_row(State = #state{queue = Q, rows = Rows}, Data) ->
     Rows2 = case queue:get(Q) of
@@ -345,14 +353,17 @@ command_tag(#state{queue = Q}) ->
     end.
 
 get_columns(State) ->
-    #state{queue = Q, columns = Columns} = State,
+    #state{queue = Q, columns = Columns, batch = Batch} = State,
     case queue:get(Q) of
         {_, {equery, #statement{columns = C}, _}} ->
             C;
         {_, {execute, #statement{columns = C}, _, _}} ->
             C;
         {_, {squery, _}} ->
-            Columns
+            Columns;
+        {_, {execute_batch, _}} ->
+            [{#statement{columns = C}, _} | _] = Batch,
+            C
     end.
 
 make_statement(State) ->
@@ -511,7 +522,14 @@ on_message({$2, <<>>}, State) ->
                  bind ->
                      finish(State, ok);
                  execute_batch ->
-                     State
+                     Batch =
+                         case State#state.batch of
+                             [] -> 
+                                 {_, {_, B}} = queue:get(State#state.queue),
+                                 B;
+                             B -> B
+                         end,
+                     State#state{batch = Batch}
              end,
     {noreply, State2};
 
