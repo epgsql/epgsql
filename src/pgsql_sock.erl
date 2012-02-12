@@ -509,7 +509,9 @@ on_message({$2, <<>>}, State) ->
                      %% TODO send Describe as a part of equery, needs text format support
                      notify(State, {columns, get_columns(State)});
                  bind ->
-                     finish(State, ok)
+                     finish(State, ok);
+                 execute_batch ->
+                     State
              end,
     {noreply, State2};
 
@@ -548,6 +550,12 @@ on_message({$C, Bin}, State) ->
                      finish(State, Notice, {ok, Count, Rows});
                  {execute, _, _} ->
                      finish(State, Notice, {ok, Rows});
+                 {execute_batch, {_, Count}, []} ->
+                     add_result(State, Notice, {ok, Count});
+                 {execute_batch, {_, Count}, _} ->
+                     add_result(State, Notice, {ok, Count, Rows});
+                 {execute_batch, _, _} ->
+                     add_result(State, Notice, {ok, Rows});
                  {C, {_, Count}, []} when C == squery; C == equery ->
                      add_result(State, Notice, {ok, Count});
                  {C, {_, Count}, _} when C == squery; C == equery ->
@@ -571,7 +579,7 @@ on_message({$I, _Bin}, State) ->
 %% ReadyForQuery
 on_message({$Z, <<Status:8>>}, State) ->
     State2 = case command_tag(State) of
-                 squery ->
+                 C when C == squery; C == execute_batch ->
                      case State#state.results of
                          [Result] ->
                              finish(State, done, Result);
