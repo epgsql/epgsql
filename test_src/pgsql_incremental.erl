@@ -91,7 +91,7 @@ execute(C, S, N) ->
 
 execute(C, S, PortalName, N) ->
     Ref = ipgsql:execute(C, S, PortalName, N),
-    receive_extended_result(C, Ref).
+    receive_extended_result(C, Ref, []).
 
 execute_batch(C, Batch) ->
     Ref = ipgsql:execute_batch(C, Batch),
@@ -175,9 +175,6 @@ receive_result(C, Ref, Cols, Rows) ->
         {'EXIT', C, _Reason} ->
             throw({error, closed})
     end.
-
-receive_extended_result(C, Ref)->
-    receive_extended_result(C, Ref, []).
 
 receive_extended_result(C, Ref, Rows) ->
     receive
