@@ -95,7 +95,7 @@ execute(C, S, PortalName, N) ->
 
 execute_batch(C, Batch) ->
     Ref = ipgsql:execute_batch(C, Batch),
-    case receive_results(C, Ref, []) of
+    case receive_extended_results(C, Ref, []) of
         [Result] -> Result;
         Results  -> Results
     end.
@@ -176,6 +176,14 @@ receive_result(C, Ref, Cols, Rows) ->
             throw({error, closed})
     end.
 
+receive_extended_results(C, Ref, Results) ->
+    try receive_extended_result(C, Ref, []) of
+        done    -> lists:reverse(Results);
+        R       -> receive_extended_results(C, Ref, [R | Results])
+    catch
+        throw:E -> E
+    end.
+
 receive_extended_result(C, Ref, Rows) ->
     receive
         {C, Ref, {data, Row}} ->
@@ -191,6 +199,8 @@ receive_extended_result(C, Ref, Rows) ->
             end;
         {C, Ref, {complete, _Type}} ->
             {ok, lists:reverse(Rows)};
+        {C, Ref, done} ->
+            done;
         {'EXIT', C, _Reason} ->
             {error, closed}
     end.
