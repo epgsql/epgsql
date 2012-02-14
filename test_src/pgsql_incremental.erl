@@ -23,7 +23,7 @@ connect(Host, Username, Opts) ->
     connect(Host, Username, "", Opts).
 
 connect(Host, Username, Password, Opts) ->
-    {ok, C} = ipgsql:start_link(),
+    {ok, C} = pgsql_sock:start_link(),
     Ref = ipgsql:connect(C, Host, Username, Password, Opts),
     receive
         {C, Ref, connected} ->

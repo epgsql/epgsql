@@ -24,7 +24,7 @@ connect(Host, Username, Opts) ->
     connect(Host, Username, "", Opts).
 
 connect(Host, Username, Password, Opts) ->
-    {ok, C} = apgsql:start_link(),
+    {ok, C} = pgsql_sock:start_link(),
     Ref = apgsql:connect(C, Host, Username, Password, Opts),
     %% TODO connect timeout
     receive

@@ -3,13 +3,21 @@
 
 -module(pgsql).
 
--export([connect/2, connect/3, connect/4, close/1]).
--export([get_parameter/2, squery/2, equery/2, equery/3]).
--export([parse/2, parse/3, parse/4, describe/2, describe/3]).
--export([bind/3, bind/4, execute/2, execute/3, execute/4, execute_batch/2]).
--export([close/2, close/3, sync/1]).
--export([with_transaction/2]).
--export([sync_on_error/2]).
+-export([connect/2, connect/3, connect/4, connect/5,
+         close/1,
+         get_parameter/2,
+         squery/2,
+         equery/2, equery/3,
+         parse/2, parse/3, parse/4,
+         describe/2, describe/3,
+         bind/3, bind/4,
+         execute/2, execute/3, execute/4,
+         execute_batch/2,
+         close/2, close/3,
+         sync/1,
+         cancel/1,
+         with_transaction/2,
+         sync_on_error/2]).
 
 -include("pgsql.hrl").
 
@@ -23,6 +31,9 @@ connect(Host, Username, Opts) ->
 
 connect(Host, Username, Password, Opts) ->
     {ok, C} = pgsql_sock:start_link(),
+    connect(C, Host, Username, Password, Opts).
+
+connect(C, Host, Username, Password, Opts) ->
     %% TODO connect timeout
     case gen_server:call(C,
                          {connect, Host, Username, Password, Opts},
@@ -110,6 +121,9 @@ close(C, Type, Name) ->
 
 sync(C) ->
     gen_server:call(C, sync).
+
+cancel(C) ->
+    pgsql_sock:cancel(C).
 
 %% misc helper functions
 with_transaction(C, F) ->
