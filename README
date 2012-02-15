@@ -1,18 +1,21 @@
 Erlang PostgreSQL Database Client
 
 Asynchronous fork of https://github.com/wg/epgsql
-
-Asynchronous API is implemented by pgsql_sock.erl, see pgsql.erl for examples.
 It passes all tests from original driver except 3 timeout tests.
 Backward compatibility is preserved by module pgsql.
-Differences from original driver:
-  + internal queue of client requests, so you don't need to wait response to send next request
-  + responses are delivered as regular erlang messages
+Difference highlights (see CHANGES for full list):
+  + internal queue of client requests, so you don't need to wait for response to send next request
+  + results can be delivered as regular erlang messages, either complete or row by row
   + single process to hold driver state and receive socket data
-  + slight code reorganization
+  + execute several prepared statements as a batch
+  + bind timestamps in erlang:now() format
 
 
-Original epgsql API
+* Known problems
+
+  Timeout supplied at connect time will work only as connect timeout not query timeout.
+  SSL performance degrades if driver process has large inbox (thousands of messages).
+
 
 * Connect
 

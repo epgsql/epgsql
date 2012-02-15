@@ -1,0 +1,14 @@
+latest
+
+Asynchronous API extracted from pgsql_sock into apgsql (returns whole result sets) and ipgsql (returns row by row results).
+Original tests are used to test all APIs through emulation modules.
+Execute several prepared statements as a batch.
+Bind timestamps in erlang:now() format.
+
+6f9d545 2011-11-01
+
+Asynchronous API is implemented by pgsql_sock.erl, see pgsql.erl for examples.
+gen_fsm replaced by internal queue of client requests, so you don't need to wait for response to send next request.
+Results can be delivered as regular erlang messages.
+Single process to hold driver state and receive socket data.
+Slight code reorganization.
