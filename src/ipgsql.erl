@@ -2,7 +2,8 @@
 
 -module(ipgsql).
 
--export([connect/2, connect/3, connect/4, connect/5,
+-export([start_link/0,
+         connect/2, connect/3, connect/4, connect/5,
          close/1,
          get_parameter/2,
          squery/2,
@@ -19,6 +20,9 @@
 -include("pgsql.hrl").
 
 %% -- client interface --
+
+start_link() ->
+    pgsql_sock:start_link().
 
 connect(Host, Opts) ->
     connect(Host, os:getenv("USER"), "", Opts).
