@@ -39,17 +39,17 @@ Difference highlights (see CHANGES for full list):
   The timeout parameter will trigger an {error, timeout} result when the
   socket fails to connect within Timeout milliseconds.
 
-  Asynchronous connection example (applies to ipgsql too):
+  Asynchronous connect example (applies to ipgsql too):
 
   {ok, C} = apgsql:start_link(),
   Ref = apgsql:connect(C, "localhost", "username", [{database, "test_db"}]),
   receive
     {C, Ref, connected} ->
-      {ok, C};
+        {ok, C};
     {C, Ref, Error = {error, _}} ->
-      Error;
+        Error;
     {'EXIT', C, _Reason} ->
-      {error, closed}
+        {error, closed}
   end.
 
 
@@ -67,6 +67,39 @@ Difference highlights (see CHANGES for full list):
 
   The simple query protocol returns all columns as text (Erlang binaries)
   and does not support binding parameters.
+
+  apgsql:squery returns result as a single message:
+
+  Ref = apgsql:squery(C, Sql),
+  receive
+    {C, Ref, Res} -> Res
+  end.
+  Res has same fomat as return value of pgsql:squery.
+
+  ipgsql:squery returns result incrementally for each query inside Sql and
+  for each row:
+
+  Ref = ipgsql:squery(C, Sql),
+  receive
+    {C, Ref, {columns, Columns}} ->
+        %% columns description
+        Columns;
+    {C, Ref, {data, Row}} ->
+        %% single data row
+        Row;
+    {C, Ref, {error, _E} = Error} ->
+        Error;
+    {C, Ref, {complete, {_Type, Count}}} ->
+        %% execution of one insert/update/delete has finished
+        {ok, Count}; % affected rows count
+    {C, Ref, {complete, _Type}} ->
+        %% execution of one select has finished
+        ok;
+    {C, Ref, done} ->
+        %% execution of all queries from Sql has finished
+        done;
+  end.
+
 
 * Extended Query
 
