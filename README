@@ -2,10 +2,12 @@ Erlang PostgreSQL Database Client
 
 Asynchronous fork of https://github.com/wg/epgsql
 It passes all tests from original driver except 3 timeout tests.
-Backward compatibility is preserved by module pgsql.
 Difference highlights (see CHANGES for full list):
+  + 3 API sets: pgsql, apgsql and ipgsql:
+    pgsql maintains backwards compatibility with original driver API,
+    apgsql delivers complete results as regular erlang messages,
+    ipgsql delivers results as messages incrementally (row by row)
   + internal queue of client requests, so you don't need to wait for response to send next request
-  + results can be delivered as regular erlang messages, either complete or row by row
   + single process to hold driver state and receive socket data
   + execute several prepared statements as a batch
   + bind timestamps in erlang:now() format
@@ -74,7 +76,7 @@ Difference highlights (see CHANGES for full list):
   receive
     {C, Ref, Res} -> Res
   end.
-  Res has same fomat as return value of pgsql:squery.
+  Res has same format as return value of pgsql:squery.
 
   ipgsql:squery returns result incrementally for each query inside Sql and
   for each row:
@@ -122,6 +124,16 @@ Difference highlights (see CHANGES for full list):
   bools as true/false, etc. For details see pgsql_binary.erl and the
   Data Representation section below.
 
+  Ref = apgsql:equery(C, Sql, [Parameters]),
+  receive
+    {C, Ref, Res} -> Res
+  end.
+  Res has same format as return value of pgsql:equery.
+
+  ipgsql:equery(C, Sql, [Parameters]) sends same set of messages as squery,
+  including final {C, Ref, done}.
+
+
 * Parse/Bind/Execute
 
   {ok, Statement} = pgsql:parse(C, [StatementName], Sql, [ParameterTypes]).
@@ -131,9 +143,18 @@ Difference highlights (see CHANGES for full list):
 
   For valid type names see pgsql_types.erl.
 
+  apgsql:parse sends {C, Ref, {ok, Statement} | {error, Reason}}.
+  ipgsql:parse sends:
+    {C, Ref, {types, Types}}
+    {C, Ref, {columns, Columns}}
+    {C, Ref, no_data} if statement will not return rows
+    {C, Ref, {error, Reason}}
+
   ok = pgsql:bind(C, Statement, [PortalName], ParameterValues).
 
   PortalName      - optional name for the result portal.
+
+  both apgsql:bind and ipgsql:bind send {C, Ref, ok | {error, Reason}}
 
   {ok | partial, Rows} = pgsql:execute(C, Statement, [PortalName], [MaxRows]).
   {ok, Count}          = pgsql:execute(C, Statement, [PortalName]).
