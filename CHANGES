@@ -8,7 +8,7 @@ Bind timestamps in erlang:now() format.
 6f9d545 2011-11-01
 
 Asynchronous API is implemented by pgsql_sock.erl, see pgsql.erl for examples.
-gen_fsm replaced by internal queue of client requests, so you don't need to wait for response to send next request.
+gen_fsm replaced by internal queue of client requests.
 Results can be delivered as regular erlang messages.
 Single process to hold driver state and receive socket data.
 Slight code reorganization.

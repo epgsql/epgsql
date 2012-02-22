@@ -1,7 +1,6 @@
 Erlang PostgreSQL Database Client
 
 Asynchronous fork of https://github.com/wg/epgsql
-It passes all tests from original driver except 3 timeout tests.
 Difference highlights (see CHANGES for full list):
   + 3 API sets: pgsql, apgsql and ipgsql:
     pgsql maintains backwards compatibility with original driver API,
@@ -15,8 +14,8 @@ Difference highlights (see CHANGES for full list):
 
 * Known problems
 
-  Timeout supplied at connect time works as socket connect timeout not query timeout.
-  SSL performance degrades if driver process has large inbox (thousands of messages).
+  Timeout supplied at connect time works as socket connect timeout not query timeout. It passes all tests from original driver except 3 timeout tests.
+  SSL performance can degrade if driver process has large inbox (thousands of messages).
 
 
 * Connect
@@ -70,13 +69,18 @@ Difference highlights (see CHANGES for full list):
   The simple query protocol returns all columns as text (Erlang binaries)
   and does not support binding parameters.
 
+  Several queries separated by semicolon can be executed by squery.
+
+  [{ok, _, [{<<"1">>}]}, {ok, _, [{<<"2">>}]}] =
+    pgsql:squery(C, "select 1; select 2").
+
   apgsql:squery returns result as a single message:
 
   Ref = apgsql:squery(C, Sql),
   receive
-    {C, Ref, Res} -> Res
+    {C, Ref, Result} -> Result
   end.
-  Res has same format as return value of pgsql:squery.
+  Result has same format as return value of pgsql:squery.
 
   ipgsql:squery returns result incrementally for each query inside Sql and
   for each row:
@@ -130,7 +134,7 @@ Difference highlights (see CHANGES for full list):
   end.
   Res has same format as return value of pgsql:equery.
 
-  ipgsql:equery(C, Sql, [Parameters]) sends same set of messages as squery,
+  ipgsql:equery(C, Sql, [Parameters]) sends same set of messages as squery
   including final {C, Ref, done}.
 
 
@@ -165,11 +169,50 @@ Difference highlights (see CHANGES for full list):
 
   execute returns {partial, Rows} when more rows are available.
 
+  apgsql:execute sends {C, Ref, Result} where Result has same format as
+  return value of pgsql:execute.
+
+  ipgsql:execute sends
+    {C, Ref, {data, Row}}
+    {C, Ref, {error, Reason}}
+    {C, Ref, suspended} partial result was sent, more rows are available
+    {C, Ref, {complete, {_Type, Count}}}
+    {C, Ref, {complete, _Type}}
+
   ok = pgsql:close(C, Statement).
   ok = pgsql:close(C, statement | portal, Name).
   ok = pgsql:sync(C).
 
-  All functions return {error, Error} when an error occurs.
+  All pgsql functions return {error, Error} when an error occurs.
+
+  apgsql and ipgsql close and sync functions send {C, Ref, ok}.
+
+
+* Batch execution
+
+  Batch execution is bind + execute for several prepared statements.
+  It uses unnamed portals and MaxRows = 0.
+
+  Results = pgsql:execute_batch(C, Batch).
+
+  Batch   - list of {Statement, ParameterValues}
+  Results - list of {ok, Count} or {ok, Count, Rows}
+
+  Example
+
+  {ok, S1} = pgsql:parse(C, "one", "select $1", [int4]),
+  {ok, S2} = pgsql:parse(C, "two", "select $1 + $2", [int4, int4]),
+  [{ok, [{1}]}, {ok, [{3}]}] =
+    pgsql:execute_batch(C, [{S1, [1]}, {S2, [1, 2]}]).
+
+  apgsql:execute_batch sends {C, Ref, Results}
+  ipgsql:execute_batch sends
+    {C, Ref, {data, Row}}
+    {C, Ref, {error, Reason}}
+    {C, Ref, {complete, {_Type, Count}}}
+    {C, Ref, {complete, _Type}}
+    {C, Ref, done} - execution of all queries from Batch has finished
+
 
 * Data Representation
 
