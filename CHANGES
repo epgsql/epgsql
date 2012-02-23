@@ -2,7 +2,7 @@ latest
 
 Asynchronous API extracted from pgsql_sock into apgsql (returns whole result sets) and ipgsql (returns row by row results).
 Original tests are used to test all APIs through emulation modules.
-Execute several prepared statements as a batch.
+Execute several prepared statements as a batch (execute_batch).
 Bind timestamps in erlang:now() format.
 
 6f9d545 2011-11-01
