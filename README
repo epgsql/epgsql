@@ -1,7 +1,19 @@
 Erlang PostgreSQL Database Client
 
 Asynchronous fork of https://github.com/wg/epgsql
-Difference highlights (see CHANGES for full list):
+
+* Motivation
+
+  When you need to execute several queries it involves several network
+  round-trips between your application and database.
+  PostgreSQL frontend/backend protocol supports request pipelining.
+  It means that you don't need to wait for previous command to finish
+  before sending next command. This version of driver makes full use
+  of the protocol feature allowing faster execution.
+
+
+* Difference highlights
+
   + 3 API sets: pgsql, apgsql and ipgsql:
     pgsql maintains backwards compatibility with original driver API,
     apgsql delivers complete results as regular erlang messages,
@@ -10,6 +22,7 @@ Difference highlights (see CHANGES for full list):
   + single process to hold driver state and receive socket data
   + execute several prepared statements as a batch
   + bind timestamps in erlang:now() format
+  see CHANGES for full list.
 
 
 * Known problems
@@ -260,14 +273,14 @@ Difference highlights (see CHANGES for full list):
 
     {pgsql, Connection, {notification, Channel, Pid, Payload}}
 
-      Connection  - connection the notification occured on
+      Connection  - connection the notification occurred on
 
-      Channel     - channel the notification occured on
+      Channel     - channel the notification occurred on
       Pid         - database session pid that sent notification
       Payload     - optional payload, only available from PostgreSQL >= 9.0
 
     {pgsql, Connection, {notice, Error}}
 
-      Connection  - connection the notice occured on
+      Connection  - connection the notice occurred on
       Error       - an #error{} record, see pgsql.hrl
 
