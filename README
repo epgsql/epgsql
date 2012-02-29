@@ -4,31 +4,35 @@ Asynchronous fork of https://github.com/wg/epgsql
 
 * Motivation
 
-  When you need to execute several queries it involves several network
-  round-trips between your application and database.
-  PostgreSQL frontend/backend protocol supports request pipelining.
-  It means that you don't need to wait for previous command to finish
-  before sending next command. This version of driver makes full use
-  of the protocol feature allowing faster execution.
+  When you need to execute several queries, it involves a number network
+  round-trips between the application and the database.
+  The PostgreSQL frontend/backend protocol supports request pipelining.
+  This means that you don't need to wait for the previous command to finish
+  before sending the next command. This version of the driver makes full use
+  of the protocol feature that allows faster execution.
 
 
 * Difference highlights
 
   + 3 API sets: pgsql, apgsql and ipgsql:
-    pgsql maintains backwards compatibility with original driver API,
+    pgsql maintains backwards compatibility with the original driver API,
     apgsql delivers complete results as regular erlang messages,
     ipgsql delivers results as messages incrementally (row by row)
-  + internal queue of client requests, so you don't need to wait for response to send next request
+  + internal queue of client requests, so you don't need to wait for the
+    response to send the next request
   + single process to hold driver state and receive socket data
-  + execute several prepared statements as a batch
-  + bind timestamps in erlang:now() format
+  + execution of several parsed statements as a batch
+  + binding timestamps in erlang:now() format
   see CHANGES for full list.
 
 
 * Known problems
 
-  Timeout supplied at connect time works as socket connect timeout not query timeout. It passes all tests from original driver except 3 timeout tests.
-  SSL performance can degrade if driver process has large inbox (thousands of messages).
+  A timeout supplied at connect time works as a socket connect timeout,
+  not a query timeout. It passes all tests from original driver except for
+  the 3 failing timeout tests.
+  SSL performance can degrade if the driver process has a large inbox
+  (thousands of messages).
 
 
 * Connect
@@ -95,7 +99,7 @@ Asynchronous fork of https://github.com/wg/epgsql
   end.
   Result has same format as return value of pgsql:squery.
 
-  ipgsql:squery returns result incrementally for each query inside Sql and
+  ipgsql:squery returns results incrementally for each query inside Sql and
   for each row:
 
   Ref = ipgsql:squery(C, Sql),
