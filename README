@@ -20,7 +20,8 @@ Erlang PostgreSQL Database Client
   ok = pgsql:close(C).
 
   The timeout parameter will trigger an {error, timeout} result when the
-  server fails to respond within Timeout milliseconds.
+  server fails to respond within Timeout milliseconds. This timeout applies
+  to the initial connection attempt and any subsequent queries.
 
 * Simple Query
 

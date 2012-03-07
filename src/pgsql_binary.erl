@@ -30,6 +30,8 @@ encode(boolarray, L) when is_list(L)        -> encode_array(bool, L);
 encode(int2array, L) when is_list(L)        -> encode_array(int2, L);
 encode(int4array, L) when is_list(L)        -> encode_array(int4, L);
 encode(int8array, L) when is_list(L)        -> encode_array(int8, L);
+encode(float4array, L) when is_list(L)      -> encode_array(float4, L);
+encode(float8array, L) when is_list(L)      -> encode_array(float8, L);
 encode(chararray, L) when is_list(L)        -> encode_array(bpchar, L);
 encode(textarray, L) when is_list(L)        -> encode_array(text, L);
 encode(Type, L) when is_list(L)             -> encode(Type, list_to_binary(L));
@@ -54,6 +56,8 @@ decode(boolarray, B)                        -> decode_array(B);
 decode(int2array, B)                        -> decode_array(B);
 decode(int4array, B)                        -> decode_array(B);
 decode(int8array, B)                        -> decode_array(B);
+decode(float4array, B)                      -> decode_array(B);
+decode(float8array, B)                      -> decode_array(B);
 decode(chararray, B)                        -> decode_array(B);
 decode(textarray, B)                        -> decode_array(B);
 decode(_Other, Bin)                         -> Bin.
@@ -130,6 +134,8 @@ supports(boolarray)   -> true;
 supports(int2array)   -> true;
 supports(int4array)   -> true;
 supports(int8array)   -> true;
+supports(float4array) -> true;
+supports(float8array) -> true;
 supports(chararray)   -> true;
 supports(textarray)   -> true;
 supports(_Type)       -> false.
