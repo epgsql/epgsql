@@ -65,7 +65,7 @@ decode(_Other, Bin)                         -> Bin.
 encode_array(Type, A) ->
     {Data, {NDims, Lengths}} = encode_array(Type, A, 0, []),
     Oid  = pgsql_types:type2oid(Type),
-    Lens = [<<N:?int32, 0:?int32>> || N <- lists:reverse(Lengths)],
+    Lens = [<<N:?int32, 1:?int32>> || N <- lists:reverse(Lengths)],
     Hdr  = <<NDims:?int32, 0:?int32, Oid:?int32>>,
     Bin  = iolist_to_binary([Hdr, Lens, Data]),
     <<(byte_size(Bin)):?int32, Bin/binary>>.

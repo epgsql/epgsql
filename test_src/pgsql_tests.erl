@@ -427,6 +427,7 @@ misc_type_test() ->
 array_type_test() ->
     with_connection(
       fun(C) ->
+          {ok, _, [{[1, 2]}]} = pgsql:equery(C, "select ($1::int[])[1:2]", [[1, 2, 3]]),
           Select = fun(Type, A) ->
                        Query = "select $1::" ++ atom_to_list(Type) ++ "[]",
                        {ok, _Cols, [{A2}]} = pgsql:equery(C, Query, [A]),
