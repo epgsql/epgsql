@@ -480,19 +480,26 @@ array_type_test(Module) ->
     with_connection(
       Module,
       fun(C) ->
-          Select = fun(Type, V) ->
-                       Query = "select $1::" ++ Type,
-                       {ok, _Cols, [{V}]} = Module:equery(C, Query, [V])
+          {ok, _, [{[1, 2]}]} = Module:equery(C, "select ($1::int[])[1:2]", [[1, 2, 3]]),
+          Select = fun(Type, A) ->
+                       Query = "select $1::" ++ atom_to_list(Type) ++ "[]",
+                       {ok, _Cols, [{A2}]} = Module:equery(C, Query, [A]),
+                       case lists:all(fun({V, V2}) -> compare(Type, V, V2) end, lists:zip(A, A2)) of
+                           true  -> ok;
+                           false -> ?assertMatch(A, A2)
+                       end
                    end,
-          Select("int2[]", []),
-          Select("int2[]", [1, 2, 3, 4]),
-          Select("int2[]", [[1], [2], [3], [4]]),
-          Select("int2[]", [[[[[[1, 2]]]]]]),
-          Select("bool[]", [true]),
-          Select("char[]", [$a, $b, $c]),
-          Select("int4[]", [[1, 2]]),
-          Select("int8[]", [[[[1, 2]], [[3, 4]]]]),
-          Select("text[]", [<<"one">>, <<"two>">>])
+          Select(int2,   []),
+          Select(int2,   [1, 2, 3, 4]),
+          Select(int2,   [[1], [2], [3], [4]]),
+          Select(int2,   [[[[[[1, 2]]]]]]),
+          Select(bool,   [true]),
+          Select(char,   [$a, $b, $c]),
+          Select(int4,   [[1, 2]]),
+          Select(int8,   [[[[1, 2]], [[3, 4]]]]),
+          Select(text,   [<<"one">>, <<"two>">>]),
+          Select(float4, [0.0, 1.0, 0.123]),
+          Select(float8, [0.0, 1.0, 0.123])
       end).
 
 text_format_test(Module) ->
