@@ -158,7 +158,7 @@ command({equery, Statement, Parameters}, State) ->
     Bin2 = pgsql_wire:encode_formats(Columns),
     send(State, $B, ["", 0, StatementName, 0, Bin1, Bin2]),
     send(State, $E, ["", 0, <<0:?int32>>]),
-    send(State, $C, [$S, "", 0]),
+    send(State, $C, [$S, StatementName, 0]),
     send(State, $S, []),
     {noreply, State};
 

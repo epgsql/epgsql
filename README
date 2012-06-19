@@ -33,6 +33,8 @@ Asynchronous fork of https://github.com/wg/epgsql
   the 3 failing timeout tests.
   SSL performance can degrade if the driver process has a large inbox
   (thousands of messages).
+  Usage of unnamed prepared statement and portals leads to unpredicted results
+  in case of concurrent access to same connection.
 
 
 * Connect
@@ -145,14 +147,17 @@ Asynchronous fork of https://github.com/wg/epgsql
   bools as true/false, etc. For details see pgsql_binary.erl and the
   Data Representation section below.
 
-  Ref = apgsql:equery(C, Sql, [Parameters]),
+  Asynchronous api equery requires you to parse statement beforehand
+
+  Ref = apgsql:equery(C, Statement, [Parameters]),
   receive
     {C, Ref, Res} -> Res
   end.
+  Statement - parsed statement (see parse below)
   Res has same format as return value of pgsql:equery.
 
-  ipgsql:equery(C, Sql, [Parameters]) sends same set of messages as squery
-  including final {C, Ref, done}.
+  ipgsql:equery(C, Statement, [Parameters]) sends same set of messages as
+  squery including final {C, Ref, done}.
 
 
 * Parse/Bind/Execute

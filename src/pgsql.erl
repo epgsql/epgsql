@@ -58,7 +58,8 @@ equery(C, Sql) ->
 
 %% TODO add fast_equery command that doesn't need parsed statement
 equery(C, Sql, Parameters) ->
-    case parse(C, Sql) of
+    Name = ["equery-", atom_to_list(node()), pid_to_list(self())],
+    case parse(C, Name, Sql, []) of
         {ok, #statement{types = Types} = S} ->
             Typed_Parameters = lists:zip(Types, Parameters),
             gen_server:call(C, {equery, S, Typed_Parameters}, infinity);

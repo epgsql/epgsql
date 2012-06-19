@@ -2,7 +2,7 @@ notify_async sends useful warnings, don't hide them if no async listeners
 call with timeouts (query cancellation?)
 describe portal test
 connect on start?
-text format support
+text column format support
 remove parse before equery (needs text column format)
 selectable date return format
     like erlang:now()
