@@ -446,7 +446,13 @@ array_type_test() ->
           Select(int8,   [[[[1, 2]], [[3, 4]]]]),
           Select(text,   [<<"one">>, <<"two>">>]),
           Select(float4, [0.0, 1.0, 0.123]),
-          Select(float8, [0.0, 1.0, 0.123])
+          Select(float8, [0.0, 1.0, 0.123]),
+          Select(date, [{2008,1,2}, {2008,1,3}]),
+          Select(time, [{0,1,2.0}, {0,1,3.0}]),
+          Select(timetz, [{{0,1,2.0},1*60*60}, {{0,1,3.0},1*60*60}]),
+          Select(timestamp, [{{2008,1,2},{3,4,5.0}}, {{2008,1,2},{3,4,6.0}}]),
+          Select(timestamptz, [{{2008,1,2},{3,4,5.0}}, {{2008,1,2},{3,4,6.0}}]),
+          Select(interval, [{{1,2,3.1},0,0}, {{1,2,3.2},0,0}])
       end).
 
 text_format_test() ->

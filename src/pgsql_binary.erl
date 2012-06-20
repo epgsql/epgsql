@@ -34,6 +34,12 @@ encode(float4array, L) when is_list(L)      -> encode_array(float4, L);
 encode(float8array, L) when is_list(L)      -> encode_array(float8, L);
 encode(chararray, L) when is_list(L)        -> encode_array(bpchar, L);
 encode(textarray, L) when is_list(L)        -> encode_array(text, L);
+encode(datearray, L) when is_list(L)        -> encode_array(date, L);
+encode(timearray, L) when is_list(L)        -> encode_array(time, L);
+encode(timetzarray, L) when is_list(L)      -> encode_array(timetz, L);
+encode(timestamparray, L) when is_list(L)   -> encode_array(timestamp, L);
+encode(timestamptzarray, L) when is_list(L) -> encode_array(timestamptz, L);
+encode(intervalarray, L) when is_list(L)    -> encode_array(interval, L);
 encode(Type, L) when is_list(L)             -> encode(Type, list_to_binary(L));
 encode(_Type, _Value)                       -> {error, unsupported}.
 
@@ -60,6 +66,12 @@ decode(float4array, B)                      -> decode_array(B);
 decode(float8array, B)                      -> decode_array(B);
 decode(chararray, B)                        -> decode_array(B);
 decode(textarray, B)                        -> decode_array(B);
+decode(datearray, B)                        -> decode_array(B);
+decode(timearray, B)                        -> decode_array(B);
+decode(timetzarray, B)                      -> decode_array(B);
+decode(timestamparray, B)                   -> decode_array(B);
+decode(timestamptzarray, B)                 -> decode_array(B);
+decode(intervalarray, B)                    -> decode_array(B);
 decode(_Other, Bin)                         -> Bin.
 
 encode_array(Type, A) ->
@@ -138,4 +150,10 @@ supports(float4array) -> true;
 supports(float8array) -> true;
 supports(chararray)   -> true;
 supports(textarray)   -> true;
+supports(datearray)   -> true;
+supports(timearray)   -> true;
+supports(timetzarray) -> true;
+supports(timestamparray)     -> true;
+supports(timestamptzarray)   -> true;
+supports(intervalarray)      -> true;
 supports(_Type)       -> false.
