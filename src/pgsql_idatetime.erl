@@ -8,6 +8,7 @@
 -define(int64, 1/big-signed-unit:64).
 
 -define(postgres_epoc_jdate, 2451545).
+-define(postgres_epoc_usecs, 946684800000000).
 
 -define(mins_per_hour, 60).
 -define(secs_per_minute, 60).
@@ -27,7 +28,9 @@ decode(interval, <<N:?int64, D:?int32, M:?int32>>) -> {i2time(N), D, M}.
 encode(date, D)         -> <<4:?int32, (date2j(D) - ?postgres_epoc_jdate):?int32>>;
 encode(time, T)         -> <<8:?int32, (time2i(T)):?int64>>;
 encode(timetz, {T, TZ}) -> <<12:?int32, (time2i(T)):?int64, TZ:?int32>>;
+encode(timestamp, TS = {_, _, _})   -> <<8:?int32, (now2i(TS)):?int64>>;
 encode(timestamp, TS)   -> <<8:?int32, (timestamp2i(TS)):?int64>>;
+encode(timestamptz, TS = {_, _, _})   -> <<8:?int32, (now2i(TS)):?int64>>;
 encode(timestamptz, TS) -> <<8:?int32, (timestamp2i(TS)):?int64>>;
 encode(interval, {T, D, M}) -> <<16:?int32, (time2i(T)):?int64, D:?int32, M:?int32>>.
 
@@ -88,6 +91,9 @@ i2timestamp2(D, T) ->
 timestamp2i({Date, Time}) ->
     D = date2j(Date) - ?postgres_epoc_jdate,
     D * ?usecs_per_day + time2i(Time).
+
+now2i({MegaSecs, Secs, MicroSecs}) ->
+    (MegaSecs * 1000000 + Secs) * 1000000 + MicroSecs - ?postgres_epoc_usecs.
 
 tmodulo(T, U) ->
     case T div U of
