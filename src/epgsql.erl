@@ -1,8 +1,13 @@
 %%% Copyright (C) 2008 - Will Glozer.  All rights reserved.
 
--module(pgsql).
+-module(epgsql).
 
--export([connect/2, connect/3, connect/4, close/1]).
+-export([select/2,
+         insert/3,
+         update/4,
+         delete/3]).
+
+-export([connect/2]).
 -export([get_parameter/2, squery/2, equery/2, equery/3]).
 -export([parse/2, parse/3, parse/4, describe/2, describe/3]).
 -export([bind/3, bind/4, execute/2, execute/3, execute/4]).
@@ -11,27 +16,46 @@
 
 -include("pgsql.hrl").
 
-%% -- client interface --
+%========================
+% connect and add to pool
+%========================
+connect(Pool, Opts) ->
+    {ok, C} = pgsql_conn:start_link(),
+    Host = proplists:get_value(host, Opts, "localhost"),
+    Username = proplists:get_value(username, Opts),
+    Password = proplists:get_value(password, Opts),
+    DB = proplists:get_value(database, Opts),
+    Timeout = proplists:get_value(timeout, Opts, 10000),
+    Port = proplists:get_value(port, Opts, 5432),
+    pgsql_conn:connect(C, Host, Username, Password,
+        [{database, DB}, {port, Port}, {timeout, Timeout}]),
+    epqsql_pool:add(Pool, C),
+    {ok, C}.
 
-connect(Host, Opts) ->
-    connect(Host, os:getenv("USER"), "", Opts).
+%========================
+% api 
+%========================
+select(Pool, Table) ->
+    SQL = encode({select, Table}),
+    decode(squery(epgsql_pool:get_conn(Pool), SQL)).
 
-connect(Host, Username, Opts) ->
-    connect(Host, Username, "", Opts).
+insert(Pool, Table, Record) ->
+    SQL = encode({insert, Table, Record}),
+    decode(squery(epgsql_pool:get_conn(Pool), SQL)).
 
-connect(Host, Username, Password, Opts) ->
-    {ok, C} = pgsql_connection:start_link(),
-    pgsql_connection:connect(C, Host, Username, Password, Opts).
+update(Pool, Table, Record, Where) ->
+    SQL = encode({update, Table, Record, Where}),
+    decode(squery(epgsql_pool:get_conn(Pool), SQL)).
 
-close(C) when is_pid(C) ->
-    catch pgsql_connection:stop(C),
-    ok.
+delete(Pool, Table, Where) ->
+    SQL = encode({delete, Table, Where}),
+    decode(squery(epgsql_pool:get_conn(Pool), SQL)).
 
 get_parameter(C, Name) ->
-    pgsql_connection:get_parameter(C, Name).
+    pgsql_conn:get_parameter(C, Name).
 
 squery(C, Sql) ->
-    ok = pgsql_connection:squery(C, Sql),
+    ok = pgsql_conn:squery(C, Sql),
     case receive_results(C, []) of
         [Result] -> Result;
         Results  -> Results
@@ -41,10 +65,10 @@ equery(C, Sql) ->
     equery(C, Sql, []).
 
 equery(C, Sql, Parameters) ->
-    case pgsql_connection:parse(C, "", Sql, []) of
+    case pgsql_conn:parse(C, "", Sql, []) of
         {ok, #statement{types = Types} = S} ->
             Typed_Parameters = lists:zip(Types, Parameters),
-            ok = pgsql_connection:equery(C, S, Typed_Parameters),
+            ok = pgsql_conn:equery(C, S, Typed_Parameters),
             receive_result(C, undefined);
         Error ->
             Error
@@ -59,7 +83,7 @@ parse(C, Sql, Types) ->
     parse(C, "", Sql, Types).
 
 parse(C, Name, Sql, Types) ->
-    pgsql_connection:parse(C, Name, Sql, Types).
+    pgsql_conn:parse(C, Name, Sql, Types).
 
 %% bind
 
@@ -67,7 +91,7 @@ bind(C, Statement, Parameters) ->
     bind(C, Statement, "", Parameters).
 
 bind(C, Statement, PortalName, Parameters) ->
-    pgsql_connection:bind(C, Statement, PortalName, Parameters).
+    pgsql_conn:bind(C, Statement, PortalName, Parameters).
 
 %% execute
 
@@ -78,25 +102,25 @@ execute(C, S, N) ->
     execute(C, S, "", N).
 
 execute(C, S, PortalName, N) ->
-    pgsql_connection:execute(C, S, PortalName, N),
+    pgsql_conn:execute(C, S, PortalName, N),
     receive_extended_result(C).
 
 %% statement/portal functions
 
 describe(C, #statement{name = Name}) ->
-    pgsql_connection:describe(C, statement, Name).
+    pgsql_conn:describe(C, statement, Name).
 
 describe(C, Type, Name) ->
-    pgsql_connection:describe(C, Type, Name).
+    pgsql_conn:describe(C, Type, Name).
 
 close(C, #statement{name = Name}) ->
-    pgsql_connection:close(C, statement, Name).
+    pgsql_conn:close(C, statement, Name).
 
 close(C, Type, Name) ->
-    pgsql_connection:close(C, Type, Name).
+    pgsql_conn:close(C, Type, Name).
 
 sync(C) ->
-    pgsql_connection:sync(C).
+    pgsql_conn:sync(C).
 
 %% misc helper functions
 with_transaction(C, F) ->
@@ -111,6 +135,18 @@ with_transaction(C, F) ->
     end.
 
 %% -- internal functions --
+
+decode(_) ->
+    ok.
+
+encode({select, _Table}) ->
+    "";
+encode({insert, _Table, _Record}) ->
+    "";
+encode({update, _Table, _Record, _Where}) ->
+    "";
+encode({delete, _Table, _Where}) ->
+    "".
 
 receive_result(C, Result) ->
     try receive_result(C, [], []) of

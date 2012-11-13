@@ -5,4 +5,5 @@
              pgsql_idatetime, pgsql_sock, pgsql_types]},
   {registered, []},
   {applications, [kernel, stdlib, crypto, ssl]},
-  {included_applications, []}]}.
+  {included_applications, []},
+  {mod, {epqsql_app, []}}]}.

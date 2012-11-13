@@ -1,6 +1,6 @@
 %%% Copyright (C) 2008 - Will Glozer.  All rights reserved.
 
--module(pgsql_connection).
+-module(pgsql_conn).
 
 -behavior(gen_fsm).
 
