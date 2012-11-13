@@ -4,7 +4,7 @@
 
 -export([start_link/1,
          id/1,
-         add/2,
+         add_conn/2,
          get_conn/1]).
 
 -export([init/1,
@@ -19,11 +19,11 @@
 
 -record(state, { queue }).
 
+id(Pool) when is_atom(Pool) ->
+    list_to_atom(lists:concat([epgsql_pool,":", Pool])).
+
 start_link(Pool) ->
     gen_server:start_link({local, id(Pool)}, ?MODULE, [], [{timeout, infinity}]).
-
-id(Pool) when is_atom(Pool) ->
-    list_to_atom(list:concat([epgsql_pool,":", Pool])).
 
 get_conn(Pool) ->
     case get(pgsql_conn) of
@@ -33,7 +33,7 @@ get_conn(Pool) ->
         Pid
     end.
 
-add(Pool, Pid) ->
+add_conn(Pool, Pid) ->
     gen_server:cast(id(Pool), {add, Pid}).
 
 %%----------------------------------------------------------------------------
@@ -46,7 +46,7 @@ handle_call(get_conn, _From, State = #state{queue = Q}) ->
     {empty, _} ->
         {reply, {error, empty_pool}, State};
     {{value, Pid}, Q1} ->
-        {reply, Pid, State#state{queue = queue:in_r(Pid, Q1)}}
+        {reply, Pid, State#state{queue = queue:in(Pid, Q1)}}
     end;
 
 handle_call(Msg, _From, State) ->

@@ -2,3 +2,4 @@
 *.boot
 *.script
 ebin/*.app
+log/*.log

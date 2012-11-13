@@ -15,11 +15,11 @@ start_link(Id, Pool, Opts) ->
 init([Pool, Opts]) ->
     PoolSize = proplists:get_value(pool_size, Opts, 2),
     {ok, {{one_for_one, 10, 10},
-            [{epgsql_pool:id(Pool), {epqsql_pool, start_link, []}, transient,
-                16#ffffffff, worker, [epqsql_pool]} |
-             [{connid(Pool, I), {epqsql, connect, [Pool, Opts]}, transient, 
-                16#ffffffff, worker, [pqsql_conn]} || I <- lists:seq(1, PoolSize)]]}}.
+            [{epgsql_pool:id(Pool), {epgsql_pool, start_link, [Pool]}, transient,
+                16#ffffffff, worker, [epgsql_pool]} |
+             [{connid(Pool, I), {epgsql, connect, [Pool, Opts]}, transient, 
+                16#ffffffff, worker, [pgsql_conn]} || I <- lists:seq(1, PoolSize)]]}}.
     
 connid(Pool, I) ->
-    list_to_atom(list:concat([pgsql_conn, ":", Pool, ":", integer_to_list(I)])). 
+    list_to_atom(lists:concat([pgsql_conn, ":", Pool, ":", integer_to_list(I)])). 
 

@@ -29,7 +29,7 @@ connect(Pool, Opts) ->
     Port = proplists:get_value(port, Opts, 5432),
     pgsql_conn:connect(C, Host, Username, Password,
         [{database, DB}, {port, Port}, {timeout, Timeout}]),
-    epqsql_pool:add(Pool, C),
+    epgsql_pool:add_conn(Pool, C),
     {ok, C}.
 
 %========================

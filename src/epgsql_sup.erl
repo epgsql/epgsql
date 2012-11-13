@@ -10,9 +10,9 @@ start_link() ->
     supervisor:start_link({local, ?MODULE}, ?MODULE, []).
 
 init([]) ->
-   {ok, Env} = application:get_env(epgsql), 
+   {ok, Pools} = application:get_env(pools), 
    {ok, { {one_for_one, 10, 10}, [
-            poolsup(Pool, Opts) || {Pool, Opts} <- Env]}}.
+            poolsup(Pool, Opts) || {Pool, Opts} <- Pools]}}.
 
 poolsup(Pool, Opts) ->
     PoolId = epgsql_pool_sup:id(Pool),
