@@ -4,6 +4,7 @@
 
 -export([start_link/1,
          id/1,
+         all_conns/1,
          add_conn/2,
          get_conn/1]).
 
@@ -25,6 +26,9 @@ id(Pool) when is_atom(Pool) ->
 start_link(Pool) ->
     gen_server:start_link({local, id(Pool)}, ?MODULE, [], [{timeout, infinity}]).
 
+all_conns(Pool) ->
+    gen_server:call(id(Pool), all_conns).
+
 get_conn(Pool) ->
     case get(pgsql_conn) of
     undefined -> 
@@ -40,6 +44,9 @@ add_conn(Pool, Pid) ->
 
 init([]) ->
     {ok, #state { queue = queue:new() }}.
+
+handle_call(all_conns, _From, #state{queue = Q} = State) ->
+    {reply, queue:to_list(Q), State};
 
 handle_call(get_conn, _From, State = #state{queue = Q}) ->
     case queue:out(Q) of
