@@ -618,7 +618,7 @@ on_message({$Z, <<Status:8>>}, State) ->
 
 on_message(Error = {error, _}, State) ->
     State2 = case command_tag(State) of
-                 C when C == squery; C == equery ->
+                 C when C == squery; C == equery; C == execute_batch ->
                      add_result(State, Error, Error);
                  _ ->
                      sync_required(finish(State, Error))

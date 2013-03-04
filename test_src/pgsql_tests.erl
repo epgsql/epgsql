@@ -164,11 +164,13 @@ batch_error_test(Module) ->
       Module,
       fun(C) ->
               {ok, S} = Module:parse(C, "insert into test_table1(id, value) values($1, $2)"),
-              [{ok, 1}, {ok, 1}, {ok, 1}] =
-                  Module:execute_batch(C, [{S, [3, "batch_error 3"]},
-                                           {S, [2, "batch_error 2"]}, % duplicate key here
-                                           {S, [5, "batch_error 5"]}
-                                           ])
+              [{ok, 1}, {error, _}] =
+                  Module:execute_batch(
+                    C,
+                    [{S, [3, "batch_error 3"]},
+                     {S, [2, "batch_error 2"]}, % duplicate key error
+                     {S, [5, "batch_error 5"]}  % won't be executed
+                    ])
       end).
 
 extended_select_test(Module) ->
