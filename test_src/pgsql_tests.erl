@@ -173,6 +173,14 @@ batch_error_test(Module) ->
                     ])
       end).
 
+single_batch_test(Module) ->
+    with_connection(
+      Module,
+      fun(C) ->
+              {ok, S1} = Module:parse(C, "one", "select $1", [int4]),
+              [{ok, [{1}]}] = Module:execute_batch(C, [{S1, [1]}])
+      end).
+
 extended_select_test(Module) ->
     with_connection(
       Module,

@@ -597,14 +597,15 @@ on_message({$I, _Bin}, State) ->
 %% ReadyForQuery
 on_message({$Z, <<Status:8>>}, State) ->
     State2 = case command_tag(State) of
-                 %% TODO don't unwrap single element list for execute_batch
-                 C when C == squery; C == execute_batch ->
+                 squery ->
                      case State#state.results of
                          [Result] ->
                              finish(State, done, Result);
                          Results ->
                              finish(State, done, lists:reverse(Results))
                      end;
+                 execute_batch ->
+                     finish(State, done, lists:reverse(State#state.results));
                  equery ->
                      case State#state.results of
                          [Result] ->

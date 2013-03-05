@@ -95,10 +95,7 @@ execute(C, S, PortalName, N) ->
 
 execute_batch(C, Batch) ->
     Ref = ipgsql:execute_batch(C, Batch),
-    case receive_extended_results(C, Ref, []) of
-        [Result] -> Result;
-        Results  -> Results
-    end.
+    receive_extended_results(C, Ref, []).
 
 %% statement/portal functions
 
