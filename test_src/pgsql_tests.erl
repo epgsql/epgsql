@@ -159,6 +159,28 @@ execute_batch_test(Module) ->
                   Module:execute_batch(C, [{S1, [1]}, {S2, [1, 2]}])
       end).
 
+batch_error_test(Module) ->
+    with_rollback(
+      Module,
+      fun(C) ->
+              {ok, S} = Module:parse(C, "insert into test_table1(id, value) values($1, $2)"),
+              [{ok, 1}, {error, _}] =
+                  Module:execute_batch(
+                    C,
+                    [{S, [3, "batch_error 3"]},
+                     {S, [2, "batch_error 2"]}, % duplicate key error
+                     {S, [5, "batch_error 5"]}  % won't be executed
+                    ])
+      end).
+
+single_batch_test(Module) ->
+    with_connection(
+      Module,
+      fun(C) ->
+              {ok, S1} = Module:parse(C, "one", "select $1", [int4]),
+              [{ok, [{1}]}] = Module:execute_batch(C, [{S1, [1]}])
+      end).
+
 extended_select_test(Module) ->
     with_connection(
       Module,

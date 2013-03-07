@@ -597,13 +597,15 @@ on_message({$I, _Bin}, State) ->
 %% ReadyForQuery
 on_message({$Z, <<Status:8>>}, State) ->
     State2 = case command_tag(State) of
-                 C when C == squery; C == execute_batch ->
+                 squery ->
                      case State#state.results of
                          [Result] ->
                              finish(State, done, Result);
                          Results ->
                              finish(State, done, lists:reverse(Results))
                      end;
+                 execute_batch ->
+                     finish(State, done, lists:reverse(State#state.results));
                  equery ->
                      case State#state.results of
                          [Result] ->
@@ -618,7 +620,7 @@ on_message({$Z, <<Status:8>>}, State) ->
 
 on_message(Error = {error, _}, State) ->
     State2 = case command_tag(State) of
-                 C when C == squery; C == equery ->
+                 C when C == squery; C == equery; C == execute_batch ->
                      add_result(State, Error, Error);
                  _ ->
                      sync_required(finish(State, Error))
