@@ -28,10 +28,11 @@ release: app
 clean:
 	@rm -f ebin/*.beam
 	@rm -f ebin/$(NAME).app
+	@rm -f test/*.beam
 	@rm -rf $(NAME)-$(VERSION) $(NAME)-*.tar.gz
 
-test: $(TESTS:test/%.erl=test_ebin/%.beam) compile
-	$(ERL) -pa ebin/ -pa test_ebin/ -noshell -s pgsql_tests run_tests -s init stop
+test: $(TESTS:test/%.erl=test/%.beam) compile
+	$(ERL) -pa ebin/ -pa test/ -noshell -s pgsql_tests run_tests -s init stop
 
 # ------------------------------------------------------------------------
 
@@ -44,7 +45,7 @@ ebin/%.beam : src/%.erl
 ebin/%.app : src/%.app.src Makefile
 	sed -e 's|git|\"$(VERSION)\"|g' $< > $@
 
-test_ebin/%.beam : test/%.erl
+test/%.beam : test/%.erl
 	$(ERLC) $(ERLC_FLAGS) -o $(dir $@) $<
 
 dialyzer: build.plt compile

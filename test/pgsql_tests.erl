@@ -666,7 +666,8 @@ application_test(_Module) ->
 %% -- run all tests --
 
 run_tests() ->
-    Files = filelib:wildcard("test_ebin/*tests.beam"),
+    Files = filelib:wildcard(filename:dirname(code:which(pgsql_tests))
+                             ++ "/*tests.beam"),
     Mods = [list_to_atom(filename:basename(F, ".beam")) || F <- Files],
     eunit:test(Mods, []).
 
