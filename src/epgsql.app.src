@@ -7,5 +7,5 @@
   {applications, [kernel,
                   stdlib,
                   ssl]},
-  {env, []}]}.
+  {env, []},
   {included_applications, []}]}.
