@@ -66,7 +66,7 @@ connect_with_ssl_test(Module) ->
 
 connect_with_client_cert_test(Module) ->
     lists:foreach(fun application:start/1, ?ssl_apps),
-    Dir = filename:join(filename:dirname(code:which(pgsql_tests)), "data"),
+    Dir = filename:join(filename:dirname(code:which(pgsql_tests)), "../test_data"),
     File = fun(Name) -> filename:join(Dir, Name) end,
     {ok, Pem} = file:read_file(File("epgsql.crt")),
     [{'Certificate', Der, not_encrypted}] = public_key:pem_decode(Pem),
