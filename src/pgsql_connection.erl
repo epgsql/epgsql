@@ -640,11 +640,20 @@ encode_list(L) ->
 notify(#state{reply_to = {Pid, _Tag}}, Msg) ->
     Pid ! {pgsql, self(), Msg}.
 
-notify_async(#state{async = Pid}, Msg) ->
-    case is_pid(Pid) of
-        true  -> Pid ! {pgsql, self(), Msg};
-        false -> false
-    end.
+notify_async(#state{async = undefined}, _) ->
+    ok;
+notify_async(#state{async = {via, Module, Name}}, Msg)
+    when is_atom(Module) ->
+    Pid = Module:whereis_name(Name),
+    if
+        is_pid(Pid) ->
+            Pid ! {pgsql, self(), Msg};
+        true ->
+            ok
+    end;
+notify_async(#state{async = Process}, Msg)
+    when is_atom(Process); is_pid(Process) ->
+    Process ! {pgsql, self(), Msg}.
 
 to_binary(B) when is_binary(B) -> B;
 to_binary(L) when is_list(L)   -> list_to_binary(L).
