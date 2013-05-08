@@ -41,9 +41,9 @@ init([C, Host, Username, Opts]) ->
     process_flag(trap_exit, true),
 
     Opts2 = ["user", 0, Username, 0],
-    case proplists:get_value(database, Opts, undefined) of
-        undefined -> Opts3 = Opts2;
-        Database  -> Opts3 = [Opts2 | ["database", 0, Database, 0]]
+    Opts3 = case proplists:get_value(database, Opts, undefined) of
+        undefined -> Opts2;
+        Database  -> [Opts2 | ["database", 0, Database, 0]]
     end,
 
     Port = proplists:get_value(port, Opts, 5432),
@@ -56,13 +56,13 @@ init([C, Host, Username, Opts]) ->
       sock = S,
       tail = <<>>},
 
-    case proplists:get_value(ssl, Opts) of
+    State2 = case proplists:get_value(ssl, Opts) of
         T when T == true; T == required ->
             ok = gen_tcp:send(S, <<8:?int32, 80877103:?int32>>),
             {ok, <<Code>>} = gen_tcp:recv(S, 1),
-            State2 = start_ssl(Code, T, Opts, State);
+            start_ssl(Code, T, Opts, State);
         _ ->
-            State2 = State
+            State
     end,
 
     setopts(State2, [{active, true}]),
@@ -149,9 +149,10 @@ decode(<<Type:8, Len:?int32, Rest/binary>> = Bin, #state{c = C} = State) ->
             decode(Tail, State);
         <<Data:Len2/binary, Tail/binary>> when Type == $A ->
             <<Pid:?int32, Strings/binary>> = Data,
-            case decode_strings(Strings) of
-                [Channel, Payload] -> ok;
-                [Channel]          -> Payload = <<>>
+            [Channel | PayloadList] = decode_strings(Strings),
+            Payload = case PayloadList of
+                [PayloadBin]   -> PayloadBin;
+                []             -> <<>>
             end,
             gen_fsm:send_all_state_event(C, {notification, Channel, Pid, Payload}),
             decode(Tail, State);

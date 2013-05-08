@@ -405,9 +405,9 @@ character_type_test() ->
 date_time_type_test() ->
     with_connection(
       fun(C) ->
-              case pgsql:get_parameter(C, "integer_datetimes") of
-                  {ok, <<"on">>}  -> MaxTsDate = 294276;
-                  {ok, <<"off">>} -> MaxTsDate = 5874897
+              MaxTsDate = case pgsql:get_parameter(C, "integer_datetimes") of
+                  {ok, <<"on">>}  -> 294276;
+                  {ok, <<"off">>} -> 5874897
               end,
 
               check_type(date, "'2008-01-02'", {2008,1,2}, [{-4712,1,1}, {5874897,1,1}]),
@@ -586,10 +586,10 @@ run_tests() ->
 
 connect_only(Args) ->
     TestOpts = [{port, ?port}],
-    case Args of
-        [User, Opts]       -> Args2 = [User, TestOpts ++ Opts];
-        [User, Pass, Opts] -> Args2 = [User, Pass, TestOpts ++ Opts];
-        Opts               -> Args2 = [TestOpts ++ Opts]
+    Args2 = case Args of
+        [User, Opts]       -> [User, TestOpts ++ Opts];
+        [User, Pass, Opts] -> [User, Pass, TestOpts ++ Opts];
+        Opts               -> [TestOpts ++ Opts]
     end,
     {ok, C} = apply(pgsql, connect, [?host | Args2]),
     pgsql:close(C),
