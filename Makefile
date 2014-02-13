@@ -31,6 +31,9 @@ clean:
 	@rm -f test/*.beam
 	@rm -rf $(NAME)-$(VERSION) $(NAME)-*.tar.gz
 
+create_testdbs:
+	psql template1 < ./test_data/test_schema.sql
+
 test: $(TESTS:test/%.erl=test/%.beam) compile
 	$(ERL) -pa ebin/ -pa test/ -noshell -s pgsql_tests run_tests -s init stop
 
