@@ -12,6 +12,21 @@
 
 -define(ssl_apps, [crypto, asn1, public_key, ssl]).
 
+-define(UUID1,
+        <<163,189,240,40,149,151,17,227,141,6,112,24,139,130,16,73>>).
+
+-define(UUID2,
+        <<183,55,22,52,149,151,17,227,187,167,112,24,139,130,16,73>>).
+
+-define(UUID3,
+        <<198,188,155,66,149,151,17,227,138,98,112,24,139,130,16,73>>).
+
+%% From uuid.erl in http://gitorious.org/avtobiff/erlang-uuid
+uuid_to_string(<<U0:32, U1:16, U2:16, U3:16, U4:48>>) ->
+    lists:flatten(io_lib:format(
+                    "~8.16.0b-~4.16.0b-~4.16.0b-~4.16.0b-~12.16.0b",
+                    [U0, U1, U2, U3, U4])).
+
 connect_test(Module) ->
     connect_only(Module, []).
 
@@ -477,10 +492,36 @@ character_type_test(Module) ->
     check_type(Module, varchar, "'hi'", <<"hi">>, [<<"">>, <<"hi">>]).
 
 uuid_type_test(Module) ->
-    U = uuid:uuid1(),
     check_type(Module, uuid,
-               io_lib:format("'~s'", [uuid:to_string(U)]),
-               list_to_binary(uuid:to_string(U)), []).
+               io_lib:format("'~s'", [uuid_to_string(?UUID1)]),
+               list_to_binary(uuid_to_string(?UUID1)), []).
+
+uuid_select_test(Module) ->
+    with_rollback(
+      Module,
+      fun(C) ->
+              U1 = uuid_to_string(?UUID1),
+              U2 = uuid_to_string(?UUID2),
+              U3 = uuid_to_string(?UUID3),
+              {ok, 1} =
+                  Module:equery(C, "insert into test_table2 (c_varchar, c_uuid) values ('UUID1', $1)",
+                                [U1]),
+              {ok, 1} =
+                  Module:equery(C, "insert into test_table2 (c_varchar, c_uuid) values ('UUID2', $1)",
+                                [U2]),
+              {ok, 1} =
+                  Module:equery(C, "insert into test_table2 (c_varchar, c_uuid) values ('UUID3', $1)",
+                                [U3]),
+              Res = Module:equery(C, "select c_varchar, c_uuid from test_table2 where c_uuid = any($1)",
+                                 [[U1, U2]]),
+              U1Bin = list_to_binary(U1),
+              U2Bin = list_to_binary(U2),
+              {ok,[{column,<<"c_varchar">>,varchar,_,_,_},
+                   {column,<<"c_uuid">>,uuid,_,_,_}],
+               [{<<"UUID1">>, U1Bin},
+                {<<"UUID2">>, U2Bin}]} = Res
+      end).
+
 
 date_time_type_test(Module) ->
     with_connection(

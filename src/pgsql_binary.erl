@@ -93,6 +93,10 @@ encode_array(Type, [H | _] = Array, NDims, Lengths) when not is_list(H) ->
     F = fun(E, Len) -> {encode(Type, E), Len + 1} end,
     {Data, Len} = lists:mapfoldl(F, 0, Array),
     {Data, {NDims + 1, [Len | Lengths]}};
+encode_array(uuid, [H | _] = Array, NDims, Lengths) ->
+    F = fun(E, Len) -> {encode(uuid, E), Len + 1} end,
+    {Data, Len} = lists:mapfoldl(F, 0, Array),
+    {Data, {NDims + 1, [Len | Lengths]}};
 encode_array(Type, Array, NDims, Lengths) ->
     Lengths2 = [length(Array) | Lengths],
     F = fun(A2, {_NDims, _Lengths}) -> encode_array(Type, A2, NDims, Lengths2) end,
