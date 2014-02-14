@@ -10,7 +10,7 @@
 -define(host, "localhost").
 -define(port, 5432).
 
--define(ssl_apps, [crypto, public_key, ssl]).
+-define(ssl_apps, [crypto, asn1, public_key, ssl]).
 
 connect_test(Module) ->
     connect_only(Module, []).
@@ -55,7 +55,9 @@ connect_with_invalid_password_test(Module) ->
 
 
 connect_with_ssl_test(Module) ->
-    lists:foreach(fun application:start/1, ?ssl_apps),
+    lists:map(fun(A) ->
+                      ok = application:start(A)
+              end, ?ssl_apps),
     with_connection(
       Module,
       fun(C) ->
