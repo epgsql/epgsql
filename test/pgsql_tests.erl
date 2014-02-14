@@ -476,6 +476,12 @@ character_type_test(Module) ->
     check_type(Module, text, "'hi'", <<"hi">>, [<<"">>, <<"hi">>]),
     check_type(Module, varchar, "'hi'", <<"hi">>, [<<"">>, <<"hi">>]).
 
+uuid_type_test(Module) ->
+    U = uuid:uuid1(),
+    check_type(Module, uuid,
+               io_lib:format("'~s'", [uuid:to_string(U)]),
+               list_to_binary(uuid:to_string(U)), []).
+
 date_time_type_test(Module) ->
     with_connection(
       Module,
@@ -764,7 +770,8 @@ check_type(Module, Type, In, Out, Values, Column) ->
       Module,
       fun(C) ->
               Select = io_lib:format("select ~s::~w", [In, Type]),
-              {ok, [#column{type = Type}], [{Out}]} = Module:equery(C, Select),
+              Res = Module:equery(C, Select),
+              {ok, [#column{type = Type}], [{Out}]} = Res,
               Sql = io_lib:format("insert into test_table2 (~s) values ($1) returning ~s", [Column, Column]),
               {ok, #statement{columns = [#column{type = Type}]} = S} = Module:parse(C, Sql),
               Insert = fun(V) ->
