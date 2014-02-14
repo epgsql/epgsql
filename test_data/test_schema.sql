@@ -40,7 +40,7 @@ INSERT INTO test_table1 (id, value) VALUES (2, 'two');
 
 CREATE TABLE test_table2 (
   c_bool bool,
-  c_char char,  
+  c_char char,
   c_int2 int2,
   c_int4 int4,
   c_int8 int8,
@@ -49,6 +49,7 @@ CREATE TABLE test_table2 (
   c_bytea bytea,
   c_text text,
   c_varchar varchar(64),
+  c_uuid uuid,
   c_date date,
   c_time time,
   c_timetz timetz,
