@@ -547,6 +547,17 @@ misc_type_test(Module) ->
     check_type(Module, bool, "true", true, [true, false]),
     check_type(Module, bytea, "E'\001\002'", <<1,2>>, [<<>>, <<0,128,255>>]).
 
+hstore_type_test(Module) ->
+    Values = [
+        [],
+        [{null, null}],
+        [{<<"a">>, <<"c">>}, {<<"c">>, <<"d">>}],
+        [{<<"a">>, <<"c">>}, {<<"c">>, null}]
+    ],
+    check_type(Module, hstore, "''", [], []),
+    check_type(Module, hstore, "'a => 1, b => 2.0, c => null'",
+               [{<<"c">>, null}, {<<"b">>, <<"2.0">>}, {<<"a">>, <<"1">>}], Values).
+
 array_type_test(Module) ->
     with_connection(
       Module,
@@ -816,7 +827,7 @@ check_type(Module, Type, In, Out, Values, Column) ->
               Sql = io_lib:format("insert into test_table2 (~s) values ($1) returning ~s", [Column, Column]),
               {ok, #statement{columns = [#column{type = Type}]} = S} = Module:parse(C, Sql),
               Insert = fun(V) ->
-                               Module:bind(C, S, [V]),
+                               ok = Module:bind(C, S, [V]),
                                {ok, 1, [{V2}]} = Module:execute(C, S),
                                case compare(Type, V, V2) of
                                    true  -> ok;
@@ -830,11 +841,23 @@ check_type(Module, Type, In, Out, Values, Column) ->
 compare(_Type, null, null) -> true;
 compare(float4, V1, V2)    -> abs(V2 - V1) < 0.000001;
 compare(float8, V1, V2)    -> abs(V2 - V1) < 0.000000000000001;
+compare(hstore, V1, V2)    ->
+    orddict:from_list(format_hstore(V1)) =:= orddict:from_list(format_hstore(V2));
 compare(Type, V1 = {_, _, MS}, {D2, {H2, M2, S2}}) when Type == timestamp;
                                                         Type == timestamptz ->
     {D1, {H1, M1, S1}} = calendar:now_to_universal_time(V1),
     ({D1, H1, M1} =:= {D2, H2, M2}) and (abs(S1 + MS/1000000 - S2) < 0.000000000000001);
 compare(_Type, V1, V2)     -> V1 =:= V2.
+
+format_hstore(Hstore) ->
+    [{format_hstore_key(Key), format_hstore_value(Value)} || {Key, Value} <- Hstore].
+
+format_hstore_key(Key) -> format_hstore_string(Key).
+
+format_hstore_value(null) -> null;
+format_hstore_value(Value) -> format_hstore_string(Value).
+
+format_hstore_string(Str) -> iolist_to_binary(io_lib:format("~s", [Str])).
 
 %% flush mailbox
 flush() ->
