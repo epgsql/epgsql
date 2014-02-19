@@ -551,6 +551,8 @@ hstore_type_test(Module) ->
     Values = [
         [],
         [{null, null}],
+        [{1, null}],
+        [{1.0, null}],
         [{<<"a">>, <<"c">>}, {<<"c">>, <<"d">>}],
         [{<<"a">>, <<"c">>}, {<<"c">>, null}]
     ],
@@ -587,7 +589,9 @@ array_type_test(Module) ->
           Select(timetz, [{{0,1,2.0},1*60*60}, {{0,1,3.0},1*60*60}]),
           Select(timestamp, [{{2008,1,2},{3,4,5.0}}, {{2008,1,2},{3,4,6.0}}]),
           Select(timestamptz, [{{2008,1,2},{3,4,5.0}}, {{2008,1,2},{3,4,6.0}}]),
-          Select(interval, [{{1,2,3.1},0,0}, {{1,2,3.2},0,0}])
+          Select(interval, [{{1,2,3.1},0,0}, {{1,2,3.2},0,0}]),
+          Select(hstore, [{[{null, null}, {a, 1}, {1, 2}]}]),
+          Select(hstore, [[{[{null, null}, {a, 1}, {1, 2}]}, {[]}], [{[{a, 1}]}, {[{null, 2}]}]])
       end).
 
 text_format_test(Module) ->
@@ -841,6 +845,8 @@ check_type(Module, Type, In, Out, Values, Column) ->
 compare(_Type, null, null) -> true;
 compare(float4, V1, V2)    -> abs(V2 - V1) < 0.000001;
 compare(float8, V1, V2)    -> abs(V2 - V1) < 0.000000000000001;
+compare(hstore, {V1}, V2)  -> compare(hstore, V1, V2);
+compare(hstore, V1, {V2})  -> compare(hstore, V1, V2);
 compare(hstore, V1, V2)    ->
     orddict:from_list(format_hstore(V1)) =:= orddict:from_list(format_hstore(V2));
 compare(Type, V1 = {_, _, MS}, {D2, {H2, M2, S2}}) when Type == timestamp;
@@ -849,6 +855,7 @@ compare(Type, V1 = {_, _, MS}, {D2, {H2, M2, S2}}) when Type == timestamp;
     ({D1, H1, M1} =:= {D2, H2, M2}) and (abs(S1 + MS/1000000 - S2) < 0.000000000000001);
 compare(_Type, V1, V2)     -> V1 =:= V2.
 
+format_hstore({Hstore}) -> Hstore;
 format_hstore(Hstore) ->
     [{format_hstore_key(Key), format_hstore_value(Value)} || {Key, Value} <- Hstore].
 
@@ -857,6 +864,7 @@ format_hstore_key(Key) -> format_hstore_string(Key).
 format_hstore_value(null) -> null;
 format_hstore_value(Value) -> format_hstore_string(Value).
 
+format_hstore_string(Num) when is_number(Num) -> iolist_to_binary(io_lib:format("~w", [Num]));
 format_hstore_string(Str) -> iolist_to_binary(io_lib:format("~s", [Str])).
 
 %% flush mailbox
