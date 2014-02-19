@@ -28,6 +28,7 @@ encode(bytea, B) when is_binary(B)          -> <<(byte_size(B)):?int32, B/binary
 encode(text, B) when is_binary(B)           -> <<(byte_size(B)):?int32, B/binary>>;
 encode(varchar, B) when is_binary(B)        -> <<(byte_size(B)):?int32, B/binary>>;
 encode(uuid, B) when is_binary(B)           -> encode_uuid(B);
+encode({array, char}, L) when is_list(L)    -> encode_array(bpchar, L);
 encode({array, Type}, L) when is_list(L)    -> encode_array(Type, L);
 encode(Type, L) when is_list(L)             -> encode(Type, list_to_binary(L));
 encode(_Type, _Value)                       -> {error, unsupported}.
