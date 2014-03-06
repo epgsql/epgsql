@@ -7,7 +7,7 @@
          close/1,
          get_parameter/2,
          squery/2,
-         equery/2, equery/3,
+         equery/2, equery/3, equery/4,
          parse/2, parse/3, parse/4,
          describe/2, describe/3,
          bind/3, bind/4,
@@ -58,7 +58,15 @@ equery(C, Sql) ->
 
 %% TODO add fast_equery command that doesn't need parsed statement
 equery(C, Sql, Parameters) ->
-    Name = ["equery-", atom_to_list(node()), pid_to_list(self())],
+    case parse(C, "", Sql, []) of
+        {ok, #statement{types = Types} = S} ->
+            Typed_Parameters = lists:zip(Types, Parameters),
+            gen_server:call(C, {equery, S, Typed_Parameters}, infinity);
+        Error ->
+            Error
+    end.
+
+equery(C, Name, Sql, Parameters) ->
     case parse(C, Name, Sql, []) of
         {ok, #statement{types = Types} = S} ->
             Typed_Parameters = lists:zip(Types, Parameters),
@@ -70,10 +78,10 @@ equery(C, Sql, Parameters) ->
 %% parse
 
 parse(C, Sql) ->
-    parse(C, "", Sql, []).
+    parse(C, Sql, []).
 
 parse(C, Sql, Types) ->
-    parse(C, "", Sql, Types).
+    sync_on_error(C, gen_server:call(C, {parse, Sql, Types}, infinity)).
 
 parse(C, Name, Sql, Types) ->
     sync_on_error(C, gen_server:call(C, {parse, Name, Sql, Types}, infinity)).
