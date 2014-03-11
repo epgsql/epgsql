@@ -28,6 +28,7 @@
 -define(DESCRIBE, $D).
 -define(EXECUTE, $E).
 -define(FLUSH, $H).
+-define(PASSWORD, $p).
 -define(PARSE, $P).
 -define(SIMPLEQUERY, $Q).
 -define(AUTHENTICATION_REQUEST, $R).
@@ -43,11 +44,15 @@
 -define(PARSE_COMPLETE, $1).
 -define(BIND_COMPLETE, $2).
 -define(CLOSE_COMPLETE, $3).
+-define(NOTIFICATION, $A).
 -define(COMMAND_COMPLETE, $C).
 -define(DATA_ROW, $D).
+-define(EMPTY_QUERY, $I).
 -define(CANCELLATION_KEY, $K).
 -define(NO_DATA, $n).
+-define(NOTICE, $N).
 -define(PORTAL_SUSPENDED, $s).
+-define(PARAMETER_STATUS, $S).
 -define(PARAMETER_DESCRIPTION, $t).
 -define(ROW_DESCRIPTION, $T).
 -define(READY_FOR_QUERY, $Z).
@@ -444,14 +449,14 @@ auth({?AUTHENTICATION_REQUEST, <<0:?int32>>}, State) ->
 
 %% AuthenticationCleartextPassword
 auth({?AUTHENTICATION_REQUEST, <<3:?int32>>}, State) ->
-    send(State, $p, [get(password), 0]),
+    send(State, ?PASSWORD, [get(password), 0]),
     {noreply, State};
 
 %% AuthenticationMD5Password
 auth({?AUTHENTICATION_REQUEST, <<5:?int32, Salt:4/binary>>}, State) ->
     Digest1 = hex(erlang:md5([get(password), get(username)])),
     Str = ["md5", hex(erlang:md5([Digest1, Salt])), 0],
-    send(State, $p, Str),
+    send(State, ?PASSWORD, Str),
     {noreply, State};
 
 auth({?AUTHENTICATION_REQUEST, <<M:?int32, _/binary>>}, State) ->
@@ -617,7 +622,7 @@ on_message({?COMMAND_COMPLETE, Bin}, State) ->
     {noreply, State2};
 
 %% EmptyQueryResponse
-on_message({$I, _Bin}, State) ->
+on_message({?EMPTY_QUERY, _Bin}, State) ->
     Notice = {complete, empty},
     State2 = case command_tag(State) of
                  execute ->
@@ -628,7 +633,7 @@ on_message({$I, _Bin}, State) ->
     {noreply, State2};
 
 %% ReadyForQuery
-on_message({$Z, <<Status:8>>}, State) ->
+on_message({?READY_FOR_QUERY, <<Status:8>>}, State) ->
     State2 = case command_tag(State) of
                  squery ->
                      case State#state.results of
@@ -661,19 +666,19 @@ on_message(Error = {error, _}, State) ->
     {noreply, State2};
 
 %% NoticeResponse
-on_message({$N, Data}, State) ->
+on_message({?NOTICE, Data}, State) ->
     State2 = notify_async(State, {notice, pgsql_wire:decode_error(Data)}),
     {noreply, State2};
 
 %% ParameterStatus
-on_message({$S, Data}, State) ->
+on_message({?PARAMETER_STATUS, Data}, State) ->
     [Name, Value] = pgsql_wire:decode_strings(Data),
     Parameters2 = lists:keystore(Name, 1, State#state.parameters,
                                  {Name, Value}),
     {noreply, State#state{parameters = Parameters2}};
 
 %% NotificationResponse
-on_message({$A, <<Pid:?int32, Strings/binary>>}, State) ->
+on_message({?NOTIFICATION, <<Pid:?int32, Strings/binary>>}, State) ->
     case pgsql_wire:decode_strings(Strings) of
         [Channel, Payload] -> ok;
         [Channel]          -> Payload = <<>>
