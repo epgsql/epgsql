@@ -569,6 +569,7 @@ array_type_test(Module) ->
           Select(int4,   [[1, 2]]),
           Select(int8,   [[[[1, 2]], [[3, 4]]]]),
           Select(text,   [<<"one">>, <<"two>">>]),
+          Select(varchar,   [<<"one">>, <<"two>">>]),
           Select(float4, [0.0, 1.0, 0.123]),
           Select(float8, [0.0, 1.0, 0.123]),
           Select(date, [{2008,1,2}, {2008,1,3}]),
