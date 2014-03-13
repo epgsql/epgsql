@@ -19,7 +19,41 @@
          with_transaction/2,
          sync_on_error/2]).
 
+-export_type([connection/0, connect_option/0,
+              connect_error/0, query_error/0,
+              bind_param/0,
+              squery_row/0, equery_row/0, ok_reply/1]).
+
 -include("pgsql.hrl").
+
+-type connection() :: pid().
+-type connect_option() :: {database, string()}
+                          | {port, inet:port_number()}
+                          | {ssl, boolean() | required}
+                          | {ssl_opts, list()} % ssl:option(), see OTP ssl_api.hrl
+                          | {timeout, timeout()}
+                          | {async, pid()}.
+-type connect_error() :: #error{}.
+-type query_error() :: #error{}.
+
+-type bind_param() ::
+        null
+        | boolean()
+        | string()
+        | binary()
+        | integer()
+        | float()
+        | calendar:date()
+        | calendar:time()                       %actualy, `Seconds' may be float()
+        | calendar:datetime()
+        | {calendar:time(), Days::non_neg_integer(), Months::non_neg_integer()}
+        | [bind_param()].                       %array (maybe nested)
+
+-type squery_row() :: {binary()}.
+-type equery_row() :: {bind_param()}.
+-type ok_reply(RowType) :: {ok, [#column{}], [RowType]}  % SELECT
+                         | {ok, non_neg_integer()}   % UPDATE / INSERT
+                         | {ok, non_neg_integer(), [#column{}], [RowType]}. % UPDATE / INSERT + RETURNING
 
 %% -- client interface --
 
@@ -33,6 +67,9 @@ connect(Host, Username, Password, Opts) ->
     {ok, C} = pgsql_sock:start_link(),
     connect(C, Host, Username, Password, Opts).
 
+-spec connect(connection(), inet:ip_address() | inet:hostname(),
+              string(), string(), [connect_option()]) ->
+                     {ok, pid()} | {error, connect_error()}.
 connect(C, Host, Username, Password, Opts) ->
     %% TODO connect timeout
     case gen_server:call(C,
@@ -44,12 +81,16 @@ connect(C, Host, Username, Password, Opts) ->
             Error
     end.
 
+-spec close(connection()) -> ok.
 close(C) ->
     pgsql_sock:close(C).
 
+-spec get_parameter(connection(), binary()) -> binary() | undefined.
 get_parameter(C, Name) ->
     pgsql_sock:get_parameter(C, Name).
 
+-spec squery(connection(), string()) ->
+                    ok_reply(squery_row()) | {error, query_error()}.
 squery(C, Sql) ->
     gen_server:call(C, {squery, Sql}, infinity).
 
@@ -57,6 +98,8 @@ equery(C, Sql) ->
     equery(C, Sql, []).
 
 %% TODO add fast_equery command that doesn't need parsed statement
+-spec equery(connection(), string(), [bind_param()]) ->
+                    ok_reply(equery_row()) | {error, query_error()}.
 equery(C, Sql, Parameters) ->
     Name = ["equery-", atom_to_list(node()), pid_to_list(self())],
     case parse(C, Name, Sql, []) of
@@ -75,6 +118,8 @@ parse(C, Sql) ->
 parse(C, Sql, Types) ->
     parse(C, "", Sql, Types).
 
+-spec parse(connection(), iolist(), string(), [epgsql_type()]) ->
+                   {ok, #statement{}} | {error, query_error()}.
 parse(C, Name, Sql, Types) ->
     sync_on_error(C, gen_server:call(C, {parse, Name, Sql, Types}, infinity)).
 
@@ -83,6 +128,8 @@ parse(C, Name, Sql, Types) ->
 bind(C, Statement, Parameters) ->
     bind(C, Statement, "", Parameters).
 
+-spec bind(connection(), #statement{}, string(), [bind_param()]) ->
+                  ok | {error, query_error()}.
 bind(C, Statement, PortalName, Parameters) ->
     sync_on_error(
       C,
@@ -96,9 +143,16 @@ execute(C, S) ->
 execute(C, S, N) ->
     execute(C, S, "", N).
 
+-spec execute(connection(), #statement{}, string(), non_neg_integer()) -> Reply
+                                                                              when
+      Reply :: {ok | partial, [equery_row()]}
+             | {ok, non_neg_integer()}
+             | {ok, non_neg_integer(), [equery_row()]}.
 execute(C, S, PortalName, N) ->
     gen_server:call(C, {execute, S, PortalName, N}, infinity).
 
+-spec execute_batch(connection(), [{#statement{}, [bind_param()]}]) ->
+                           [ok_reply(equery_row()) | {error, query_error()}].
 execute_batch(C, Batch) ->
     gen_server:call(C, {execute_batch, Batch}, infinity).
 
@@ -123,10 +177,15 @@ close(C, Type, Name) ->
 sync(C) ->
     gen_server:call(C, sync).
 
+-spec cancel(connection()) -> ok.
 cancel(C) ->
     pgsql_sock:cancel(C).
 
 %% misc helper functions
+-spec with_transaction(connection(), fun((connection()) -> Reply)) ->
+                              Reply | {rollback, any()}
+                                  when
+      Reply :: any().
 with_transaction(C, F) ->
     try {ok, [], []} = squery(C, "BEGIN"),
         R = F(C),
