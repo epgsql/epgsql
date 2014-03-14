@@ -48,6 +48,7 @@ CREATE TABLE test_table2 (
   c_int8 int8,
   c_float4 float4,
   c_float8 float8,
+  c_numeric numeric,
   c_bytea bytea,
   c_text text,
   c_varchar varchar(64),

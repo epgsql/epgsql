@@ -243,6 +243,8 @@ Asynchronous fork of https://github.com/wg/epgsql
   char        = $A | binary
   intX        = 1
   floatX      = 1.0
+  numeric     = {Sign, Number, Exponent}
+  decimal     = {Sign, Number, Exponent}
   date        = {Year, Month, Day}
   time        = {Hour, Minute, Second.Microsecond}
   timetz      = {time, Timezone}

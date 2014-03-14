@@ -6,6 +6,9 @@
 
 -include("pgsql_binary.hrl").
 
+%% This is used to decode/encode numeric/decimal types.
+-define(NBASE, 10000).
+
 -define(datetime, (get(datetime_mod))).
 
 encode(_Any, null)                          -> <<-1:?int32>>;
@@ -16,6 +19,11 @@ encode(int4, N)                             -> <<4:?int32, N:1/big-signed-unit:3
 encode(int8, N)                             -> <<8:?int32, N:1/big-signed-unit:64>>;
 encode(float4, N)                           -> <<4:?int32, N:1/big-float-unit:32>>;
 encode(float8, N)                           -> <<8:?int32, N:1/big-float-unit:64>>;
+%% Positive integer:
+encode(numeric, Number) when is_integer(Number) andalso Number >= 0  -> encode_numeric(0, Number, 0);
+%% Negative integer:
+encode(numeric, Number) when is_integer(Number) -> encode_numeric(1, Number, 0);
+encode(numeric, {Sign, Number, Exponent})   -> encode_numeric(Sign, Number, Exponent);
 encode(bpchar, C) when is_integer(C)        -> <<1:?int32, C:1/big-unsigned-unit:8>>;
 encode(bpchar, B) when is_binary(B)         -> <<(byte_size(B)):?int32, B/binary>>;
 encode(time = Type, B)                      -> ?datetime:encode(Type, B);
@@ -41,6 +49,7 @@ decode(int4, <<N:1/big-signed-unit:32>>)    -> N;
 decode(int8, <<N:1/big-signed-unit:64>>)    -> N;
 decode(float4, <<N:1/big-float-unit:32>>)   -> N;
 decode(float8, <<N:1/big-float-unit:64>>)   -> N;
+decode(numeric, N)                          -> decode_numeric(N);
 decode(record, <<_:?int32, Rest/binary>>)   -> list_to_tuple(decode_record(Rest, []));
 decode(time = Type, B)                      -> ?datetime:decode(Type, B);
 decode(timetz = Type, B)                    -> ?datetime:decode(Type, B);
@@ -83,6 +92,27 @@ encode_uuid(U) ->
     {ok, [Int], _} = io_lib:fread("~16u", Hex),
     <<16:?int32,Int:128>>.
 
+encode_numeric(Sign, 0, Exponent, Digits) ->
+    NDigits = length(Digits),
+    Weight = 0,
+    Dscale = case Exponent of
+                 Exponent when Exponent < 0 ->
+                     Exponent - 1;
+                 _ ->
+                     0
+             end,
+    BinaryDigits = erlang:iolist_to_binary([<<D:?int16>> || D <- lists:reverse(Digits)]),
+    Res = <<NDigits:?int16, Weight:?int16, Sign:?int16, Dscale:?int16, BinaryDigits/binary>>,
+    Res;
+
+encode_numeric(Sign, Number, Exponent, Digits) ->
+    D1 = Number rem ?NBASE,
+    Rest = Number div ?NBASE,
+    encode_numeric(Sign, Rest, Exponent, Digits ++ [D1]).
+
+encode_numeric(Sign, Number, Exponent) ->
+    encode_numeric(Sign, Number, Exponent, []).
+
 decode_array(<<NDims:?int32, _HasNull:?int32, Oid:?int32, Rest/binary>>) ->
     {Dims, Data} = erlang:split_binary(Rest, NDims * 2 * 4),
     Lengths = [Len || <<Len:?int32, _LBound:?int32>> <= Dims],
@@ -118,6 +148,38 @@ decode_uuid(<<U0:32, U1:16, U2:16, U3:16, U4:48>>) ->
     Format = "~8.16.0b-~4.16.0b-~4.16.0b-~4.16.0b-~12.16.0b",
     iolist_to_binary(io_lib:format(Format, [U0, U1, U2, U3, U4])).
 
+nbase_pow(0) ->
+    1;
+nbase_pow(N) when N > 0 ->
+    ?NBASE * nbase_pow(N-1);
+nbase_pow(_) ->
+    1.
+
+decode_numeric(N) when is_binary(N) ->
+    <<NDigits:?int16, Weight:?int16, Sign:?int16, Dscale:?int16, Rest/binary>> = N,
+    decode_numeric(NDigits, Weight, Sign, Dscale, Rest, 0).
+
+decode_numeric(0, Weight, Sign, Dscale, <<>>, Acc) ->
+    UsedDigits = trunc(math:log10(Acc) + 1),
+    Padding = case Dscale - UsedDigits of
+                  P when P > 0 ->
+                      P;
+                  _ ->
+                      0
+              end,
+    Num = Acc * round(math:pow(10, Padding)) * nbase_pow(Weight - 2),
+    Exponent = case Dscale of
+                   Dscale when Dscale > 0 ->
+                       - (Dscale + 1);
+                   _ ->
+                       0
+               end,
+    {Sign, Num, Exponent};
+
+decode_numeric(Digit, Weight, Sign, Dscale, <<Num:1/big-signed-unit:16,Rest/binary>>, Acc) ->
+    NewAcc = Acc + nbase_pow(Digit - 1) * Num,
+    decode_numeric(Digit - 1, Weight, Sign, Dscale, Rest, NewAcc).
+
 supports(bool)    -> true;
 supports(bpchar)  -> true;
 supports(int2)    -> true;
@@ -125,6 +187,8 @@ supports(int4)    -> true;
 supports(int8)    -> true;
 supports(float4)  -> true;
 supports(float8)  -> true;
+supports(numeric)  -> true;
+supports(decimal)  -> true;
 supports(bytea)   -> true;
 supports(text)    -> true;
 supports(varchar) -> true;

@@ -481,7 +481,14 @@ numeric_type_test(Module) ->
     check_type(Module, int4, "1", 1, [0, 512, -2147483648, +2147483647]),
     check_type(Module, int8, "1", 1, [0, 1024, -9223372036854775808, +9223372036854775807]),
     check_type(Module, float4, "1.0", 1.0, [0.0, 1.23456, -1.23456]),
-    check_type(Module, float8, "1.0", 1.0, [0.0, 1.23456789012345, -1.23456789012345]).
+    check_type(Module, float8, "1.0", 1.0, [0.0, 1.23456789012345, -1.23456789012345]),
+    check_type(Module, numeric, "289.00000000007", {0,289000000000070,-12},
+               [{0, 1, 0}]),
+    check_type(Module, numeric, "0.050000000000000000000", {0,500000000000000000000,-22}, []),
+    check_type(Module, numeric, "1234567890000000000000000000", {0,1234567890000000000000000000,0}, []),
+    check_type(Module, numeric, "1", {0, 1, 0}, []),
+    check_type(Module, numeric, "3000000000000000000.00000000000000000009",
+               {0,30000000000000000000000000000000000000900000000,-21}, []).
 
 character_type_test(Module) ->
     Alpha = unicode:characters_to_binary([16#03B1]),
@@ -590,8 +597,7 @@ text_format_test(Module) ->
                                {ok, _Cols, [{V2}]} = Module:equery(C, Query, [V]),
                                {ok, _Cols, [{V2}]} = Module:equery(C, Query, [V2])
                        end,
-              Select("inet", "127.0.0.1"),
-              Select("numeric", "123456")
+              Select("inet", "127.0.0.1")
       end).
 
 connect_timeout_test(Module) ->
