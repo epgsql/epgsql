@@ -34,21 +34,27 @@ connect(Host, Username, Password, Opts) ->
     {ok, C} = pgsql_sock:start_link(),
     connect(C, Host, Username, Password, Opts).
 
+-spec connect(pgsql:connection(), inet:ip_address() | inet:hostname(),
+              string(), string(), [pgsql:connect_option()]) -> reference().
 connect(C, Host, Username, Password, Opts) ->
     incremental(C, {connect, Host, Username, Password, Opts}).
 
+-spec close(pgsql:connection()) -> ok.
 close(C) ->
     pgsql_sock:close(C).
 
+-spec get_parameter(pgsql:connection(), binary()) -> binary() | undefined.
 get_parameter(C, Name) ->
     pgsql_sock:get_parameter(C, Name).
 
+-spec squery(pgsql:connection(), string()) -> reference().
 squery(C, Sql) ->
     incremental(C, {squery, Sql}).
 
 equery(C, Sql) ->
     equery(C, Sql, []).
 
+-spec equery(pgsql:connection(), #statement{}, [pgsql:bind_param()]) -> reference().
 equery(C, Statement, Parameters) ->
     incremental(C, {equery, Statement, Parameters}).
 
@@ -58,12 +64,14 @@ parse(C, Sql) ->
 parse(C, Sql, Types) ->
     parse(C, "", Sql, Types).
 
+-spec parse(pgsql:connection(), iolist(), string(), [epgsql_type()]) -> reference().
 parse(C, Name, Sql, Types) ->
     incremental(C, {parse, Name, Sql, Types}).
 
 bind(C, Statement, Parameters) ->
     bind(C, Statement, "", Parameters).
 
+-spec bind(pgsql:connection(), #statement{}, string(), [pgsql:bind_param()]) -> reference().
 bind(C, Statement, PortalName, Parameters) ->
     incremental(C, {bind, Statement, PortalName, Parameters}).
 
@@ -73,9 +81,11 @@ execute(C, S) ->
 execute(C, S, N) ->
     execute(C, S, "", N).
 
+-spec execute(pgsql:connection(), #statement{}, string(), non_neg_integer()) -> reference().
 execute(C, Statement, PortalName, MaxRows) ->
     incremental(C, {execute, Statement, PortalName, MaxRows}).
 
+-spec execute_batch(pgsql:connection(), [{#statement{}, [pgsql:bind_param()]}]) -> reference().
 execute_batch(C, Batch) ->
     incremental(C, {execute_batch, Batch}).
 
@@ -97,6 +107,7 @@ close(C, Type, Name) ->
 sync(C) ->
     incremental(C, sync).
 
+-spec cancel(pgsql:connection()) -> ok.
 cancel(C) ->
     pgsql_sock:cancel(C).
 
