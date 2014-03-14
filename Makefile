@@ -20,4 +20,4 @@ dialyzer: build.plt compile
 build.plt:
 	dialyzer -q --build_plt --apps erts kernel stdlib ssl --output_plt $@
 
-.PHONY: all compile release clean create_testdbs test dialyzer build.plt
+.PHONY: all compile release clean create_testdbs test dialyzer
