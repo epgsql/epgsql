@@ -94,16 +94,17 @@ encode_uuid(U) ->
 
 encode_numeric(Sign, 0, Exponent, Digits) ->
     NDigits = length(Digits),
-    Weight = 0,
-    Dscale = case Exponent of
-                 Exponent when Exponent < 0 ->
-                     Exponent - 1;
-                 _ ->
-                     0
+    {Dscale, Weight} =
+        case Exponent of
+            Exponent when Exponent < 0 ->
+                {-Exponent + 1, -Exponent div 4};
+            _ ->
+                {0, (length(Digits) - 1) + Exponent div 4}
              end,
     BinaryDigits = erlang:iolist_to_binary([<<D:?int16>> || D <- lists:reverse(Digits)]),
     Res = <<NDigits:?int16, Weight:?int16, Sign:?int16, Dscale:?int16, BinaryDigits/binary>>,
-    Res;
+    error_logger:info_msg("DIGITS ~p ENCODE: ~p~n", [lists:reverse(Digits), Res]),
+    <<(byte_size(Res)):?int32,Res/binary>>;
 
 encode_numeric(Sign, Number, Exponent, Digits) ->
     D1 = Number rem ?NBASE,
@@ -157,9 +158,10 @@ nbase_pow(_) ->
 
 decode_numeric(N) when is_binary(N) ->
     <<NDigits:?int16, Weight:?int16, Sign:?int16, Dscale:?int16, Rest/binary>> = N,
-    decode_numeric(NDigits, Weight, Sign, Dscale, Rest, 0).
+    error_logger:info_msg("DECODE ~p ~p ~p ~p - ~p~n", [NDigits, Weight, Sign, Dscale, Rest]),
+    decode_numeric(NDigits, Weight, Sign, Dscale, Rest, 0, 0).
 
-decode_numeric(0, Weight, Sign, Dscale, <<>>, Acc) ->
+decode_numeric(0, Weight, Sign, Dscale, <<>>, Acc, NDigits) ->
     UsedDigits = trunc(math:log10(Acc) + 1),
     Padding = case Dscale - UsedDigits of
                   P when P > 0 ->
@@ -167,7 +169,15 @@ decode_numeric(0, Weight, Sign, Dscale, <<>>, Acc) ->
                   _ ->
                       0
               end,
-    Num = Acc * round(math:pow(10, Padding)) * nbase_pow(Weight - 2),
+
+    WeightMult = case Weight of
+                     Weight when Weight > 0 ->
+                         nbase_pow(Weight - (NDigits - 1));
+                     _ ->
+                         1
+                 end,
+
+    Num = Acc * round(math:pow(10, Padding)) * WeightMult,
     Exponent = case Dscale of
                    Dscale when Dscale > 0 ->
                        - (Dscale + 1);
@@ -176,9 +186,9 @@ decode_numeric(0, Weight, Sign, Dscale, <<>>, Acc) ->
                end,
     {Sign, Num, Exponent};
 
-decode_numeric(Digit, Weight, Sign, Dscale, <<Num:1/big-signed-unit:16,Rest/binary>>, Acc) ->
+decode_numeric(Digit, Weight, Sign, Dscale, <<Num:1/big-signed-unit:16,Rest/binary>>, Acc, NDigits) ->
     NewAcc = Acc + nbase_pow(Digit - 1) * Num,
-    decode_numeric(Digit - 1, Weight, Sign, Dscale, Rest, NewAcc).
+    decode_numeric(Digit - 1, Weight, Sign, Dscale, Rest, NewAcc, NDigits + 1).
 
 supports(bool)    -> true;
 supports(bpchar)  -> true;

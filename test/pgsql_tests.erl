@@ -482,13 +482,17 @@ numeric_type_test(Module) ->
     check_type(Module, int8, "1", 1, [0, 1024, -9223372036854775808, +9223372036854775807]),
     check_type(Module, float4, "1.0", 1.0, [0.0, 1.23456, -1.23456]),
     check_type(Module, float8, "1.0", 1.0, [0.0, 1.23456789012345, -1.23456789012345]),
-    check_type(Module, numeric, "289.00000000007", {0,289000000000070,-12},
-               [{0, 1, 0}]),
+    check_type(Module, numeric, "10000000000", {0, 10000000000, 0}, []),
+    check_type(Module, numeric, "0.001", {0, 100, -4}, []),
+    check_type(Module, numeric, "1", {0, 1, 0},
+               [{0, 1, 0},
+                {0, 1, -2},
+                {0, 10000000000, 0}]),
+    check_type(Module, numeric, "289.00000000007", {0,289000000000070,-12}, []),
     check_type(Module, numeric, "0.050000000000000000000", {0,500000000000000000000,-22}, []),
     check_type(Module, numeric, "1234567890000000000000000000", {0,1234567890000000000000000000,0}, []),
-    check_type(Module, numeric, "1", {0, 1, 0}, []),
     check_type(Module, numeric, "3000000000000000000.00000000000000000009",
-               {0,30000000000000000000000000000000000000900000000,-21}, []).
+               {0,300000000000000000000000000000000000009,-21}, []).
 
 character_type_test(Module) ->
     Alpha = unicode:characters_to_binary([16#03B1]),
@@ -823,7 +827,7 @@ check_type(Module, Type, In, Out, Values, Column) ->
               Sql = io_lib:format("insert into test_table2 (~s) values ($1) returning ~s", [Column, Column]),
               {ok, #statement{columns = [#column{type = Type}]} = S} = Module:parse(C, Sql),
               Insert = fun(V) ->
-                               Module:bind(C, S, [V]),
+                               ok = Module:bind(C, S, [V]),
                                {ok, 1, [{V2}]} = Module:execute(C, S),
                                case compare(Type, V, V2) of
                                    true  -> ok;
