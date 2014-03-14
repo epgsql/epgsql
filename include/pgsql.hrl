@@ -1,4 +1,18 @@
--record(column,    {name, type, size, modifier, format}).
--record(statement, {name, columns, types}).
+-type epgsql_type() :: atom() | {array, atom()} | {unknown_oid, integer()}.
 
--record(error,  {severity, code, message, extra}).
+-record(column,    {name :: binary(),
+                    type :: epgsql_type(),
+                    size :: -1 | pos_integer(),
+                    modifier :: -1 | pos_integer(),
+                    format :: integer()}).
+
+-record(statement, {name :: string(),
+                    columns :: [#column{}],
+                    types :: [epgsql_type()]}).
+
+-record(error,  {severity :: fatal | error | atom(), %TODO: concretize
+                 code :: binary(),
+                 message :: binary(),
+                 extra :: [{detail, binary()}
+                           | {hint, binary()}
+                           | {position, binary()}]}).
