@@ -98,8 +98,6 @@ equery(C, Sql) ->
     equery(C, Sql, []).
 
 %% TODO add fast_equery command that doesn't need parsed statement
--spec equery(connection(), string(), [bind_param()]) ->
-                    ok_reply(equery_row()) | {error, query_error()}.
 equery(C, Sql, Parameters) ->
     case parse(C, "", Sql, []) of
         {ok, #statement{types = Types} = S} ->
@@ -109,6 +107,8 @@ equery(C, Sql, Parameters) ->
             Error
     end.
 
+-spec equery(connection(), string(), string(), [bind_param()]) ->
+                    ok_reply(equery_row()) | {error, query_error()}.
 equery(C, Name, Sql, Parameters) ->
     case parse(C, Name, Sql, []) of
         {ok, #statement{types = Types} = S} ->
@@ -124,7 +124,7 @@ parse(C, Sql) ->
     parse(C, Sql, []).
 
 parse(C, Sql, Types) ->
-    sync_on_error(C, gen_server:call(C, {parse, Sql, Types}, infinity)).
+    parse(C, "", Sql, Types).
 
 -spec parse(connection(), iolist(), string(), [epgsql_type()]) ->
                    {ok, #statement{}} | {error, query_error()}.
