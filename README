@@ -1,6 +1,9 @@
 Erlang PostgreSQL Database Client
 
-Asynchronous fork of https://github.com/wg/epgsql
+Asynchronous fork of https://github.com/wg/epgsql originally here:
+https://github.com/mabrek/epgsql and subsequently forked in order to
+provide a common fork for community development.
+
 
 * Motivation
 
@@ -25,6 +28,11 @@ Asynchronous fork of https://github.com/wg/epgsql
   + binding timestamps in erlang:now() format
   see CHANGES for full list.
 
+* Differences between devel branch and mabrek's original async fork:
+
+  + Unnamed statements are used unless specified otherwise.  This may
+    cause problems for people attempting to use the same connection
+    concurrently, which will no longer work.
 
 * Known problems
 
