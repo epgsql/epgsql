@@ -70,9 +70,7 @@ connect_with_invalid_password_test(Module) ->
 
 
 connect_with_ssl_test(Module) ->
-    lists:map(fun(A) ->
-                      ok = application:start(A)
-              end, ?ssl_apps),
+    lists:foreach(fun application:start/1, ?ssl_apps),
     with_connection(
       Module,
       fun(C) ->
