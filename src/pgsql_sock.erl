@@ -141,7 +141,14 @@ handle_info({inet_reply, _, Status}, State) ->
     {stop, Status, flush_queue(State, {error, Status})};
 
 handle_info({_, Sock, Data2}, #state{data = Data, sock = Sock} = State) ->
-    loop(State#state{data = <<Data/binary, Data2/binary>>}).
+    State2 = State#state{data = <<Data/binary, Data2/binary>>},
+    case recv(State2) of
+        {ok, State3} ->
+            loop(reactivate(State3));
+        {error, Reason} ->
+            Why = {sock_error, Reason},
+            {stop, Why, flush_queue(State, {error, Why})}
+    end.
 
 terminate(_Reason, _State) ->
     %% TODO send termination msg, close socket ??
@@ -176,12 +183,11 @@ command({connect, Host, Username, Password, Opts}, State) ->
     end,
     send(State2, [<<196608:?int32>>, Opts3, 0]),
     Async   = proplists:get_value(async, Opts, undefined),
-    setopts(State2, [{active, true}]),
     put(username, Username),
     put(password, Password),
     {noreply,
-     State2#state{handler = auth,
-                  async = Async}};
+     reactivate(State2#state{handler = auth,
+                       async = Async})};
 
 command({squery, Sql}, State) ->
     send(State, ?SIMPLEQUERY, [Sql, 0]),
@@ -281,10 +287,24 @@ start_ssl(S, Flag, Opts, State) ->
             end
     end.
 
+reactivate(State) ->
+    _ = setopts(State, [{active, once}]),
+    State.
+
 setopts(#state{mod = Mod, sock = Sock}, Opts) ->
     case Mod of
         gen_tcp -> inet:setopts(Sock, Opts);
         ssl     -> ssl:setopts(Sock, Opts)
+    end.
+
+recv(State = #state{mod = Mod, sock = Sock, data = Data}) ->
+    case Mod:recv(Sock, 0, 0) of
+        {ok, Data2} ->
+            recv(State#state{data = <<Data/binary, Data2/binary>>});
+        {error, timeout} ->
+            {ok, State};
+        Error ->
+            Error
     end.
 
 send(#state{mod = Mod, sock = Sock}, Data) ->
