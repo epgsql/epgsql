@@ -160,28 +160,31 @@ command({connect, Host, Username, Password, Opts}, State) ->
     Timeout = proplists:get_value(timeout, Opts, 5000),
     Port = proplists:get_value(port, Opts, 5432),
     SockOpts = [{active, false}, {packet, raw}, binary, {nodelay, true}],
-    {ok, Sock} = gen_tcp:connect(Host, Port, SockOpts, Timeout),
+    case gen_tcp:connect(Host, Port, SockOpts, Timeout) of
+        {ok, Sock} ->
+            State2 = case proplists:get_value(ssl, Opts) of
+                         T when T == true; T == required ->
+                             start_ssl(Sock, T, Opts, State);
+                         _ ->
+                             State#state{mod  = gen_tcp, sock = Sock}
+                     end,
 
-    State2 = case proplists:get_value(ssl, Opts) of
-                 T when T == true; T == required ->
-                     start_ssl(Sock, T, Opts, State);
-                 _ ->
-                     State#state{mod  = gen_tcp, sock = Sock}
-             end,
-
-    Opts2 = ["user", 0, Username, 0],
-    case proplists:get_value(database, Opts, undefined) of
-        undefined -> Opts3 = Opts2;
-        Database  -> Opts3 = [Opts2 | ["database", 0, Database, 0]]
-    end,
-    send(State2, [<<196608:?int32>>, Opts3, 0]),
-    Async   = proplists:get_value(async, Opts, undefined),
-    setopts(State2, [{active, true}]),
-    put(username, Username),
-    put(password, Password),
-    {noreply,
-     State2#state{handler = auth,
-                  async = Async}};
+            Opts2 = ["user", 0, Username, 0],
+            case proplists:get_value(database, Opts, undefined) of
+                undefined -> Opts3 = Opts2;
+                Database  -> Opts3 = [Opts2 | ["database", 0, Database, 0]]
+            end,
+            send(State2, [<<196608:?int32>>, Opts3, 0]),
+            Async = proplists:get_value(async, Opts, undefined),
+            setopts(State2, [{active, true}]),
+            put(username, Username),
+            put(password, Password),
+            {noreply,
+             State2#state{handler = auth,
+                          async = Async}};
+        {error, _} = Error ->
+            {stop, normal, finish(State, Error)}
+    end;
 
 command({squery, Sql}, State) ->
     send(State, ?SIMPLEQUERY, [Sql, 0]),
@@ -562,7 +565,7 @@ on_message({?BIND_COMPLETE, <<>>}, State) ->
                  execute_batch ->
                      Batch =
                          case State#state.batch of
-                             [] -> 
+                             [] ->
                                  {_, {_, B}} = queue:get(State#state.queue),
                                  B;
                              B -> B
