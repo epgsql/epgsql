@@ -14,10 +14,14 @@ create_testdbs:
 test:
 	@$(REBAR) eunit
 
+performance_test: compile
+	erlc ./test/pgsql_perf_tests.erl
+	erl -noshell -pa ./ebin -eval "eunit:test(pgsql_perf_tests, [verbose])" -run init stop
+
 dialyzer: build.plt compile
 	dialyzer --plt $< ebin
 
 build.plt:
 	dialyzer -q --build_plt --apps erts kernel stdlib ssl --output_plt $@
 
-.PHONY: all compile release clean create_testdbs test dialyzer
+.PHONY: all compile release clean create_testdbs performance_test test dialyzer
