@@ -549,16 +549,16 @@ misc_type_test(Module) ->
 
 hstore_type_test(Module) ->
     Values = [
-        [],
-        [{null, null}],
-        [{1, null}],
-        [{1.0, null}],
-        [{<<"a">>, <<"c">>}, {<<"c">>, <<"d">>}],
-        [{<<"a">>, <<"c">>}, {<<"c">>, null}]
+        {[]},
+        {[{null, null}]},
+        {[{1, null}]},
+        {[{1.0, null}]},
+        {[{<<"a">>, <<"c">>}, {<<"c">>, <<"d">>}]},
+        {[{<<"a">>, <<"c">>}, {<<"c">>, null}]}
     ],
-    check_type(Module, hstore, "''", [], []),
+    check_type(Module, hstore, "''", {[]}, []),
     check_type(Module, hstore, "'a => 1, b => 2.0, c => null'",
-               [{<<"c">>, null}, {<<"b">>, <<"2.0">>}, {<<"a">>, <<"1">>}], Values).
+               {[{<<"c">>, null}, {<<"b">>, <<"2.0">>}, {<<"a">>, <<"1">>}]}, Values).
 
 array_type_test(Module) ->
     with_connection(

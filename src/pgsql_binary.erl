@@ -28,8 +28,7 @@ encode(bytea, B) when is_binary(B)          -> <<(byte_size(B)):?int32, B/binary
 encode(text, B) when is_binary(B)           -> <<(byte_size(B)):?int32, B/binary>>;
 encode(varchar, B) when is_binary(B)        -> <<(byte_size(B)):?int32, B/binary>>;
 encode(uuid, B) when is_binary(B)           -> encode_uuid(B);
-encode(hstore, {Hstore}) when is_list(Hstore) -> encode_hstore(Hstore);
-encode(hstore, Hstore) when is_list(Hstore) -> encode_hstore(Hstore);
+encode(hstore, {L}) when is_list(L)         -> encode_hstore(L);
 encode({array, char}, L) when is_list(L)    -> encode_array(bpchar, L);
 encode({array, Type}, L) when is_list(L)    -> encode_array(Type, L);
 encode(Type, L) when is_list(L)             -> encode(Type, list_to_binary(L));
@@ -86,9 +85,9 @@ encode_uuid(U) ->
     {ok, [Int], _} = io_lib:fread("~16u", Hex),
     <<16:?int32,Int:128>>.
 
-encode_hstore(Hstore) ->
-    Body = << <<(encode_hstore_entry(Entry))/binary>> || Entry <- Hstore >>,
-    <<(byte_size(Body) + 4):?int32, (length(Hstore)):?int32, Body/binary>>.
+encode_hstore(HstoreEntries) ->
+    Body = << <<(encode_hstore_entry(Entry))/binary>> || Entry <- HstoreEntries >>,
+    <<(byte_size(Body) + 4):?int32, (length(HstoreEntries)):?int32, Body/binary>>.
 
 encode_hstore_entry({Key, Value}) ->
     <<(encode_hstore_key(Key))/binary, (encode_hstore_value(Value))/binary>>.
@@ -142,7 +141,7 @@ decode_uuid(<<U0:32, U1:16, U2:16, U3:16, U4:48>>) ->
     iolist_to_binary(io_lib:format(Format, [U0, U1, U2, U3, U4])).
 
 decode_hstore(<<NumElements:?int32, Elements/binary>>) ->
-    decode_hstore1(NumElements, Elements, []).
+    {decode_hstore1(NumElements, Elements, [])}.
 
 decode_hstore1(0, _Elements, Acc) -> Acc;
 decode_hstore1(N, <<KeyLen:?int32, Key:KeyLen/binary, -1:?int32, Rest/binary>>, Acc) ->
