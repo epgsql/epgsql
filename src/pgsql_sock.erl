@@ -162,6 +162,15 @@ command({connect, Host, Username, Password, Opts}, State) ->
     SockOpts = [{active, false}, {packet, raw}, binary, {nodelay, true}],
     {ok, Sock} = gen_tcp:connect(Host, Port, SockOpts, Timeout),
 
+    %% Increase the buffer size.  Following the recommendation in the inet man page:
+    %%
+    %%    It is recommended to have val(buffer) >=
+    %%    max(val(sndbuf),val(recbuf)).
+
+    {ok, [{recbuf, RecBufSize}, {sndbuf, SndBufSize}]} =
+        inet:getopts(Sock, [recbuf, sndbuf]),
+    inet:setopts(Sock, [{buffer, max(RecBufSize, SndBufSize)}]),
+
     State2 = case proplists:get_value(ssl, Opts) of
                  T when T == true; T == required ->
                      start_ssl(Sock, T, Opts, State);
