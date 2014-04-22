@@ -83,6 +83,8 @@ connect(C, Host, Username, Password, Opts) ->
             Error
     end.
 
+-spec cache_dynamic_types(connection()) -> list().
+
 cache_dynamic_types(C) ->
     {ok, _Cols, Rows} = equery(C, "select typname, typarray, oid from pg_catalog.pg_type", []),
     Types = [hstore],
