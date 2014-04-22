@@ -4,6 +4,7 @@
 -module(pgsql).
 
 -export([connect/2, connect/3, connect/4, connect/5,
+         cache_dynamic_types/1,
          close/1,
          get_parameter/2,
          squery/2,
@@ -76,10 +77,16 @@ connect(C, Host, Username, Password, Opts) ->
                          {connect, Host, Username, Password, Opts},
                          infinity) of
         connected ->
+            cache_dynamic_types(C),
             {ok, C};
         Error = {error, _} ->
             Error
     end.
+
+cache_dynamic_types(C) ->
+    {ok, _Cols, Rows} = equery(C, "select typname, typarray, oid from pg_catalog.pg_type", []),
+    Types = [hstore],
+    gen_server:call(C, {update_dynamic_type_cache, Types, Rows}).
 
 -spec close(connection()) -> ok.
 close(C) ->

@@ -95,7 +95,14 @@ oid2type(2951) -> {array, uuid};
 oid2type(3500) -> anyenum;
 oid2type(16831) -> hstore;
 oid2type(16836) -> {array, hstore};
-oid2type(Oid)  -> {unknown_oid, Oid}.
+oid2type(Oid)  ->
+    %% Try fetching it from the dynamic types cache.
+    case get({oid2type, Oid}) of
+        undefined ->
+            {unknown_oid, Oid};
+        Type ->
+            Type
+    end.
 
 type2oid(bool)                  -> 16;
 type2oid(bytea)                 -> 17;
@@ -190,4 +197,11 @@ type2oid({array, uuid})         -> 2951;
 type2oid(anyenum)               -> 3500;
 type2oid(hstore)                -> 16831;
 type2oid({array, hstore})       -> 16836;
-type2oid(Type)                  -> {unknown_type, Type}.
+type2oid(Type)                  ->
+    %% Try fetching it from the dynamic types cache.
+    case get({type2oid, Type}) of
+        undefined ->
+            {unknown_type, Type};
+        Oid ->
+            Oid
+    end.

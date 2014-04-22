@@ -93,6 +93,23 @@ cancel(S) ->
 init([]) ->
     {ok, #state{}}.
 
+handle_call({update_dynamic_type_cache, Types, Rows}, _From, State) ->
+    Res = lists:map(
+            fun(T) ->
+                    {_Name, BinArrOid, BinOid} =
+                        lists:keyfind(atom_to_binary(T, latin1), 1, Rows),
+                    ArrOid = binary_to_integer(BinArrOid),
+                    Oid = binary_to_integer(BinOid),
+                    %% Stash the results in the process dictionary,
+                    %% for both regular types and array types.
+                    put({oid2type, Oid}, T),
+                    put({type2oid, T}, Oid),
+                    put({oid2type, ArrOid}, {array, T}),
+                    put({type2oid, {array, T}}, ArrOid),
+                    [{T, Oid}, {{array, T}, ArrOid}]
+            end, Types),
+    {reply, Res, State};
+
 handle_call({get_parameter, Name}, _From, State) ->
     case lists:keysearch(Name, 1, State#state.parameters) of
         {value, {Name, Value}} -> Value;
