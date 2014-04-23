@@ -60,8 +60,8 @@ provide a common fork for community development.
     + {timeout,  Integer}    milliseconds, defaults to 5000
     + {async,    Pid}        see Server Notifications section
 
-        {ok, C} = pgsql:connect("localhost", "username", [{database, "test_db"}]).
-        ok = pgsql:close(C).
+         {ok, C} = pgsql:connect("localhost", "username", [{database, "test_db"}]).
+         ok = pgsql:close(C).
 
   The timeout parameter will trigger an {error, timeout} result when the
   socket fails to connect within Timeout milliseconds.
