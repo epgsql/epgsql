@@ -91,9 +91,9 @@ provide a common fork for community development.
 
         {error, Error}             = pgsql:squery(C, "invalid SQL").
 
-  + Columns       - list of column records, see pgsql.hrl for definition.
-  + Rows          - list of tuples, one for each row.
-  + Count         - integer count of rows inserted/updated/etc
+  + `Columns`       - list of column records, see pgsql.hrl for definition.
+  + `Rows`          - list of tuples, one for each row.
+  + `Count`         - integer count of rows inserted/updated/etc
 
   The simple query protocol returns all columns as text (Erlang binaries)
   and does not support binding parameters.
@@ -110,7 +110,7 @@ provide a common fork for community development.
           {C, Ref, Result} -> Result
         end.
 
-  Result has same format as return value of pgsql:squery.
+  `Result` has same format as return value of pgsql:squery.
 
   `ipgsql:squery` returns results incrementally for each query inside Sql and
   for each row:
@@ -145,7 +145,7 @@ provide a common fork for community development.
 
         {error, Error}             = pgsql:equery(C, "invalid SQL", [Parameters]).
 
-  Parameters    - optional list of values to be bound to $1, $2, $3, etc.
+  + `Parameters`    - optional list of values to be bound to $1, $2, $3, etc.
 
   The extended query protocol combines parse, bind, and execute using
   the unnamed prepared statement and portal. A "select" statement returns
@@ -165,8 +165,8 @@ provide a common fork for community development.
           {C, Ref, Res} -> Res
         end.
 
-  Statement - parsed statement (see parse below)
-  Res has same format as return value of pgsql:equery.
+  + `Statement` - parsed statement (see parse below)
+  + `Res` has same format as return value of `pgsql:equery`.
 
   `ipgsql:equery(C, Statement, [Parameters])` sends same set of messages as
   squery including the final `{C, Ref, done}`.
@@ -176,8 +176,8 @@ provide a common fork for community development.
 
          {ok, Statement} = pgsql:parse(C, [StatementName], Sql, [ParameterTypes]).
 
-  + StatementName   - optional, reusable, name for the prepared statement.
-  + ParameterTypes  - optional list of PostgreSQL types for each parameter.
+  + `StatementName`   - optional, reusable, name for the prepared statement.
+  + `ParameterTypes`  - optional list of PostgreSQL types for each parameter.
 
   For valid type names see `pgsql_types.erl`.
 
@@ -191,7 +191,7 @@ provide a common fork for community development.
 
         ok = pgsql:bind(C, Statement, [PortalName], ParameterValues).
 
-  + PortalName      - optional name for the result portal.
+  + `PortalName`      - optional name for the result portal.
 
   both `apgsql:bind` and `ipgsql:bind` send `{C, Ref, ok | {error, Reason}}`
 
@@ -199,10 +199,10 @@ provide a common fork for community development.
         {ok, Count}          = pgsql:execute(C, Statement, [PortalName]).
         {ok, Count, Rows}    = pgsql:execute(C, Statement, [PortalName]).
 
-  + PortalName      - optional portal name used in bind/4.
-  + MaxRows         - maximum number of rows to return (0 for all rows).
+  + `PortalName`      - optional portal name used in `bind/4`.
+  + `MaxRows`         - maximum number of rows to return (0 for all rows).
 
-  execute returns {partial, Rows} when more rows are available.
+  execute returns `{partial, Rows}` when more rows are available.
 
   `apgsql:execute` sends `{C, Ref, Result}` where `Result` has the same
   format as the return value of `pgsql:execute`.
@@ -231,8 +231,8 @@ provide a common fork for community development.
 
         Results = pgsql:execute_batch(C, Batch).
 
-  + Batch   - list of `{Statement, ParameterValues}`
-  + Results - list of `{ok, Count}` or `{ok, Count, Rows}`
+  + `Batch`   - list of `{Statement, ParameterValues}`
+  + `Results` - list of `{ok, Count}` or `{ok, Count, Rows}`
 
   Example
 
@@ -279,10 +279,10 @@ provide a common fork for community development.
   see `pgsql.hrl` for the record definition. epgsql functions may also return
   `{error, What}` where What is one of the following:
 
-    {unsupported_auth_method, Method}     - required auth method is unsupported
-    timeout                               - request timed out
-    closed                                - connection was closed
-    sync_required                         - error occured and pgsql:sync must be called
+  + `{unsupported_auth_method, Method}`     - required auth method is unsupported
+  + `timeout`                               - request timed out
+  + `closed`                                - connection was closed
+  + `sync_required`                         - error occured and pgsql:sync must be called
 
 * Server Notifications
 
@@ -295,20 +295,20 @@ provide a common fork for community development.
 
   Message formats:
 
-        {pgsql, Connection, {notification, Channel, Pid, Payload}}
+  `{pgsql, Connection, {notification, Channel, Pid, Payload}}`
 
-      + Connection  - connection the notification occurred on
-      + Channel     - channel the notification occurred on
-      + Pid         - database session pid that sent notification
-      + Payload     - optional payload, only available from PostgreSQL >= 9.0
+  + `Connection`  - connection the notification occurred on
+  + `Channel`     - channel the notification occurred on
+  + `Pid`         - database session pid that sent notification
+  +` Payload`     - optional payload, only available from PostgreSQL >= 9.0
 
-        {pgsql, Connection, {notice, Error}}
+          {pgsql, Connection, {notice, Error}}
 
-      + Connection  - connection the notice occurred on
-      + Error       - an #error{} record, see pgsql.hrl
+  + `Connection`  - connection the notice occurred on
+  + `Error`       - an `#error{}` record, see `pgsql.hrl`
 
 
-* Mailing list
+* Mailing list / forum
 
 https://groups.google.com/forum/#!forum/epgsql
 
