@@ -24,7 +24,7 @@ provide a common fork for community development.
     response to send the next request
   + single process to hold driver state and receive socket data
   + execution of several parsed statements as a batch
-  + binding timestamps in erlang:now() format
+  + binding timestamps in `erlang:now()` format
   see CHANGES for full list.
 
 * Differences between devel branch and mabrek's original async fork:
@@ -53,12 +53,12 @@ provide a common fork for community development.
   Password  - optional password to authenticate with.
   Opts      - property list of extra options. Supported properties:
 
-    + {database, String}
-    + {port,     Integer}
-    + {ssl,      Atom}       true | false | required
-    + {ssl_opts, List}       see ssl application docs in OTP
-    + {timeout,  Integer}    milliseconds, defaults to 5000
-    + {async,    Pid}        see Server Notifications section
+    + `{database, String}`
+    + `{port,     Integer}`
+    + `{ssl,      Atom}`       true | false | required
+    + `{ssl_opts, List}`       see ssl application docs in OTP
+    + `{timeout,  Integer}`    milliseconds, defaults to 5000
+    + `{async,    Pid}`        see Server Notifications section
   
   
   Example:
@@ -66,7 +66,7 @@ provide a common fork for community development.
       {ok, C} = pgsql:connect("localhost", "username", [{database, "test_db"}]).
       ok = pgsql:close(C).
 
-  The timeout parameter will trigger an {error, timeout} result when the
+  The timeout parameter will trigger an `{error, timeout}` result when the
   socket fails to connect within Timeout milliseconds.
 
   Asynchronous connect example (applies to ipgsql too):
@@ -103,7 +103,7 @@ provide a common fork for community development.
         [{ok, _, [{<<"1">>}]}, {ok, _, [{<<"2">>}]}] =
           pgsql:squery(C, "select 1; select 2").
 
-  apgsql:squery returns result as a single message:
+  `apgsql:squery` returns result as a single message:
 
         Ref = apgsql:squery(C, Sql),
         receive
@@ -149,13 +149,13 @@ provide a common fork for community development.
 
   The extended query protocol combines parse, bind, and execute using
   the unnamed prepared statement and portal. A "select" statement returns
-  {ok, Columns, Rows}, "insert/update/delete" returns {ok, Count} or
-  {ok, Count, Columns, Rows} when a "returning" clause is present. When
-  an error occurs, all statements result in {error, #error{}}.
+  `{ok, Columns, Rows}`, "insert/update/delete" returns `{ok, Count}` or
+  `{ok, Count, Columns, Rows}` when a "returning" clause is present. When
+  an error occurs, all statements result in `{error, #error{}}`.
 
   PostgreSQL's binary format is used to return integers as Erlang
   integers, floats as floats, bytea/text/varchar columns as binaries,
-  bools as true/false, etc. For details see pgsql_binary.erl and the
+  bools as true/false, etc. For details see `pgsql_binary.erl` and the
   Data Representation section below.
 
   Asynchronous api equery requires you to parse statement beforehand
@@ -168,8 +168,8 @@ provide a common fork for community development.
   Statement - parsed statement (see parse below)
   Res has same format as return value of pgsql:equery.
 
-  ipgsql:equery(C, Statement, [Parameters]) sends same set of messages as
-  squery including final {C, Ref, done}.
+  `ipgsql:equery(C, Statement, [Parameters])` sends same set of messages as
+  squery including the final `{C, Ref, done}`.
 
 
 * Parse/Bind/Execute
@@ -179,10 +179,10 @@ provide a common fork for community development.
   StatementName   - optional, reusable, name for the prepared statement.
   ParameterTypes  - optional list of PostgreSQL types for each parameter.
 
-  For valid type names see pgsql_types.erl.
+  For valid type names see `pgsql_types.erl`.
 
-  apgsql:parse sends {C, Ref, {ok, Statement} | {error, Reason}}.
-  ipgsql:parse sends:
+  `apgsql:parse` sends `{C, Ref, {ok, Statement} | {error, Reason}}`.
+  `ipgsql:parse` sends:
 
         {C, Ref, {types, Types}}
         {C, Ref, {columns, Columns}}
@@ -193,7 +193,7 @@ provide a common fork for community development.
 
   PortalName      - optional name for the result portal.
 
-  both apgsql:bind and ipgsql:bind send {C, Ref, ok | {error, Reason}}
+  both `apgsql:bind` and `ipgsql:bind` send `{C, Ref, ok | {error, Reason}}`
 
         {ok | partial, Rows} = pgsql:execute(C, Statement, [PortalName], [MaxRows]).
         {ok, Count}          = pgsql:execute(C, Statement, [PortalName]).
@@ -204,10 +204,10 @@ provide a common fork for community development.
 
   execute returns {partial, Rows} when more rows are available.
 
-  apgsql:execute sends {C, Ref, Result} where Result has same format as
-  return value of pgsql:execute.
+  `apgsql:execute` sends `{C, Ref, Result}` where `Result` has the same
+  format as the return value of `pgsql:execute`.
 
-  ipgsql:execute sends
+  `ipgsql:execute` sends
 
         {C, Ref, {data, Row}}
         {C, Ref, {error, Reason}}
@@ -219,9 +219,9 @@ provide a common fork for community development.
         ok = pgsql:close(C, statement | portal, Name).
         ok = pgsql:sync(C).
 
-  All pgsql functions return {error, Error} when an error occurs.
+  All pgsql functions return `{error, Error}` when an error occurs.
 
-  apgsql and ipgsql close and sync functions send {C, Ref, ok}.
+  apgsql and ipgsql close and sync functions send `{C, Ref, ok}`.
 
 
 * Batch execution
@@ -231,8 +231,8 @@ provide a common fork for community development.
 
         Results = pgsql:execute_batch(C, Batch).
 
-  Batch   - list of {Statement, ParameterValues}
-  Results - list of {ok, Count} or {ok, Count, Rows}
+  Batch   - list of `{Statement, ParameterValues}`
+  Results - list of `{ok, Count}` or `{ok, Count, Rows}`
 
   Example
 
@@ -241,8 +241,8 @@ provide a common fork for community development.
         [{ok, [{1}]}, {ok, [{3}]}] =
           pgsql:execute_batch(C, [{S1, [1]}, {S2, [1, 2]}]).
 
-  apgsql:execute_batch sends {C, Ref, Results}
-  ipgsql:execute_batch sends
+  `apgsql:execute_batch` sends `{C, Ref, Results}`
+  `ipgsql:execute_batch` sends
 
         {C, Ref, {data, Row}}
         {C, Ref, {error, Reason}}
@@ -275,9 +275,9 @@ provide a common fork for community development.
 
 * Errors
 
-  Errors originating from the PostgreSQL backend are returned as {error, #error{}},
-  see pgsql.hrl for the record definition. epgsql functions may also return
-  {error, What} where What is one of the following:
+  Errors originating from the PostgreSQL backend are returned as `{error, #error{}}`,
+  see `pgsql.hrl` for the record definition. epgsql functions may also return
+  `{error, What}` where What is one of the following:
 
     {unsupported_auth_method, Method}     - required auth method is unsupported
     timeout                               - request timed out
@@ -290,7 +290,7 @@ provide a common fork for community development.
   to notice and warning messages generated by the server, and "notifications" which
   are generated by the LISTEN/NOTIFY mechanism.
 
-  Passing the {async, Pid} option to pgsql:connect will result in these async
+  Passing the `{async, Pid}` option to `pgsql:connect` will result in these async
   messages being sent to the specified process, otherwise they will be dropped.
 
   Message formats:
