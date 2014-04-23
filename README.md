@@ -59,9 +59,12 @@ provide a common fork for community development.
     + {ssl_opts, List}       see ssl application docs in OTP
     + {timeout,  Integer}    milliseconds, defaults to 5000
     + {async,    Pid}        see Server Notifications section
-
-         {ok, C} = pgsql:connect("localhost", "username", [{database, "test_db"}]).
-         ok = pgsql:close(C).
+  
+  
+  Example:
+  
+      {ok, C} = pgsql:connect("localhost", "username", [{database, "test_db"}]).
+      ok = pgsql:close(C).
 
   The timeout parameter will trigger an {error, timeout} result when the
   socket fails to connect within Timeout milliseconds.
@@ -109,7 +112,7 @@ provide a common fork for community development.
 
   Result has same format as return value of pgsql:squery.
 
-  ipgsql:squery returns results incrementally for each query inside Sql and
+  `ipgsql:squery` returns results incrementally for each query inside Sql and
   for each row:
 
         Ref = ipgsql:squery(C, Sql),
