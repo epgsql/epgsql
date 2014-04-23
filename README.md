@@ -1,9 +1,8 @@
-Erlang PostgreSQL Database Client
+# Erlang PostgreSQL Database Client
 
 Asynchronous fork of https://github.com/wg/epgsql originally here:
 https://github.com/mabrek/epgsql and subsequently forked in order to
 provide a common fork for community development.
-
 
 * Motivation
 
@@ -47,7 +46,7 @@ provide a common fork for community development.
 
 * Connect
 
-  {ok, C} = pgsql:connect(Host, [Username], [Password], Opts).
+      {ok, C} = pgsql:connect(Host, [Username], [Password], Opts).
 
   Host      - host to connect to.
   Username  - username to connect as, defaults to $USER.
