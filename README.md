@@ -69,25 +69,25 @@ provide a common fork for community development.
 
   Asynchronous connect example (applies to ipgsql too):
 
-  {ok, C} = apgsql:start_link(),
-  Ref = apgsql:connect(C, "localhost", "username", [{database, "test_db"}]),
-  receive
-    {C, Ref, connected} ->
-        {ok, C};
-    {C, Ref, Error = {error, _}} ->
-        Error;
-    {'EXIT', C, _Reason} ->
-        {error, closed}
-  end.
+    {ok, C} = apgsql:start_link(),
+    Ref = apgsql:connect(C, "localhost", "username", [{database, "test_db"}]),
+    receive
+      {C, Ref, connected} ->
+          {ok, C};
+      {C, Ref, Error = {error, _}} ->
+          Error;
+      {'EXIT', C, _Reason} ->
+          {error, closed}
+    end.
 
 
 * Simple Query
 
-  {ok, Columns, Rows}        = pgsql:squery(C, "select ...").
-  {ok, Count}                = pgsql:squery(C, "update ...").
-  {ok, Count, Columns, Rows} = pgsql:squery(C, "insert ... returning ...").
+    {ok, Columns, Rows}        = pgsql:squery(C, "select ...").
+    {ok, Count}                = pgsql:squery(C, "update ...").
+    {ok, Count, Columns, Rows} = pgsql:squery(C, "insert ... returning ...").
 
-  {error, Error}             = pgsql:squery(C, "invalid SQL").
+    {error, Error}             = pgsql:squery(C, "invalid SQL").
 
   Columns       - list of column records, see pgsql.hrl for definition.
   Rows          - list of tuples, one for each row.
@@ -98,49 +98,50 @@ provide a common fork for community development.
 
   Several queries separated by semicolon can be executed by squery.
 
-  [{ok, _, [{<<"1">>}]}, {ok, _, [{<<"2">>}]}] =
-    pgsql:squery(C, "select 1; select 2").
+    [{ok, _, [{<<"1">>}]}, {ok, _, [{<<"2">>}]}] =
+      pgsql:squery(C, "select 1; select 2").
 
   apgsql:squery returns result as a single message:
 
-  Ref = apgsql:squery(C, Sql),
-  receive
-    {C, Ref, Result} -> Result
-  end.
+    Ref = apgsql:squery(C, Sql),
+    receive
+      {C, Ref, Result} -> Result
+    end.
+
   Result has same format as return value of pgsql:squery.
 
   ipgsql:squery returns results incrementally for each query inside Sql and
   for each row:
 
-  Ref = ipgsql:squery(C, Sql),
-  receive
-    {C, Ref, {columns, Columns}} ->
-        %% columns description
-        Columns;
-    {C, Ref, {data, Row}} ->
-        %% single data row
-        Row;
-    {C, Ref, {error, _E} = Error} ->
-        Error;
-    {C, Ref, {complete, {_Type, Count}}} ->
-        %% execution of one insert/update/delete has finished
-        {ok, Count}; % affected rows count
-    {C, Ref, {complete, _Type}} ->
-        %% execution of one select has finished
-        ok;
-    {C, Ref, done} ->
-        %% execution of all queries from Sql has finished
-        done;
-  end.
+    Ref = ipgsql:squery(C, Sql),
+    receive
+      {C, Ref, {columns, Columns}} ->
+          %% columns description
+          Columns;
+      {C, Ref, {data, Row}} ->
+          %% single data row
+          Row;
+      {C, Ref, {error, _E} = Error} ->
+          Error;
+      {C, Ref, {complete, {_Type, Count}}} ->
+          %% execution of one insert/update/delete has finished
+          {ok, Count}; % affected rows count
+      {C, Ref, {complete, _Type}} ->
+          %% execution of one select has finished
+          ok;
+      {C, Ref, done} ->
+          %% execution of all queries from Sql has finished
+          done;
+    end.
 
 
 * Extended Query
 
-  {ok, Columns, Rows}        = pgsql:equery(C, "select ...", [Parameters]).
-  {ok, Count}                = pgsql:equery(C, "update ...", [Parameters]).
-  {ok, Count, Columns, Rows} = pgsql:equery(C, "insert ... returning ...", [Parameters]).
+    {ok, Columns, Rows}        = pgsql:equery(C, "select ...", [Parameters]).
+    {ok, Count}                = pgsql:equery(C, "update ...", [Parameters]).
+    {ok, Count, Columns, Rows} = pgsql:equery(C, "insert ... returning ...", [Parameters]).
 
-  {error, Error}             = pgsql:equery(C, "invalid SQL", [Parameters]).
+    {error, Error}             = pgsql:equery(C, "invalid SQL", [Parameters]).
 
   Parameters    - optional list of values to be bound to $1, $2, $3, etc.
 
@@ -157,10 +158,11 @@ provide a common fork for community development.
 
   Asynchronous api equery requires you to parse statement beforehand
 
-  Ref = apgsql:equery(C, Statement, [Parameters]),
-  receive
-    {C, Ref, Res} -> Res
-  end.
+    Ref = apgsql:equery(C, Statement, [Parameters]),
+    receive
+      {C, Ref, Res} -> Res
+    end.
+
   Statement - parsed statement (see parse below)
   Res has same format as return value of pgsql:equery.
 
@@ -170,7 +172,7 @@ provide a common fork for community development.
 
 * Parse/Bind/Execute
 
-  {ok, Statement} = pgsql:parse(C, [StatementName], Sql, [ParameterTypes]).
+    {ok, Statement} = pgsql:parse(C, [StatementName], Sql, [ParameterTypes]).
 
   StatementName   - optional, reusable, name for the prepared statement.
   ParameterTypes  - optional list of PostgreSQL types for each parameter.
@@ -179,20 +181,21 @@ provide a common fork for community development.
 
   apgsql:parse sends {C, Ref, {ok, Statement} | {error, Reason}}.
   ipgsql:parse sends:
+
     {C, Ref, {types, Types}}
     {C, Ref, {columns, Columns}}
     {C, Ref, no_data} if statement will not return rows
     {C, Ref, {error, Reason}}
 
-  ok = pgsql:bind(C, Statement, [PortalName], ParameterValues).
+    ok = pgsql:bind(C, Statement, [PortalName], ParameterValues).
 
   PortalName      - optional name for the result portal.
 
   both apgsql:bind and ipgsql:bind send {C, Ref, ok | {error, Reason}}
 
-  {ok | partial, Rows} = pgsql:execute(C, Statement, [PortalName], [MaxRows]).
-  {ok, Count}          = pgsql:execute(C, Statement, [PortalName]).
-  {ok, Count, Rows}    = pgsql:execute(C, Statement, [PortalName]).
+    {ok | partial, Rows} = pgsql:execute(C, Statement, [PortalName], [MaxRows]).
+    {ok, Count}          = pgsql:execute(C, Statement, [PortalName]).
+    {ok, Count, Rows}    = pgsql:execute(C, Statement, [PortalName]).
 
   PortalName      - optional portal name used in bind/4.
   MaxRows         - maximum number of rows to return (0 for all rows).
@@ -203,6 +206,7 @@ provide a common fork for community development.
   return value of pgsql:execute.
 
   ipgsql:execute sends
+
     {C, Ref, {data, Row}}
     {C, Ref, {error, Reason}}
     {C, Ref, suspended} partial result was sent, more rows are available
@@ -223,20 +227,21 @@ provide a common fork for community development.
   Batch execution is bind + execute for several prepared statements.
   It uses unnamed portals and MaxRows = 0.
 
-  Results = pgsql:execute_batch(C, Batch).
+    Results = pgsql:execute_batch(C, Batch).
 
   Batch   - list of {Statement, ParameterValues}
   Results - list of {ok, Count} or {ok, Count, Rows}
 
   Example
 
-  {ok, S1} = pgsql:parse(C, "one", "select $1", [int4]),
-  {ok, S2} = pgsql:parse(C, "two", "select $1 + $2", [int4, int4]),
-  [{ok, [{1}]}, {ok, [{3}]}] =
-    pgsql:execute_batch(C, [{S1, [1]}, {S2, [1, 2]}]).
+    {ok, S1} = pgsql:parse(C, "one", "select $1", [int4]),
+    {ok, S2} = pgsql:parse(C, "two", "select $1 + $2", [int4, int4]),
+    [{ok, [{1}]}, {ok, [{3}]}] =
+      pgsql:execute_batch(C, [{S1, [1]}, {S2, [1, 2]}]).
 
   apgsql:execute_batch sends {C, Ref, Results}
   ipgsql:execute_batch sends
+
     {C, Ref, {data, Row}}
     {C, Ref, {error, Reason}}
     {C, Ref, {complete, {_Type, Count}}}
@@ -246,25 +251,25 @@ provide a common fork for community development.
 
 * Data Representation
 
-  null        = null
-  bool        = true | false
-  char        = $A | binary
-  intX        = 1
-  floatX      = 1.0
-  date        = {Year, Month, Day}
-  time        = {Hour, Minute, Second.Microsecond}
-  timetz      = {time, Timezone}
-  timestamp   = {date, time}
-  timestamptz = {date, time}
-  interval    = {time, Days, Months}
-  text        = <<"a">>
-  varchar     = <<"a">>
-  bytea       = <<1, 2>>
-  array       = [1, 2, 3]
+    null        = null
+    bool        = true | false
+    char        = $A | binary
+    intX        = 1
+    floatX      = 1.0
+    date        = {Year, Month, Day}
+    time        = {Hour, Minute, Second.Microsecond}
+    timetz      = {time, Timezone}
+    timestamp   = {date, time}
+    timestamptz = {date, time}
+    interval    = {time, Days, Months}
+    text        = <<"a">>
+    varchar     = <<"a">>
+    bytea       = <<1, 2>>
+    array       = [1, 2, 3]
 
-  record      = {int2, time, text, ...} (decode only)
+    record      = {int2, time, text, ...} (decode only)
 
-  timestamp and timestamptz parameters can take erlang:now() format {MegaSeconds, Seconds, MicroSeconds}
+    timestamp and timestamptz parameters can take erlang:now() format {MegaSeconds, Seconds, MicroSeconds}
 
 * Errors
 
@@ -272,10 +277,10 @@ provide a common fork for community development.
   see pgsql.hrl for the record definition. epgsql functions may also return
   {error, What} where What is one of the following:
 
-  {unsupported_auth_method, Method}     - required auth method is unsupported
-  timeout                               - request timed out
-  closed                                - connection was closed
-  sync_required                         - error occured and pgsql:sync must be called
+    {unsupported_auth_method, Method}     - required auth method is unsupported
+    timeout                               - request timed out
+    closed                                - connection was closed
+    sync_required                         - error occured and pgsql:sync must be called
 
 * Server Notifications
 
@@ -304,5 +309,5 @@ provide a common fork for community development.
 
 * Mailing list
 
-  https://groups.google.com/forum/#!forum/epgsql
+https://groups.google.com/forum/#!forum/epgsql
 
