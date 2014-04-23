@@ -46,7 +46,7 @@ provide a common fork for community development.
 
 * Connect
 
-      {ok, C} = pgsql:connect(Host, [Username], [Password], Opts).
+         {ok, C} = pgsql:connect(Host, [Username], [Password], Opts).
 
   Host      - host to connect to.
   Username  - username to connect as, defaults to $USER.
