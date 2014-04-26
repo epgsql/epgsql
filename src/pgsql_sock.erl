@@ -62,6 +62,7 @@
                 data = <<>>,
                 backend,
                 handler,
+                codec,
                 queue = queue:new(),
                 async,
                 parameters = [],
@@ -92,6 +93,10 @@ cancel(S) ->
 
 init([]) ->
     {ok, #state{}}.
+
+handle_call({update_type_cache, TypeInfos}, _From, #state{codec = Codec} = State) ->
+    Codec2 = pgsql_binary:update_type_cache(TypeInfos, Codec),
+    {reply, ok, State#state{codec = Codec2}};
 
 handle_call({get_parameter, Name}, _From, State) ->
     case lists:keysearch(Name, 1, State#state.parameters) of
@@ -199,9 +204,9 @@ command({squery, Sql}, State) ->
 %% TODO add fast_equery command that doesn't need parsed statement,
 %% uses default (text) column format,
 %% sends Describe after Bind to get RowDescription
-command({equery, Statement, Parameters}, State) ->
+command({equery, Statement, Parameters}, #state{codec = Codec} = State) ->
     #statement{name = StatementName, columns = Columns} = Statement,
-    Bin1 = pgsql_wire:encode_parameters(Parameters),
+    Bin1 = pgsql_wire:encode_parameters(Parameters, Codec),
     Bin2 = pgsql_wire:encode_formats(Columns),
     send(State, ?BIND, ["", 0, StatementName, 0, Bin1, Bin2]),
     send(State, ?EXECUTE, ["", 0, <<0:?int32>>]),
@@ -210,16 +215,16 @@ command({equery, Statement, Parameters}, State) ->
     {noreply, State};
 
 command({parse, Name, Sql, Types}, State) ->
-    Bin = pgsql_wire:encode_types(Types),
+    Bin = pgsql_wire:encode_types(Types, State#state.codec),
     send(State, ?PARSE, [Name, 0, Sql, 0, Bin]),
     send(State, ?DESCRIBE, [?PREPARED_STATEMENT, Name, 0]),
     send(State, ?FLUSH, []),
     {noreply, State};
 
-command({bind, Statement, PortalName, Parameters}, State) ->
+command({bind, Statement, PortalName, Parameters}, #state{codec = Codec} = State) ->
     #statement{name = StatementName, columns = Columns, types = Types} = Statement,
     Typed_Parameters = lists:zip(Types, Parameters),
-    Bin1 = pgsql_wire:encode_parameters(Typed_Parameters),
+    Bin1 = pgsql_wire:encode_parameters(Typed_Parameters, Codec),
     Bin2 = pgsql_wire:encode_formats(Columns),
     send(State, ?BIND, [PortalName, 0, StatementName, 0, Bin1, Bin2]),
     send(State, ?FLUSH, []),
@@ -231,7 +236,7 @@ command({execute, _Statement, PortalName, MaxRows}, State) ->
     {noreply, State};
 
 command({execute_batch, Batch}, State) ->
-    #state{mod = Mod, sock = Sock} = State,
+    #state{mod = Mod, sock = Sock, codec = Codec} = State,
     BindExecute =
         lists:map(
           fun({Statement, Parameters}) ->
@@ -239,7 +244,7 @@ command({execute_batch, Batch}, State) ->
                              columns = Columns,
                              types = Types} = Statement,
                   Typed_Parameters = lists:zip(Types, Parameters),
-                  Bin1 = pgsql_wire:encode_parameters(Typed_Parameters),
+                  Bin1 = pgsql_wire:encode_parameters(Typed_Parameters, Codec),
                   Bin2 = pgsql_wire:encode_formats(Columns),
                   [pgsql_wire:encode(?BIND, [0, StatementName, 0,
                                              Bin1, Bin2]),
@@ -507,7 +512,8 @@ initializing({?READY_FOR_QUERY, <<Status:8>>}, State) ->
         {value, {_, <<"off">>}} -> put(datetime_mod, pgsql_fdatetime)
     end,
     State2 = finish(State#state{handler = on_message,
-                               txstatus = Status},
+                               txstatus = Status,
+                               codec = pgsql_binary:new_codec([])},
                    connected),
     {noreply, State2};
 
@@ -523,13 +529,13 @@ on_message({?PARSE_COMPLETE, <<>>}, State) ->
 
 %% ParameterDescription
 on_message({?PARAMETER_DESCRIPTION, <<_Count:?int16, Bin/binary>>}, State) ->
-    Types = [pgsql_types:oid2type(Oid) || <<Oid:?int32>> <= Bin],
+    Types = [pgsql_binary:oid2type(Oid, State#state.codec) || <<Oid:?int32>> <= Bin],
     State2 = notify(State#state{types = Types}, {types, Types}),
     {noreply, State2};
 
 %% RowDescription
 on_message({?ROW_DESCRIPTION, <<Count:?int16, Bin/binary>>}, State) ->
-    Columns = pgsql_wire:decode_columns(Count, Bin),
+    Columns = pgsql_wire:decode_columns(Count, Bin, State#state.codec),
     Columns2 =
         case command_tag(State) of
             C when C == describe_portal; C == squery ->
@@ -592,7 +598,7 @@ on_message({?CLOSE_COMPLETE, <<>>}, State) ->
 
 %% DataRow
 on_message({?DATA_ROW, <<_Count:?int16, Bin/binary>>}, State) ->
-    Data = pgsql_wire:decode_data(get_columns(State), Bin),
+    Data = pgsql_wire:decode_data(get_columns(State), Bin, State#state.codec),
     {noreply, add_row(State, Data)};
 
 %% PortalSuspended

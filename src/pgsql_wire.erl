@@ -6,15 +6,15 @@
 -export([decode_message/1,
          decode_error/1,
          decode_strings/1,
-         decode_columns/2,
+         decode_columns/3,
          encode/1,
          encode/2,
-         decode_data/2,
+         decode_data/3,
          decode_complete/1,
-         encode_types/1,
+         encode_types/2,
          encode_formats/1,
          format/1,
-         encode_parameters/1]).
+         encode_parameters/2]).
 
 -include("pgsql.hrl").
 -include("pgsql_binary.hrl").
@@ -92,37 +92,37 @@ encode(Type, Data) ->
     <<Type:8, (byte_size(Bin) + 4):?int32, Bin/binary>>.
 
 %% decode data
-decode_data(Columns, Bin) ->
-    decode_data(Columns, Bin, []).
+decode_data(Columns, Bin, Codec) ->
+    decode_data(Columns, Bin, [], Codec).
 
-decode_data([], _Bin, Acc) ->
+decode_data([], _Bin, Acc, _Codec) ->
     list_to_tuple(lists:reverse(Acc));
-decode_data([_C | T], <<-1:?int32, Rest/binary>>, Acc) ->
-    decode_data(T, Rest, [null | Acc]);
-decode_data([C | T], <<Len:?int32, Value:Len/binary, Rest/binary>>, Acc) ->
+decode_data([_C | T], <<-1:?int32, Rest/binary>>, Acc, Codec) ->
+    decode_data(T, Rest, [null | Acc], Codec);
+decode_data([C | T], <<Len:?int32, Value:Len/binary, Rest/binary>>, Acc, Codec) ->
     case C of
-        #column{type = Type, format = 1}   -> Value2 = pgsql_binary:decode(Type, Value);
+        #column{type = Type, format = 1}   -> Value2 = pgsql_binary:decode(Type, Value, Codec);
         #column{}                          -> Value2 = Value
     end,
-    decode_data(T, Rest, [Value2 | Acc]).
+    decode_data(T, Rest, [Value2 | Acc], Codec).
 
 %% decode column information
-decode_columns(Count, Bin) ->
-    decode_columns(Count, Bin, []).
+decode_columns(Count, Bin, Codec) ->
+    decode_columns(Count, Bin, [], Codec).
 
-decode_columns(0, _Bin, Acc) ->
+decode_columns(0, _Bin, Acc, _Codec) ->
     lists:reverse(Acc);
-decode_columns(N, Bin, Acc) ->
+decode_columns(N, Bin, Acc, Codec) ->
     [Name, Rest] = decode_string(Bin),
     <<_Table_Oid:?int32, _Attrib_Num:?int16, Type_Oid:?int32,
      Size:?int16, Modifier:?int32, Format:?int16, Rest2/binary>> = Rest,
     Desc = #column{
       name     = Name,
-      type     = pgsql_types:oid2type(Type_Oid),
+      type     = pgsql_binary:oid2type(Type_Oid, Codec),
       size     = Size,
       modifier = Modifier,
       format   = Format},
-    decode_columns(N - 1, Rest2, [Desc | Acc]).
+    decode_columns(N - 1, Rest2, [Desc | Acc], Codec).
 
 %% decode command complete msg
 decode_complete(<<"SELECT", 0>>)        -> select;
@@ -141,18 +141,18 @@ decode_complete(Bin) ->
     end.
 
 %% encode types
-encode_types(Types) ->
-    encode_types(Types, 0, <<>>).
+encode_types(Types, Codec) ->
+    encode_types(Types, 0, <<>>, Codec).
 
-encode_types([], Count, Acc) ->
+encode_types([], Count, Acc, _Codec) ->
     <<Count:?int16, Acc/binary>>;
 
-encode_types([Type | T], Count, Acc) ->
+encode_types([Type | T], Count, Acc, Codec) ->
     case Type of
         undefined -> Oid = 0;
-        _Any      -> Oid = pgsql_types:type2oid(Type)
+        _Any      -> Oid = pgsql_binary:type2oid(Type, Codec)
     end,
-    encode_types(T, Count + 1, <<Acc/binary, Oid:?int32>>).
+    encode_types(T, Count + 1, <<Acc/binary, Oid:?int32>>, Codec).
 
 %% encode column formats
 encode_formats(Columns) ->
@@ -171,25 +171,27 @@ format(Type) ->
     end.
 
 %% encode parameters
-encode_parameters(Parameters) ->
-    encode_parameters(Parameters, 0, <<>>, <<>>).
+encode_parameters(Parameters, Codec) ->
+    encode_parameters(Parameters, 0, <<>>, <<>>, Codec).
 
-encode_parameters([], Count, Formats, Values) ->
+encode_parameters([], Count, Formats, Values, _Codec) ->
     <<Count:?int16, Formats/binary, Count:?int16, Values/binary>>;
 
-encode_parameters([P | T], Count, Formats, Values) ->
-    {Format, Value} = encode_parameter(P),
+encode_parameters([P | T], Count, Formats, Values, Codec) ->
+    {Format, Value} = encode_parameter(P, Codec),
     Formats2 = <<Formats/binary, Format:?int16>>,
     Values2 = <<Values/binary, Value/binary>>,
-    encode_parameters(T, Count + 1, Formats2, Values2).
+    encode_parameters(T, Count + 1, Formats2, Values2, Codec).
 
 %% encode parameter
 
-encode_parameter({Type, Value}) ->
-    case pgsql_binary:encode(Type, Value) of
+encode_parameter({Type, Value}, Codec) ->
+    case pgsql_binary:encode(Type, Value, Codec) of
         Bin when is_binary(Bin) -> {1, Bin};
         {error, unsupported}    -> encode_parameter(Value)
     end;
+encode_parameter(Value, _Codec) -> encode_parameter(Value).
+
 encode_parameter(A) when is_atom(A)    -> {0, encode_list(atom_to_list(A))};
 encode_parameter(B) when is_binary(B)  -> {0, <<(byte_size(B)):?int32, B/binary>>};
 encode_parameter(I) when is_integer(I) -> {0, encode_list(integer_to_list(I))};
