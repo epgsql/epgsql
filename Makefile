@@ -1,23 +1,16 @@
-REBAR = rebar
+PROJECT = epgsql
 
-all: compile
+# Options
+ERLC_OPTS  = +debug_info +nowarn_shadow_vars +warnings_as_errors
+EUNIT_OPTS = [verbose]
 
-compile:
-	@$(REBAR) compile
+# Standard targets
+include erlang.mk
 
-clean:
-	@$(REBAR) clean
-
+.PHONY: create_testdbs test
 create_testdbs:
 	psql template1 < ./test_data/test_schema.sql
 
-test:
-	@$(REBAR) eunit
+test: eunit
 
-dialyzer: build.plt compile
-	dialyzer --plt $< ebin
-
-build.plt:
-	dialyzer -q --build_plt --apps erts kernel stdlib ssl --output_plt $@
-
-.PHONY: all compile release clean create_testdbs test dialyzer
+# eof
