@@ -16,6 +16,7 @@
          close/2, close/3,
          sync/1,
          cancel/1,
+         update_type_cache/1,
          with_transaction/2,
          sync_on_error/2]).
 
@@ -76,10 +77,20 @@ connect(C, Host, Username, Password, Opts) ->
                          {connect, Host, Username, Password, Opts},
                          infinity) of
         connected ->
+            update_type_cache(C),
             {ok, C};
         Error = {error, _} ->
             Error
     end.
+
+-spec update_type_cache(connection()) -> ok.
+update_type_cache(C) ->
+    DynamicTypes = [<<"hstore">>],
+    Query = "SELECT typname, oid::int4, typarray::int4"
+            " FROM pg_type"
+            " WHERE typname = ANY($1::varchar[])",
+    {ok, _, TypeInfos} = equery(C, Query, [DynamicTypes]),
+    ok = gen_server:call(C, {update_type_cache, TypeInfos}).
 
 -spec close(connection()) -> ok.
 close(C) ->
