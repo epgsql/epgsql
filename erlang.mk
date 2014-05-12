@@ -115,10 +115,14 @@ clean-all: clean clean-deps clean-docs
 	$(gen_verbose) rm -rf .$(PROJECT).plt $(DEPS_DIR) logs
 
 app: ebin/$(PROJECT).app
-	$(eval MODULES := $(shell find ebin -type f -name \*.beam \
+	$(eval MODULES := $(shell find ebin -type f -name \*.beam 2>/dev/null \
 		| sed 's/ebin\///;s/\.beam/,/' | sed '$$s/.$$//'))
+	$(eval VSN := $(shell echo '{vsn,"$(shell git describe --tags --always)"}' \
+		`cat src/$(PROJECT).app.src 2> /dev/null` \
+		| sed -n 's/.*{vsn,[ 	]*"\([^"][^"]*\)".*/\1/p'))
 	$(appsrc_verbose) cat src/$(PROJECT).app.src \
 		| sed 's/{modules,[[:space:]]*\[\]}/{modules, \[$(MODULES)\]}/' \
+		| sed 's/{vsn,.*}/{vsn, \"$(VSN)\"}/' \
 		> ebin/$(PROJECT).app
 
 define compile_erl
@@ -143,10 +147,10 @@ define compile_dtl
 		init:stop()'
 endef
 
-ebin/$(PROJECT).app: $(shell find src -type f -name \*.erl) \
-		$(shell find src -type f -name \*.core) \
-		$(shell find src -type f -name \*.xrl) \
-		$(shell find src -type f -name \*.yrl) \
+ebin/$(PROJECT).app: $(shell find src -type f -name \*.erl 2>/dev/null) \
+		$(shell find src -type f -name \*.core 2>/dev/null) \
+		$(shell find src -type f -name \*.xrl 2>/dev/null) \
+		$(shell find src -type f -name \*.yrl 2>/dev/null) \
 		$(shell find templates -type f -name \*.dtl 2>/dev/null)
 	@mkdir -p ebin/
 	$(if $(strip $(filter %.erl %.core,$?)), \
@@ -272,22 +276,13 @@ build-plt: deps app
 dialyze:
 	@dialyzer --src src --no_native $(DIALYZER_OPTS)
 
-eunit: deps .eunit
+eunit: ERLC_OPTS = $(TEST_ERLC_OPTS)
+eunit: clean deps app
 	@export EUNIT=$(EUNIT_OPTS) && erl \
-		-pa .eunit -pa $(DEPS_DIR)/*/ebin/ \
-		-run eunit test .eunit/*.beam \
+		-pa ebin -pa $(DEPS_DIR)/*/ebin/ \
+		-run eunit test ebin/*.beam \
 		-run init stop \
 		-noshell -noinput
-
-.eunit: $(shell find src -type f -name \*.erl) \
-			$(shell find test -type f -name \*.erl)
-	@mkdir -p .eunit
-	$(erlc_verbose) erlc -v \
-		-o .eunit/ \
-		-I include/ \
-		$(ERLC_OPTS) \
-		-DTEST \
-		$?
 
 # Packages.
 
