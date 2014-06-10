@@ -156,7 +156,8 @@ execute(C, S, N) ->
                                                                               when
       Reply :: {ok | partial, [equery_row()]}
              | {ok, non_neg_integer()}
-             | {ok, non_neg_integer(), [equery_row()]}.
+             | {ok, non_neg_integer(), [equery_row()]}
+             | {error, query_error()}.
 execute(C, S, PortalName, N) ->
     gen_server:call(C, {execute, S, PortalName, N}, infinity).
 
