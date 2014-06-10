@@ -90,7 +90,8 @@ get_parameter(C, Name) ->
     pgsql_sock:get_parameter(C, Name).
 
 -spec squery(connection(), string() | iodata()) ->
-                    ok_reply(squery_row()) | {error, query_error()}.
+                    ok_reply(squery_row()) | {error, query_error()} |
+                    [ok_reply(squery_row()) | {error, query_error()}].
 squery(C, Sql) ->
     gen_server:call(C, {squery, Sql}, infinity).
 
