@@ -100,8 +100,9 @@ close(C) ->
 get_parameter(C, Name) ->
     pgsql_sock:get_parameter(C, Name).
 
--spec squery(connection(), string()) ->
-                    ok_reply(squery_row()) | {error, query_error()}.
+-spec squery(connection(), string() | iodata()) ->
+                    ok_reply(squery_row()) | {error, query_error()} |
+                    [ok_reply(squery_row()) | {error, query_error()}].
 squery(C, Sql) ->
     gen_server:call(C, {squery, Sql}, infinity).
 
@@ -118,7 +119,7 @@ equery(C, Sql, Parameters) ->
             Error
     end.
 
--spec equery(connection(), string(), string(), [bind_param()]) ->
+-spec equery(connection(), string(), string() | iodata(), [bind_param()]) ->
                     ok_reply(equery_row()) | {error, query_error()}.
 equery(C, Name, Sql, Parameters) ->
     case parse(C, Name, Sql, []) of
@@ -137,7 +138,7 @@ parse(C, Sql) ->
 parse(C, Sql, Types) ->
     parse(C, "", Sql, Types).
 
--spec parse(connection(), iolist(), string(), [epgsql_type()]) ->
+-spec parse(connection(), iolist(), string() | iodata(), [epgsql_type()]) ->
                    {ok, #statement{}} | {error, query_error()}.
 parse(C, Name, Sql, Types) ->
     sync_on_error(C, gen_server:call(C, {parse, Name, Sql, Types}, infinity)).
@@ -166,7 +167,8 @@ execute(C, S, N) ->
                                                                               when
       Reply :: {ok | partial, [equery_row()]}
              | {ok, non_neg_integer()}
-             | {ok, non_neg_integer(), [equery_row()]}.
+             | {ok, non_neg_integer(), [equery_row()]}
+             | {error, query_error()}.
 execute(C, S, PortalName, N) ->
     gen_server:call(C, {execute, S, PortalName, N}, infinity).
 
