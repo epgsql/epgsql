@@ -28,6 +28,7 @@ encode(bytea, B) when is_binary(B)          -> <<(byte_size(B)):?int32, B/binary
 encode(text, B) when is_binary(B)           -> <<(byte_size(B)):?int32, B/binary>>;
 encode(varchar, B) when is_binary(B)        -> <<(byte_size(B)):?int32, B/binary>>;
 encode(uuid, B) when is_binary(B)           -> encode_uuid(B);
+encode(hstore, {L}) when is_list(L)         -> encode_hstore(L);
 encode({array, char}, L) when is_list(L)    -> encode_array(bpchar, L);
 encode({array, Type}, L) when is_list(L)    -> encode_array(Type, L);
 encode(Type, L) when is_list(L)             -> encode(Type, list_to_binary(L));
@@ -49,6 +50,7 @@ decode(timestamp = Type, B)                 -> ?datetime:decode(Type, B);
 decode(timestamptz = Type, B)               -> ?datetime:decode(Type, B);
 decode(interval = Type, B)                  -> ?datetime:decode(Type, B);
 decode(uuid, B)                             -> decode_uuid(B);
+decode(hstore, Hstore)                      -> decode_hstore(Hstore);
 decode({array, _Type}, B)                   -> decode_array(B);
 decode(_Other, Bin)                         -> Bin.
 
@@ -82,6 +84,26 @@ encode_uuid(U) ->
     Hex = [H || H <- U, H =/= $-],
     {ok, [Int], _} = io_lib:fread("~16u", Hex),
     <<16:?int32,Int:128>>.
+
+encode_hstore(HstoreEntries) ->
+    Body = << <<(encode_hstore_entry(Entry))/binary>> || Entry <- HstoreEntries >>,
+    <<(byte_size(Body) + 4):?int32, (length(HstoreEntries)):?int32, Body/binary>>.
+
+encode_hstore_entry({Key, Value}) ->
+    <<(encode_hstore_key(Key))/binary, (encode_hstore_value(Value))/binary>>.
+
+encode_hstore_key(Key) -> encode_hstore_string(Key).
+
+encode_hstore_value(null) -> <<-1:?int32>>;
+encode_hstore_value(Val) -> encode_hstore_string(Val).
+
+encode_hstore_string(Str) when is_list(Str) -> encode_hstore_string(list_to_binary(Str));
+encode_hstore_string(Str) when is_atom(Str) -> encode_hstore_string(atom_to_binary(Str, utf8));
+encode_hstore_string(Str) when is_integer(Str) ->
+    encode_hstore_string(erlang:integer_to_binary(Str));
+encode_hstore_string(Str) when is_float(Str) ->
+    encode_hstore_string(iolist_to_binary(io_lib:format("~w", [Str])));
+encode_hstore_string(Str) when is_binary(Str) -> <<(byte_size(Str)):?int32, Str/binary>>.
 
 decode_array(<<NDims:?int32, _HasNull:?int32, Oid:?int32, Rest/binary>>) ->
     {Dims, Data} = erlang:split_binary(Rest, NDims * 2 * 4),
@@ -118,6 +140,15 @@ decode_uuid(<<U0:32, U1:16, U2:16, U3:16, U4:48>>) ->
     Format = "~8.16.0b-~4.16.0b-~4.16.0b-~4.16.0b-~12.16.0b",
     iolist_to_binary(io_lib:format(Format, [U0, U1, U2, U3, U4])).
 
+decode_hstore(<<NumElements:?int32, Elements/binary>>) ->
+    {decode_hstore1(NumElements, Elements, [])}.
+
+decode_hstore1(0, _Elements, Acc) -> Acc;
+decode_hstore1(N, <<KeyLen:?int32, Key:KeyLen/binary, -1:?int32, Rest/binary>>, Acc) ->
+    decode_hstore1(N - 1, Rest, [{Key, null} | Acc]);
+decode_hstore1(N, <<KeyLen:?int32, Key:KeyLen/binary, ValLen:?int32, Value:ValLen/binary, Rest/binary>>, Acc) ->
+    decode_hstore1(N - 1, Rest, [{Key, Value} | Acc]).
+
 supports(bool)    -> true;
 supports(bpchar)  -> true;
 supports(int2)    -> true;
@@ -136,6 +167,7 @@ supports(timestamp)   -> true;
 supports(timestamptz) -> true;
 supports(interval)    -> true;
 supports(uuid)        -> true;
+supports(hstore)      -> true;
 supports({array, bool})   -> true;
 supports({array, int2})   -> true;
 supports({array, int4})   -> true;
@@ -150,6 +182,7 @@ supports({array, timetz}) -> true;
 supports({array, timestamp})     -> true;
 supports({array, timestamptz})   -> true;
 supports({array, interval})      -> true;
+supports({array, hstore})        -> true;
 supports({array, varchar}) -> true;
 supports({array, uuid})   -> true;
 supports(_Type)       -> false.
