@@ -1,9 +1,9 @@
 %%% Copyright (C) 2008 - Will Glozer.  All rights reserved.
 %%% Copyright (C) 2011 - Anton Lebedevich.  All rights reserved.
 %%%
-%%% Emulates original epgsql API over ipgsql for original tests
+%%% Emulates original epgsql API over epgsqli for original tests
 
--module(pgsql_incremental).
+-module(epgsql_incremental).
 
 -export([connect/2, connect/3, connect/4, close/1]).
 -export([get_parameter/2, squery/2, equery/2, equery/3]).
@@ -12,7 +12,7 @@
 -export([close/2, close/3, sync/1]).
 -export([with_transaction/2]).
 
--include("pgsql.hrl").
+-include("epgsql.hrl").
 
 %% -- client interface --
 
@@ -23,8 +23,8 @@ connect(Host, Username, Opts) ->
     connect(Host, Username, "", Opts).
 
 connect(Host, Username, Password, Opts) ->
-    {ok, C} = pgsql_sock:start_link(),
-    Ref = ipgsql:connect(C, Host, Username, Password, Opts),
+    {ok, C} = epgsql_sock:start_link(),
+    Ref = epgsqli:connect(C, Host, Username, Password, Opts),
     receive
         {C, Ref, connected} ->
             {ok, C};
@@ -35,13 +35,13 @@ connect(Host, Username, Password, Opts) ->
     end.
 
 close(C) ->
-    ipgsql:close(C).
+    epgsqli:close(C).
 
 get_parameter(C, Name) ->
-    ipgsql:get_parameter(C, Name).
+    epgsqli:get_parameter(C, Name).
 
 squery(C, Sql) ->
-    Ref = ipgsql:squery(C, Sql),
+    Ref = epgsqli:squery(C, Sql),
     case receive_results(C, Ref, []) of
         [Result] -> Result;
         Results  -> Results
@@ -54,7 +54,7 @@ equery(C, Sql, Parameters) ->
     case parse(C, Sql) of
         {ok, #statement{types = Types} = S} ->
             Typed_Parameters = lists:zip(Types, Parameters),
-            Ref = ipgsql:equery(C, S, Typed_Parameters),
+            Ref = epgsqli:equery(C, S, Typed_Parameters),
             receive_result(C, Ref, undefined);
         Error ->
             Error
@@ -69,7 +69,7 @@ parse(C, Sql, Types) ->
     parse(C, "", Sql, Types).
 
 parse(C, Name, Sql, Types) ->
-    Ref = ipgsql:parse(C, Name, Sql, Types),
+    Ref = epgsqli:parse(C, Name, Sql, Types),
     sync_on_error(C, receive_describe(C, Ref, #statement{name = Name})).
 
 %% bind
@@ -78,7 +78,7 @@ bind(C, Statement, Parameters) ->
     bind(C, Statement, "", Parameters).
 
 bind(C, Statement, PortalName, Parameters) ->
-    Ref = ipgsql:bind(C, Statement, PortalName, Parameters),
+    Ref = epgsqli:bind(C, Statement, PortalName, Parameters),
     sync_on_error(C, receive_atom(C, Ref, ok, ok)).
 
 %% execute
@@ -90,11 +90,11 @@ execute(C, S, N) ->
     execute(C, S, "", N).
 
 execute(C, S, PortalName, N) ->
-    Ref = ipgsql:execute(C, S, PortalName, N),
+    Ref = epgsqli:execute(C, S, PortalName, N),
     receive_extended_result(C, Ref, []).
 
 execute_batch(C, Batch) ->
-    Ref = ipgsql:execute_batch(C, Batch),
+    Ref = epgsqli:execute_batch(C, Batch),
     receive_extended_results(C, Ref, []).
 
 %% statement/portal functions
@@ -103,22 +103,22 @@ describe(C, #statement{name = Name}) ->
     describe(C, statement, Name).
 
 describe(C, statement, Name) ->
-    Ref = ipgsql:describe(C, statement, Name),
+    Ref = epgsqli:describe(C, statement, Name),
     sync_on_error(C, receive_describe(C, Ref, #statement{name = Name}));
 
 describe(C, Type, Name) ->
     %% TODO unknown result format of Describe portal
-    ipgsql:describe(C, Type, Name).
+    epgsqli:describe(C, Type, Name).
 
 close(C, #statement{name = Name}) ->
     close(C, statement, Name).
 
 close(C, Type, Name) ->
-    Ref = ipgsql:close(C, Type, Name),
+    Ref = epgsqli:close(C, Type, Name),
     receive_atom(C, Ref, ok, ok).
 
 sync(C) ->
-    Ref = ipgsql:sync(C),
+    Ref = epgsqli:sync(C),
     receive_atom(C, Ref, ok, ok).
 
 %% misc helper functions
@@ -207,7 +207,7 @@ receive_describe(C, Ref, Statement = #statement{}) ->
         {C, Ref, {types, Types}} ->
             receive_describe(C, Ref, Statement#statement{types = Types});
         {C, Ref, {columns, Columns}} ->
-            Columns2 = [Col#column{format = pgsql_wire:format(Col#column.type)} || Col <- Columns],
+            Columns2 = [Col#column{format = epgsql_wire:format(Col#column.type)} || Col <- Columns],
             {ok, Statement#statement{columns = Columns2}};
         {C, Ref, no_data} ->
             {ok, Statement#statement{columns = []}};
@@ -228,7 +228,7 @@ receive_atom(C, Ref, Receive, Return) ->
     end.
 
 sync_on_error(C, Error = {error, _}) ->
-    Ref = ipgsql:sync(C),
+    Ref = epgsqli:sync(C),
     receive_atom(C, Ref, ok, ok),
     Error;
 

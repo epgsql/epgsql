@@ -1,7 +1,7 @@
 %%% Copyright (C) 2008 - Will Glozer.  All rights reserved.
 %%% Copyright (C) 2011 - Anton Lebedevich.  All rights reserved.
 
--module(pgsql).
+-module(epgsql).
 
 -export([connect/2, connect/3, connect/4, connect/5,
          close/1,
@@ -24,7 +24,7 @@
               bind_param/0,
               squery_row/0, equery_row/0, ok_reply/1]).
 
--include("pgsql.hrl").
+-include("epgsql.hrl").
 
 -type connection() :: pid().
 -type connect_option() :: {database, string()}
@@ -64,7 +64,7 @@ connect(Host, Username, Opts) ->
     connect(Host, Username, "", Opts).
 
 connect(Host, Username, Password, Opts) ->
-    {ok, C} = pgsql_sock:start_link(),
+    {ok, C} = epgsql_sock:start_link(),
     connect(C, Host, Username, Password, Opts).
 
 -spec connect(connection(), inet:ip_address() | inet:hostname(),
@@ -83,11 +83,11 @@ connect(C, Host, Username, Password, Opts) ->
 
 -spec close(connection()) -> ok.
 close(C) ->
-    pgsql_sock:close(C).
+    epgsql_sock:close(C).
 
 -spec get_parameter(connection(), binary()) -> binary() | undefined.
 get_parameter(C, Name) ->
-    pgsql_sock:get_parameter(C, Name).
+    epgsql_sock:get_parameter(C, Name).
 
 -spec squery(connection(), string() | iodata()) ->
                     ok_reply(squery_row()) | {error, query_error()} |
@@ -189,7 +189,7 @@ sync(C) ->
 
 -spec cancel(connection()) -> ok.
 cancel(C) ->
-    pgsql_sock:cancel(C).
+    epgsql_sock:cancel(C).
 
 %% misc helper functions
 -spec with_transaction(connection(), fun((connection()) -> Reply)) ->
