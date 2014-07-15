@@ -57,7 +57,7 @@
 
 %% -- client interface --
 connect(Settings) ->
-	Host = proplists:get_value(host, Settings, "127.0.0.1"),
+	Host = proplists:get_value(host, Settings, "localhost"),
 	Username = proplists:get_value(username, Settings, os:getenv("USER")),
 	Password = proplists:get_value(password, Settings, ""),
 	
