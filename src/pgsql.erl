@@ -3,7 +3,7 @@
 
 -module(pgsql).
 
--export([connect/2, connect/3, connect/4, connect/5,
+-export([connect/1, connect/2, connect/3, connect/4, connect/5,
          close/1,
          get_parameter/2,
          squery/2,
@@ -56,7 +56,13 @@
                          | {ok, non_neg_integer(), [#column{}], [RowType]}. % UPDATE / INSERT + RETURNING
 
 %% -- client interface --
-
+connect(Settings) ->
+	Host = proplists:get_value(host, Settings, "localhost"),
+	Username = proplists:get_value(username, Settings, os:getenv("USER")),
+	Password = proplists:get_value(password, Settings, ""),
+	
+	connect(Host, Username, Password, Settings).
+	
 connect(Host, Opts) ->
     connect(Host, os:getenv("USER"), "", Opts).
 
