@@ -1,6 +1,6 @@
 %%% Copyright (C) 2008 - Will Glozer.  All rights reserved.
 
--module(pgsql_binary).
+-module(epgsql_binary).
 
 -export([new_codec/1,
          update_type_cache/2,
@@ -12,7 +12,7 @@
     oid2type = []
 }).
 
--include("pgsql_binary.hrl").
+-include("epgsql_binary.hrl").
 
 -define(datetime, (get(datetime_mod))).
 
@@ -29,14 +29,14 @@ update_type_cache(TypeInfos, Codec) ->
     Codec#codec{type2oid = Type2Oid, oid2type = Oid2Type}.
 
 oid2type(Oid, #codec{oid2type = Oid2Type}) ->
-    case pgsql_types:oid2type(Oid) of
+    case epgsql_types:oid2type(Oid) of
         {unknown_oid, _} ->
             proplists:get_value(Oid, Oid2Type, {unknown_oid, Oid});
         Type -> Type
     end.
 
 type2oid(Type, #codec{type2oid = Type2Oid}) ->
-    case pgsql_types:type2oid(Type) of
+    case epgsql_types:type2oid(Type) of
         {unknown_type, _} ->
             proplists:get_value(Type, Type2Oid, {unknown_type, Type});
         Oid -> Oid

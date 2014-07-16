@@ -15,8 +15,8 @@ test:
 	@$(REBAR) eunit
 
 performance_test: compile
-	erlc ./test/pgsql_perf_tests.erl
-	erl -noshell -pa ./ebin -eval "eunit:test(pgsql_perf_tests, [verbose])" -run init stop
+	erlc ./test/epgsql_perf_tests.erl
+	erl -noshell -pa ./ebin -eval "eunit:test(epgsql_perf_tests, [verbose])" -run init stop
 
 dialyzer: build.plt compile
 	dialyzer --plt $< ebin

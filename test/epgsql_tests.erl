@@ -1,11 +1,11 @@
--module(pgsql_tests).
+-module(epgsql_tests).
 
 -export([run_tests/0]).
 -compile([export_all]).
 
 -include_lib("eunit/include/eunit.hrl").
 -include_lib("public_key/include/public_key.hrl").
--include("pgsql.hrl").
+-include("epgsql.hrl").
 
 -define(host, "localhost").
 -define(port, 5432).
@@ -81,7 +81,7 @@ connect_with_ssl_test(Module) ->
 
 connect_with_client_cert_test(Module) ->
     lists:foreach(fun application:start/1, ?ssl_apps),
-    Dir = filename:join(filename:dirname(code:which(pgsql_tests)), "../test_data"),
+    Dir = filename:join(filename:dirname(code:which(epgsql_tests)), "../test_data"),
     File = fun(Name) -> filename:join(Dir, Name) end,
     {ok, Pem} = file:read_file(File("epgsql.crt")),
     [{'Certificate', Der, not_encrypted}] = public_key:pem_decode(Pem),
@@ -679,11 +679,11 @@ warning_notice_test(Module) ->
                begin
                  raise warning 'oops';
                end;
-               $$ language plpgsql;
+               $$ language plepgsql;
                select pg_temp.raise()",
           [{ok, _, _}, _] = Module:squery(C, Q),
           receive
-              {pgsql, C, {notice, #error{message = <<"oops">>}}} -> ok
+              {epgsql, C, {notice, #error{message = <<"oops">>}}} -> ok
           after
               100 -> erlang:error(didnt_receive_notice)
           end
@@ -698,7 +698,7 @@ listen_notify_test(Module) ->
           {ok, _, [{Pid}]} = Module:equery(C, "select pg_backend_pid()"),
           {ok, [], []}     = Module:squery(C, "notify epgsql_test"),
           receive
-              {pgsql, C, {notification, <<"epgsql_test">>, Pid, <<>>}} -> ok
+              {epgsql, C, {notification, <<"epgsql_test">>, Pid, <<>>}} -> ok
           after
               100 -> erlang:error(didnt_receive_notification)
           end
@@ -714,7 +714,7 @@ listen_notify_payload_test(Module) ->
           {ok, _, [{Pid}]} = Module:equery(C, "select pg_backend_pid()"),
           {ok, [], []}     = Module:squery(C, "notify epgsql_test, 'test!'"),
           receive
-              {pgsql, C, {notification, <<"epgsql_test">>, Pid, <<"test!">>}} -> ok
+              {epgsql, C, {notification, <<"epgsql_test">>, Pid, <<"test!">>}} -> ok
           after
               100 -> erlang:error(didnt_receive_notification)
           end
@@ -729,7 +729,7 @@ application_test(_Module) ->
 %% -- run all tests --
 
 run_tests() ->
-    Files = filelib:wildcard(filename:dirname(code:which(pgsql_tests))
+    Files = filelib:wildcard(filename:dirname(code:which(epgsql_tests))
                              ++ "/*tests.beam"),
     Mods = [list_to_atom(filename:basename(F, ".beam")) || F <- Files],
     eunit:test(Mods, []).
@@ -758,9 +758,9 @@ all_test_() ->
                   end,
                   Tests)
         end,
-    [WithModule(pgsql),
-     WithModule(pgsql_cast),
-     WithModule(pgsql_incremental)].
+    [WithModule(epgsql),
+     WithModule(epgsql_cast),
+     WithModule(epgsql_incremental)].
 
 %% -- internal functions --
 

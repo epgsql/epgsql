@@ -1,7 +1,7 @@
 %%% Copyright (C) 2009 - Will Glozer.  All rights reserved.
 %%% Copyright (C) 2011 - Anton Lebedevich.  All rights reserved.
 
--module(pgsql_wire).
+-module(epgsql_wire).
 
 -export([decode_message/1,
          decode_error/1,
@@ -16,8 +16,8 @@
          format/1,
          encode_parameters/2]).
 
--include("pgsql.hrl").
--include("pgsql_binary.hrl").
+-include("epgsql.hrl").
+-include("epgsql_binary.hrl").
 
 decode_message(<<Type:8, Len:?int32, Rest/binary>> = Bin) ->
     Len2 = Len - 4,
@@ -101,7 +101,7 @@ decode_data([_C | T], <<-1:?int32, Rest/binary>>, Acc, Codec) ->
     decode_data(T, Rest, [null | Acc], Codec);
 decode_data([C | T], <<Len:?int32, Value:Len/binary, Rest/binary>>, Acc, Codec) ->
     case C of
-        #column{type = Type, format = 1}   -> Value2 = pgsql_binary:decode(Type, Value, Codec);
+        #column{type = Type, format = 1}   -> Value2 = epgsql_binary:decode(Type, Value, Codec);
         #column{}                          -> Value2 = Value
     end,
     decode_data(T, Rest, [Value2 | Acc], Codec).
@@ -118,7 +118,7 @@ decode_columns(N, Bin, Acc, Codec) ->
      Size:?int16, Modifier:?int32, Format:?int16, Rest2/binary>> = Rest,
     Desc = #column{
       name     = Name,
-      type     = pgsql_binary:oid2type(Type_Oid, Codec),
+      type     = epgsql_binary:oid2type(Type_Oid, Codec),
       size     = Size,
       modifier = Modifier,
       format   = Format},
@@ -150,7 +150,7 @@ encode_types([], Count, Acc, _Codec) ->
 encode_types([Type | T], Count, Acc, Codec) ->
     case Type of
         undefined -> Oid = 0;
-        _Any      -> Oid = pgsql_binary:type2oid(Type, Codec)
+        _Any      -> Oid = epgsql_binary:type2oid(Type, Codec)
     end,
     encode_types(T, Count + 1, <<Acc/binary, Oid:?int32>>, Codec).
 
@@ -165,7 +165,7 @@ encode_formats([#column{format = Format} | T], Count, Acc) ->
     encode_formats(T, Count + 1, <<Acc/binary, Format:?int16>>).
 
 format(Type) ->
-    case pgsql_binary:supports(Type) of
+    case epgsql_binary:supports(Type) of
         true  -> 1;
         false -> 0
     end.
@@ -186,7 +186,7 @@ encode_parameters([P | T], Count, Formats, Values, Codec) ->
 %% encode parameter
 
 encode_parameter({Type, Value}, Codec) ->
-    case pgsql_binary:encode(Type, Value, Codec) of
+    case epgsql_binary:encode(Type, Value, Codec) of
         Bin when is_binary(Bin) -> {1, Bin};
         {error, unsupported}    -> encode_parameter(Value)
     end;

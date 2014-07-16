@@ -1,7 +1,7 @@
 %%% Copyright (C) 2009 - Will Glozer.  All rights reserved.
 %%% Copyright (C) 2011 - Anton Lebedevich.  All rights reserved.
 
--module(pgsql_sock).
+-module(epgsql_sock).
 
 -behavior(gen_server).
 
@@ -16,8 +16,8 @@
 %% state callbacks
 -export([auth/2, initializing/2, on_message/2]).
 
--include("pgsql.hrl").
--include("pgsql_binary.hrl").
+-include("epgsql.hrl").
+-include("epgsql_binary.hrl").
 
 %% Commands defined as per this page:
 %% http://www.postgresql.org/docs/9.2/static/protocol-message-formats.html
@@ -95,7 +95,7 @@ init([]) ->
     {ok, #state{}}.
 
 handle_call({update_type_cache, TypeInfos}, _From, #state{codec = Codec} = State) ->
-    Codec2 = pgsql_binary:update_type_cache(TypeInfos, Codec),
+    Codec2 = epgsql_binary:update_type_cache(TypeInfos, Codec),
     {reply, ok, State#state{codec = Codec2}};
 
 handle_call({get_parameter, Name}, _From, State) ->
@@ -211,8 +211,8 @@ command({squery, Sql}, State) ->
 %% sends Describe after Bind to get RowDescription
 command({equery, Statement, Parameters}, #state{codec = Codec} = State) ->
     #statement{name = StatementName, columns = Columns} = Statement,
-    Bin1 = pgsql_wire:encode_parameters(Parameters, Codec),
-    Bin2 = pgsql_wire:encode_formats(Columns),
+    Bin1 = epgsql_wire:encode_parameters(Parameters, Codec),
+    Bin2 = epgsql_wire:encode_formats(Columns),
     send(State, ?BIND, ["", 0, StatementName, 0, Bin1, Bin2]),
     send(State, ?EXECUTE, ["", 0, <<0:?int32>>]),
     send(State, ?CLOSE, [?PREPARED_STATEMENT, StatementName, 0]),
@@ -220,7 +220,7 @@ command({equery, Statement, Parameters}, #state{codec = Codec} = State) ->
     {noreply, State};
 
 command({parse, Name, Sql, Types}, State) ->
-    Bin = pgsql_wire:encode_types(Types, State#state.codec),
+    Bin = epgsql_wire:encode_types(Types, State#state.codec),
     send(State, ?PARSE, [Name, 0, Sql, 0, Bin]),
     send(State, ?DESCRIBE, [?PREPARED_STATEMENT, Name, 0]),
     send(State, ?FLUSH, []),
@@ -229,8 +229,8 @@ command({parse, Name, Sql, Types}, State) ->
 command({bind, Statement, PortalName, Parameters}, #state{codec = Codec} = State) ->
     #statement{name = StatementName, columns = Columns, types = Types} = Statement,
     Typed_Parameters = lists:zip(Types, Parameters),
-    Bin1 = pgsql_wire:encode_parameters(Typed_Parameters, Codec),
-    Bin2 = pgsql_wire:encode_formats(Columns),
+    Bin1 = epgsql_wire:encode_parameters(Typed_Parameters, Codec),
+    Bin2 = epgsql_wire:encode_formats(Columns),
     send(State, ?BIND, [PortalName, 0, StatementName, 0, Bin1, Bin2]),
     send(State, ?FLUSH, []),
     {noreply, State};
@@ -249,14 +249,14 @@ command({execute_batch, Batch}, State) ->
                              columns = Columns,
                              types = Types} = Statement,
                   Typed_Parameters = lists:zip(Types, Parameters),
-                  Bin1 = pgsql_wire:encode_parameters(Typed_Parameters, Codec),
-                  Bin2 = pgsql_wire:encode_formats(Columns),
-                  [pgsql_wire:encode(?BIND, [0, StatementName, 0,
+                  Bin1 = epgsql_wire:encode_parameters(Typed_Parameters, Codec),
+                  Bin2 = epgsql_wire:encode_formats(Columns),
+                  [epgsql_wire:encode(?BIND, [0, StatementName, 0,
                                              Bin1, Bin2]),
-                   pgsql_wire:encode(?EXECUTE, [0, <<0:?int32>>])]
+                   epgsql_wire:encode(?EXECUTE, [0, <<0:?int32>>])]
           end,
           Batch),
-    Sync = pgsql_wire:encode(?SYNC, []),
+    Sync = epgsql_wire:encode(?SYNC, []),
     do_send(Mod, Sock, [BindExecute, Sync]),
     {noreply, State};
 
@@ -307,10 +307,10 @@ setopts(#state{mod = Mod, sock = Sock}, Opts) ->
     end.
 
 send(#state{mod = Mod, sock = Sock}, Data) ->
-    do_send(Mod, Sock, pgsql_wire:encode(Data)).
+    do_send(Mod, Sock, epgsql_wire:encode(Data)).
 
 send(#state{mod = Mod, sock = Sock}, Type, Data) ->
-    do_send(Mod, Sock, pgsql_wire:encode(Type, Data)).
+    do_send(Mod, Sock, epgsql_wire:encode(Type, Data)).
 
 do_send(gen_tcp, Sock, Bin) ->
     try erlang:port_command(Sock, Bin) of
@@ -325,7 +325,7 @@ do_send(Mod, Sock, Bin) ->
     Mod:send(Sock, Bin).
 
 loop(#state{data = Data, handler = Handler} = State) ->
-    case pgsql_wire:decode_message(Data) of
+    case epgsql_wire:decode_message(Data) of
         {Message, Tail} ->
             case ?MODULE:Handler(Message, State#state{data = Tail}) of
                 {noreply, State2} ->
@@ -396,7 +396,7 @@ notify(State = #state{queue = Q}, Notice) ->
 
 notify_async(State = #state{async = Pid}, Msg) ->
     case is_pid(Pid) of
-        true  -> Pid ! {pgsql, self(), Msg};
+        true  -> Pid ! {epgsql, self(), Msg};
         false -> false
     end,
     State.
@@ -513,12 +513,12 @@ initializing({?READY_FOR_QUERY, <<Status:8>>}, State) ->
     erase(password),
     %% TODO decode dates to now() format
     case lists:keysearch(<<"integer_datetimes">>, 1, Parameters) of
-        {value, {_, <<"on">>}}  -> put(datetime_mod, pgsql_idatetime);
-        {value, {_, <<"off">>}} -> put(datetime_mod, pgsql_fdatetime)
+        {value, {_, <<"on">>}}  -> put(datetime_mod, epgsql_idatetime);
+        {value, {_, <<"off">>}} -> put(datetime_mod, epgsql_fdatetime)
     end,
     State2 = finish(State#state{handler = on_message,
                                txstatus = Status,
-                               codec = pgsql_binary:new_codec([])},
+                               codec = epgsql_binary:new_codec([])},
                    connected),
     {noreply, State2};
 
@@ -534,19 +534,19 @@ on_message({?PARSE_COMPLETE, <<>>}, State) ->
 
 %% ParameterDescription
 on_message({?PARAMETER_DESCRIPTION, <<_Count:?int16, Bin/binary>>}, State) ->
-    Types = [pgsql_binary:oid2type(Oid, State#state.codec) || <<Oid:?int32>> <= Bin],
+    Types = [epgsql_binary:oid2type(Oid, State#state.codec) || <<Oid:?int32>> <= Bin],
     State2 = notify(State#state{types = Types}, {types, Types}),
     {noreply, State2};
 
 %% RowDescription
 on_message({?ROW_DESCRIPTION, <<Count:?int16, Bin/binary>>}, State) ->
-    Columns = pgsql_wire:decode_columns(Count, Bin, State#state.codec),
+    Columns = epgsql_wire:decode_columns(Count, Bin, State#state.codec),
     Columns2 =
         case command_tag(State) of
             C when C == describe_portal; C == squery ->
                 Columns;
             C when C == parse; C == describe_statement ->
-                [Col#column{format = pgsql_wire:format(Col#column.type)}
+                [Col#column{format = epgsql_wire:format(Col#column.type)}
                  || Col <- Columns]
         end,
     State2 = State#state{columns = Columns2},
@@ -603,7 +603,7 @@ on_message({?CLOSE_COMPLETE, <<>>}, State) ->
 
 %% DataRow
 on_message({?DATA_ROW, <<_Count:?int16, Bin/binary>>}, State) ->
-    Data = pgsql_wire:decode_data(get_columns(State), Bin, State#state.codec),
+    Data = epgsql_wire:decode_data(get_columns(State), Bin, State#state.codec),
     {noreply, add_row(State, Data)};
 
 %% PortalSuspended
@@ -615,7 +615,7 @@ on_message({?PORTAL_SUSPENDED, <<>>}, State) ->
 
 %% CommandComplete
 on_message({?COMMAND_COMPLETE, Bin}, State) ->
-    Complete = pgsql_wire:decode_complete(Bin),
+    Complete = epgsql_wire:decode_complete(Bin),
     Command = command_tag(State),
     Notice = {complete, Complete},
     Rows = lists:reverse(State#state.rows),
@@ -687,19 +687,19 @@ on_message(Error = {error, _}, State) ->
 
 %% NoticeResponse
 on_message({?NOTICE, Data}, State) ->
-    State2 = notify_async(State, {notice, pgsql_wire:decode_error(Data)}),
+    State2 = notify_async(State, {notice, epgsql_wire:decode_error(Data)}),
     {noreply, State2};
 
 %% ParameterStatus
 on_message({?PARAMETER_STATUS, Data}, State) ->
-    [Name, Value] = pgsql_wire:decode_strings(Data),
+    [Name, Value] = epgsql_wire:decode_strings(Data),
     Parameters2 = lists:keystore(Name, 1, State#state.parameters,
                                  {Name, Value}),
     {noreply, State#state{parameters = Parameters2}};
 
 %% NotificationResponse
 on_message({?NOTIFICATION, <<Pid:?int32, Strings/binary>>}, State) ->
-    case pgsql_wire:decode_strings(Strings) of
+    case epgsql_wire:decode_strings(Strings) of
         [Channel, Payload] -> ok;
         [Channel]          -> Payload = <<>>
     end,

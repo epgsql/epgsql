@@ -1,9 +1,9 @@
 %%% Copyright (C) 2008 - Will Glozer.  All rights reserved.
 %%% Copyright (C) 2011 - Anton Lebedevich.  All rights reserved.
 %%%
-%%% Emulates original epgsql API over apgsql for original tests
+%%% Emulates original epgsql API over epgsqla for original tests
 
--module(pgsql_cast).
+-module(epgsql_cast).
 
 -export([connect/2, connect/3, connect/4, close/1]).
 -export([get_parameter/2, squery/2, equery/2, equery/3]).
@@ -13,7 +13,7 @@
 -export([with_transaction/2]).
 -export([receive_result/2, sync_on_error/2]).
 
--include("pgsql.hrl").
+-include("epgsql.hrl").
 
 %% -- client interface --
 
@@ -24,8 +24,8 @@ connect(Host, Username, Opts) ->
     connect(Host, Username, "", Opts).
 
 connect(Host, Username, Password, Opts) ->
-    {ok, C} = pgsql_sock:start_link(),
-    Ref = apgsql:connect(C, Host, Username, Password, Opts),
+    {ok, C} = epgsql_sock:start_link(),
+    Ref = epgsqla:connect(C, Host, Username, Password, Opts),
     %% TODO connect timeout
     receive
         {C, Ref, connected} ->
@@ -37,13 +37,13 @@ connect(Host, Username, Password, Opts) ->
     end.
 
 close(C) ->
-    apgsql:close(C).
+    epgsqla:close(C).
 
 get_parameter(C, Name) ->
-    apgsql:get_parameter(C, Name).
+    epgsqla:get_parameter(C, Name).
 
 squery(C, Sql) ->
-    Ref = apgsql:squery(C, Sql),
+    Ref = epgsqla:squery(C, Sql),
     receive_result(C, Ref).
 
 equery(C, Sql) ->
@@ -54,7 +54,7 @@ equery(C, Sql, Parameters) ->
     case parse(C, Sql) of
         {ok, #statement{types = Types} = S} ->
             Typed_Parameters = lists:zip(Types, Parameters),
-            Ref = apgsql:equery(C, S, Typed_Parameters),
+            Ref = epgsqla:equery(C, S, Typed_Parameters),
             receive_result(C, Ref);
         Error ->
             Error
@@ -69,7 +69,7 @@ parse(C, Sql, Types) ->
     parse(C, "", Sql, Types).
 
 parse(C, Name, Sql, Types) ->
-    Ref = apgsql:parse(C, Name, Sql, Types),
+    Ref = epgsqla:parse(C, Name, Sql, Types),
     sync_on_error(C, receive_result(C, Ref)).
 
 %% bind
@@ -78,7 +78,7 @@ bind(C, Statement, Parameters) ->
     bind(C, Statement, "", Parameters).
 
 bind(C, Statement, PortalName, Parameters) ->
-    Ref = apgsql:bind(C, Statement, PortalName, Parameters),
+    Ref = epgsqla:bind(C, Statement, PortalName, Parameters),
     sync_on_error(C, receive_result(C, Ref)).
 
 %% execute
@@ -90,11 +90,11 @@ execute(C, S, N) ->
     execute(C, S, "", N).
 
 execute(C, S, PortalName, N) ->
-    Ref = apgsql:execute(C, S, PortalName, N),
+    Ref = epgsqla:execute(C, S, PortalName, N),
     receive_result(C, Ref).
 
 execute_batch(C, Batch) ->
-    Ref = apgsql:execute_batch(C, Batch),
+    Ref = epgsqla:execute_batch(C, Batch),
     receive_result(C, Ref).
 
 %% statement/portal functions
@@ -103,7 +103,7 @@ describe(C, #statement{name = Name}) ->
     describe(C, statement, Name).
 
 describe(C, Type, Name) ->
-    Ref = apgsql:describe(C, Type, Name),
+    Ref = epgsqla:describe(C, Type, Name),
     %% TODO unknown result format of Describe portal
     sync_on_error(C, receive_result(C, Ref)).
 
@@ -111,11 +111,11 @@ close(C, #statement{name = Name}) ->
     close(C, statement, Name).
 
 close(C, Type, Name) ->
-    Ref = apgsql:close(C, Type, Name),
+    Ref = epgsqla:close(C, Type, Name),
     receive_result(C, Ref).
 
 sync(C) ->
-    Ref = apgsql:sync(C),
+    Ref = epgsqla:sync(C),
     receive_result(C, Ref).
 
 %% misc helper functions
@@ -142,7 +142,7 @@ receive_result(C, Ref) ->
     end.
 
 sync_on_error(C, Error = {error, _}) ->
-    Ref = apgsql:sync(C),
+    Ref = epgsqla:sync(C),
     receive_result(C, Ref),
     Error;
 
