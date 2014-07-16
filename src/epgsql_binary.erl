@@ -1,10 +1,10 @@
 %%% Copyright (C) 2008 - Will Glozer.  All rights reserved.
 
--module(pgsql_binary).
+-module(epgsql_binary).
 
 -export([encode/2, decode/2, supports/1]).
 
--include("pgsql_binary.hrl").
+-include("epgsql_binary.hrl").
 
 -define(datetime, (get(datetime_mod))).
 
@@ -54,7 +54,7 @@ decode(_Other, Bin)                         -> Bin.
 
 encode_array(Type, A) ->
     {Data, {NDims, Lengths}} = encode_array(Type, A, 0, []),
-    Oid  = pgsql_types:type2oid(Type),
+    Oid  = epgsql_types:type2oid(Type),
     Lens = [<<N:?int32, 1:?int32>> || N <- lists:reverse(Lengths)],
     Hdr  = <<NDims:?int32, 0:?int32, Oid:?int32>>,
     Bin  = iolist_to_binary([Hdr, Lens, Data]),
@@ -86,7 +86,7 @@ encode_uuid(U) ->
 decode_array(<<NDims:?int32, _HasNull:?int32, Oid:?int32, Rest/binary>>) ->
     {Dims, Data} = erlang:split_binary(Rest, NDims * 2 * 4),
     Lengths = [Len || <<Len:?int32, _LBound:?int32>> <= Dims],
-    Type = pgsql_types:oid2type(Oid),
+    Type = epgsql_types:oid2type(Oid),
     {Array, <<>>} = decode_array(Data, Type, Lengths),
     Array.
 
@@ -111,7 +111,7 @@ decode_record(<<>>, Acc) ->
 decode_record(<<_Type:?int32, -1:?int32, Rest/binary>>, Acc) ->
     decode_record(Rest, [null | Acc]);
 decode_record(<<Type:?int32, Len:?int32, Value:Len/binary, Rest/binary>>, Acc) ->
-    Value2 = decode(pgsql_types:oid2type(Type), Value),
+    Value2 = decode(epgsql_types:oid2type(Type), Value),
     decode_record(Rest, [Value2 | Acc]).
 
 decode_uuid(<<U0:32, U1:16, U2:16, U3:16, U4:48>>) ->

@@ -1,10 +1,10 @@
 %%% Copyright (C) 2008 - Will Glozer.  All rights reserved.
 
--module(pgsql_idatetime).
+-module(epgsql_idatetime).
 
 -export([decode/2, encode/2]).
 
--include("pgsql_binary.hrl").
+-include("epgsql_binary.hrl").
 
 -define(postgres_epoc_jdate, 2451545).
 -define(postgres_epoc_usecs, 946684800000000).

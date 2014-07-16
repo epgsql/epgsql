@@ -1,4 +1,4 @@
--module(pgsql_types).
+-module(epgsql_types).
 
 -export([oid2type/1, type2oid/1]).
 
