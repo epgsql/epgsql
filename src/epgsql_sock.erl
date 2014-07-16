@@ -99,11 +99,11 @@ handle_call({update_type_cache, TypeInfos}, _From, #state{codec = Codec} = State
     {reply, ok, State#state{codec = Codec2}};
 
 handle_call({get_parameter, Name}, _From, State) ->
-    case lists:keysearch(Name, 1, State#state.parameters) of
+    Value1 = case lists:keysearch(Name, 1, State#state.parameters) of
         {value, {Name, Value}} -> Value;
-        false                  -> Value = undefined
+        false                  -> undefined
     end,
-    {reply, {ok, Value}, State};
+    {reply, {ok, Value1}, State};
 
 handle_call(Command, From, State) ->
     #state{queue = Q} = State,
@@ -185,9 +185,9 @@ command({connect, Host, Username, Password, Opts}, State) ->
                      end,
 
             Opts2 = ["user", 0, Username, 0],
-            case proplists:get_value(database, Opts, undefined) of
-                undefined -> Opts3 = Opts2;
-                Database  -> Opts3 = [Opts2 | ["database", 0, Database, 0]]
+            Opts3 = case proplists:get_value(database, Opts, undefined) of
+                undefined -> Opts2;
+                Database  -> [Opts2 | ["database", 0, Database, 0]]
             end,
             send(State2, [<<196608:?int32>>, Opts3, 0]),
             Async   = proplists:get_value(async, Opts, undefined),
@@ -271,9 +271,9 @@ command({describe_portal, Name}, State) ->
     {noreply, State};
 
 command({close, Type, Name}, State) ->
-    case Type of
-        statement -> Type2 = ?PREPARED_STATEMENT;
-        portal    -> Type2 = ?PORTAL
+    Type2 = case Type of
+        statement -> ?PREPARED_STATEMENT;
+        portal    -> ?PORTAL
     end,
     send(State, ?CLOSE, [Type2, Name, 0]),
     send(State, ?FLUSH, []),
@@ -479,23 +479,23 @@ auth({?AUTHENTICATION_REQUEST, <<5:?int32, Salt:4/binary>>}, State) ->
     {noreply, State};
 
 auth({?AUTHENTICATION_REQUEST, <<M:?int32, _/binary>>}, State) ->
-    case M of
-        2 -> Method = kerberosV5;
-        4 -> Method = crypt;
-        6 -> Method = scm;
-        7 -> Method = gss;
-        8 -> Method = sspi;
-        _ -> Method = unknown
+    Method = case M of
+        2 -> kerberosV5;
+        4 -> crypt;
+        6 -> scm;
+        7 -> gss;
+        8 -> sspi;
+        _ -> unknown
     end,
     State2 = finish(State, {error, {unsupported_auth_method, Method}}),
     {stop, normal, State2};
 
 %% ErrorResponse
 auth({error, E}, State) ->
-    case E#error.code of
-        <<"28000">> -> Why = invalid_authorization_specification;
-        <<"28P01">> -> Why = invalid_password;
-        Any         -> Why = Any
+    Why = case E#error.code of
+        <<"28000">> -> invalid_authorization_specification;
+        <<"28P01">> -> invalid_password;
+        Any         -> Any
     end,
     {stop, normal, finish(State, {error, Why})};
 
@@ -699,9 +699,9 @@ on_message({?PARAMETER_STATUS, Data}, State) ->
 
 %% NotificationResponse
 on_message({?NOTIFICATION, <<Pid:?int32, Strings/binary>>}, State) ->
-    case epgsql_wire:decode_strings(Strings) of
-        [Channel, Payload] -> ok;
-        [Channel]          -> Payload = <<>>
+    {Channel1, Payload1} = case epgsql_wire:decode_strings(Strings) of
+        [Channel, Payload] -> {Channel, Payload};
+        [Channel]          -> {Channel, <<>>}
     end,
-    State2 = notify_async(State, {notification, Channel, Pid, Payload}),
+    State2 = notify_async(State, {notification, Channel1, Pid, Payload1}),
     {noreply, State2}.

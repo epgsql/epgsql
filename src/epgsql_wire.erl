@@ -100,9 +100,11 @@ decode_data([], _Bin, Acc, _Codec) ->
 decode_data([_C | T], <<-1:?int32, Rest/binary>>, Acc, Codec) ->
     decode_data(T, Rest, [null | Acc], Codec);
 decode_data([C | T], <<Len:?int32, Value:Len/binary, Rest/binary>>, Acc, Codec) ->
-    case C of
-        #column{type = Type, format = 1}   -> Value2 = epgsql_binary:decode(Type, Value, Codec);
-        #column{}                          -> Value2 = Value
+    Value2 = case C of
+        #column{type = Type, format = 1} ->
+            epgsql_binary:decode(Type, Value, Codec);
+        #column{} ->
+            Value
     end,
     decode_data(T, Rest, [Value2 | Acc], Codec).
 
@@ -148,9 +150,9 @@ encode_types([], Count, Acc, _Codec) ->
     <<Count:?int16, Acc/binary>>;
 
 encode_types([Type | T], Count, Acc, Codec) ->
-    case Type of
-        undefined -> Oid = 0;
-        _Any      -> Oid = epgsql_binary:type2oid(Type, Codec)
+    Oid = case Type of
+        undefined -> 0;
+        _Any      -> epgsql_binary:type2oid(Type, Codec)
     end,
     encode_types(T, Count + 1, <<Acc/binary, Oid:?int32>>, Codec).
 
