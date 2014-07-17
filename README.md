@@ -312,3 +312,13 @@ provide a common fork for community development.
 
 https://groups.google.com/forum/#!forum/epgsql
 
+## Test Setup
+
+In order to run the epgsql tests, you will need to make some
+modifications to your local Postgres setup:
+
+1. Add the lines at the top of `test_data/test_schema.sql` to your `/etc/postgresql/pg_hba.conf` file.  Change $USER to your username.
+
+2. Run the test_data/test_schema.sql script like so: `psql template1 < test_data/test_schema.sql`, as the user you intend to run the tests as.
+
+3. `make test` .  Currently, 6 of the tests fail.
