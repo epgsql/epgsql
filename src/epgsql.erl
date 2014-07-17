@@ -61,7 +61,6 @@ connect(Settings) ->
 	Host = proplists:get_value(host, Settings, "localhost"),
 	Username = proplists:get_value(username, Settings, os:getenv("USER")),
 	Password = proplists:get_value(password, Settings, ""),
-	
 	connect(Host, Username, Password, Settings).
 
 connect(Host, Opts) ->
