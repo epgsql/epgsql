@@ -198,8 +198,8 @@ command({connect, Host, Username, Password, Opts}, State) ->
              State2#state{handler = auth,
                           async = Async}};
 
-        {error, _} = Error ->
-            {stop, normal, finish(State, Error)}
+        {error, Reason} = Error ->
+            {stop, Reason, finish(State, Error)}
     end;
 
 command({squery, Sql}, State) ->
