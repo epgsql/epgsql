@@ -164,7 +164,7 @@ command(Command, State = #state{sync_required = true})
 command({connect, Host, Username, Password, Opts}, State) ->
     Timeout = proplists:get_value(timeout, Opts, 5000),
     Port = proplists:get_value(port, Opts, 5432),
-    SockOpts = [{active, false}, {packet, raw}, binary, {nodelay, true}],
+    SockOpts = [{active, false}, {packet, raw}, binary, {nodelay, true}, {keepalive, true}],
     case gen_tcp:connect(Host, Port, SockOpts, Timeout) of
         {ok, Sock} ->
 
