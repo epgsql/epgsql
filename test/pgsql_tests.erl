@@ -541,6 +541,10 @@ date_time_type_test(Module) ->
                          [{{0,0,0.0},0,-178000000 * 12}, {{0,0,0.0},0,178000000 * 12}])
       end).
 
+net_type_test(Module) ->
+    check_type(Module, cidr, "'127.0.0.1/32'", {{127,0,0,1}, 32}, [{{127,0,0,1}, 32}, {{0,0,0,0,0,0,0,1}, 128}]),
+    check_type(Module, inet, "'127.0.0.1'", {127,0,0,1}, [{127,0,0,1}, {0,0,0,0,0,0,0,1}]).
+
 misc_type_test(Module) ->
     check_type(Module, bool, "true", true, [true, false]),
     check_type(Module, bytea, "E'\001\002'", <<1,2>>, [<<>>, <<0,128,255>>]).
@@ -575,7 +579,9 @@ array_type_test(Module) ->
           Select(timetz, [{{0,1,2.0},1*60*60}, {{0,1,3.0},1*60*60}]),
           Select(timestamp, [{{2008,1,2},{3,4,5.0}}, {{2008,1,2},{3,4,6.0}}]),
           Select(timestamptz, [{{2008,1,2},{3,4,5.0}}, {{2008,1,2},{3,4,6.0}}]),
-          Select(interval, [{{1,2,3.1},0,0}, {{1,2,3.2},0,0}])
+          Select(interval, [{{1,2,3.1},0,0}, {{1,2,3.2},0,0}]),
+          Select(cidr, [{{127,0,0,1}, 32}, {{0,0,0,0,0,0,0,1}, 128}]),
+          Select(inet, [{127,0,0,1}, {0,0,0,0,0,0,0,1}])
       end).
 
 text_format_test(Module) ->
@@ -588,7 +594,6 @@ text_format_test(Module) ->
                                {ok, _Cols, [{V2}]} = Module:equery(C, Query, [V]),
                                {ok, _Cols, [{V2}]} = Module:equery(C, Query, [V2])
                        end,
-              Select("inet", "127.0.0.1"),
               Select("numeric", "123456")
       end).
 

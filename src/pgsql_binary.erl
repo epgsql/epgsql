@@ -8,6 +8,13 @@
 
 -define(datetime, (get(datetime_mod))).
 
+-define(INET, 2).
+-define(INET6, 3).
+-define(IP_SIZE, 4).
+-define(IP6_SIZE, 16).
+-define(MAX_IP_MASK, 32).
+-define(MAX_IP6_MASK, 128).
+
 encode(_Any, null)                          -> <<-1:?int32>>;
 encode(bool, true)                          -> <<1:?int32, 1:1/big-signed-unit:8>>;
 encode(bool, false)                         -> <<1:?int32, 0:1/big-signed-unit:8>>;
@@ -28,6 +35,8 @@ encode(bytea, B) when is_binary(B)          -> <<(byte_size(B)):?int32, B/binary
 encode(text, B) when is_binary(B)           -> <<(byte_size(B)):?int32, B/binary>>;
 encode(varchar, B) when is_binary(B)        -> <<(byte_size(B)):?int32, B/binary>>;
 encode(uuid, B) when is_binary(B)           -> encode_uuid(B);
+encode(cidr, B)                             -> encode(bytea, encode_net(B));
+encode(inet, B)                             -> encode(bytea, encode_net(B));
 encode({array, char}, L) when is_list(L)    -> encode_array(bpchar, L);
 encode({array, Type}, L) when is_list(L)    -> encode_array(Type, L);
 encode(Type, L) when is_list(L)             -> encode(Type, list_to_binary(L));
@@ -49,8 +58,32 @@ decode(timestamp = Type, B)                 -> ?datetime:decode(Type, B);
 decode(timestamptz = Type, B)               -> ?datetime:decode(Type, B);
 decode(interval = Type, B)                  -> ?datetime:decode(Type, B);
 decode(uuid, B)                             -> decode_uuid(B);
+decode(cidr, B)                             -> decode_net(B);
+decode(inet, B)                             -> decode_net(B);
 decode({array, _Type}, B)                   -> decode_array(B);
 decode(_Other, Bin)                         -> Bin.
+
+encode_net({{_, _, _, _} = IP, Mask}) ->
+    Bin = list_to_binary(tuple_to_list(IP)),
+    <<?INET, Mask, 1, ?IP_SIZE, Bin/binary>>;
+encode_net({{_, _, _, _, _, _, _, _} = IP, Mask}) ->
+    Bin = << <<X:16>> || X <- tuple_to_list(IP) >>,
+    <<?INET6, Mask, 1, ?IP6_SIZE, Bin/binary>>;
+encode_net({_, _, _, _} = IP) ->
+    Bin = list_to_binary(tuple_to_list(IP)),
+    <<?INET, ?MAX_IP_MASK, 0, ?IP_SIZE, Bin/binary>>;
+encode_net({_, _, _, _, _, _, _, _} = IP) ->
+    Bin = << <<X:16>> || X <- tuple_to_list(IP) >>,
+    <<?INET6, ?MAX_IP6_MASK, 0, ?IP6_SIZE, Bin/binary>>.
+
+decode_net(<<?INET, Mask, 1, ?IP_SIZE, Bin/binary>>) ->
+    {list_to_tuple(binary_to_list(Bin)), Mask};
+decode_net(<<?INET6, Mask, 1, ?IP6_SIZE, Bin/binary>>) ->
+    {list_to_tuple([X || <<X:16>> <= Bin]), Mask};
+decode_net(<<?INET, ?MAX_IP_MASK, 0, ?IP_SIZE, Bin/binary>>) ->
+    list_to_tuple(binary_to_list(Bin));
+decode_net(<<?INET6, ?MAX_IP6_MASK, 0, ?IP6_SIZE, Bin/binary>>) ->
+    list_to_tuple([X || <<X:16>> <= Bin]).
 
 encode_array(Type, A) ->
     {Data, {NDims, Lengths}} = encode_array(Type, A, 0, []),
@@ -136,6 +169,8 @@ supports(timestamp)   -> true;
 supports(timestamptz) -> true;
 supports(interval)    -> true;
 supports(uuid)        -> true;
+supports(cidr)        -> true;
+supports(inet)        -> true;
 supports({array, bool})   -> true;
 supports({array, int2})   -> true;
 supports({array, int4})   -> true;
@@ -152,4 +187,6 @@ supports({array, timestamptz})   -> true;
 supports({array, interval})      -> true;
 supports({array, varchar}) -> true;
 supports({array, uuid})   -> true;
+supports({array, cidr})   -> true;
+supports({array, inet})   -> true;
 supports(_Type)       -> false.
