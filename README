@@ -48,10 +48,10 @@ provide a common fork for community development.
 * Connect
 
   {ok, C} = pgsql:connect([
-    {host, Host}, %% Optional defaults to "localhost"
-    {username, Username}, %% Optional defaults to $USER.
-    {password, Password}, %% Optional defaults to ""
-    Opts
+    {host, Host}, %% Defaults to "localhost"
+    {username, Username}, %% Defaults to $USER.
+    {password, Password}, %% Defaults to ""
+    AdditionalOptions %% See list below of available properties
   ]).
 
   {ok, C} = pgsql:connect(Host, [Username], [Password], Opts).
