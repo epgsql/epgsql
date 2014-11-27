@@ -494,6 +494,9 @@ uuid_type_test(Module) ->
                io_lib:format("'~s'", [uuid_to_string(?UUID1)]),
                list_to_binary(uuid_to_string(?UUID1)), []).
 
+point_type_test(Module) ->
+    check_type(Module, point, "'(23.15, 100)'", {23.15, 100.0}, []).
+
 uuid_select_test(Module) ->
     with_rollback(
       Module,
