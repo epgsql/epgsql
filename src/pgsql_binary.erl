@@ -30,6 +30,7 @@ encode(varchar, B) when is_binary(B)        -> <<(byte_size(B)):?int32, B/binary
 encode(uuid, B) when is_binary(B)           -> encode_uuid(B);
 encode({array, char}, L) when is_list(L)    -> encode_array(bpchar, L);
 encode({array, Type}, L) when is_list(L)    -> encode_array(Type, L);
+encode(point, {X,Y})                        -> encode_point({X,Y});
 encode(Type, L) when is_list(L)             -> encode(Type, list_to_binary(L));
 encode(_Type, _Value)                       -> {error, unsupported}.
 
@@ -50,6 +51,7 @@ decode(timestamptz = Type, B)               -> ?datetime:decode(Type, B);
 decode(interval = Type, B)                  -> ?datetime:decode(Type, B);
 decode(uuid, B)                             -> decode_uuid(B);
 decode({array, _Type}, B)                   -> decode_array(B);
+decode(point, B)                            -> decode_point(B);
 decode(_Other, Bin)                         -> Bin.
 
 encode_array(Type, A) ->
@@ -118,6 +120,13 @@ decode_uuid(<<U0:32, U1:16, U2:16, U3:16, U4:48>>) ->
     Format = "~8.16.0b-~4.16.0b-~4.16.0b-~4.16.0b-~12.16.0b",
     iolist_to_binary(io_lib:format(Format, [U0, U1, U2, U3, U4])).
 
+encode_point({X, Y}) when is_number(X), is_number(Y) ->
+    <<X:1/big-float-unit:64, Y:1/big-float-unit:64>>.
+
+decode_point(<<X:1/big-float-unit:64, Y:1/big-float-unit:64>>) ->
+    {X, Y}.
+
+supports(point)   -> true;
 supports(bool)    -> true;
 supports(bpchar)  -> true;
 supports(int2)    -> true;
