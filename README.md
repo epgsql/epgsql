@@ -268,6 +268,7 @@ provide a common fork for community development.
         varchar     = <<"a">>
         bytea       = <<1, 2>>
         array       = [1, 2, 3]
+        point       = {10.2, 100.12}
 
         record      = {int2, time, text, ...} (decode only)
 

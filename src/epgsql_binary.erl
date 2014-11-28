@@ -65,6 +65,7 @@ encode(uuid, B, _) when is_binary(B)        -> encode_uuid(B);
 encode({array, char}, L, Codec) when is_list(L) -> encode_array(bpchar, type2oid(bpchar, Codec), L, Codec);
 encode({array, Type}, L, Codec) when is_list(L) -> encode_array(Type, type2oid(Type, Codec), L, Codec);
 encode(hstore, {L}, _) when is_list(L)      -> encode_hstore(L);
+encode(point, {X,Y}, _)                     -> encode_point({X,Y});
 encode(Type, L, Codec) when is_list(L)      -> encode(Type, list_to_binary(L), Codec);
 encode(_Type, _Value, _)                    -> {error, unsupported}.
 
@@ -86,6 +87,7 @@ decode(interval = Type, B, _)                  -> ?datetime:decode(Type, B);
 decode(uuid, B, _)                             -> decode_uuid(B);
 decode(hstore, Hstore, _)                      -> decode_hstore(Hstore);
 decode({array, _Type}, B, Codec)               -> decode_array(B, Codec);
+decode(point, B, _)                            -> decode_point(B);
 decode(_Other, Bin, _)                         -> Bin.
 
 encode_array(Type, Oid, A, Codec) ->
@@ -182,6 +184,13 @@ decode_hstore1(N, <<KeyLen:?int32, Key:KeyLen/binary, -1:?int32, Rest/binary>>, 
 decode_hstore1(N, <<KeyLen:?int32, Key:KeyLen/binary, ValLen:?int32, Value:ValLen/binary, Rest/binary>>, Acc) ->
     decode_hstore1(N - 1, Rest, [{Key, Value} | Acc]).
 
+encode_point({X, Y}) when is_number(X), is_number(Y) ->
+    <<X:1/big-float-unit:64, Y:1/big-float-unit:64>>.
+
+decode_point(<<X:1/big-float-unit:64, Y:1/big-float-unit:64>>) ->
+    {X, Y}.
+
+supports(point)   -> true;
 supports(bool)    -> true;
 supports(bpchar)  -> true;
 supports(int2)    -> true;
