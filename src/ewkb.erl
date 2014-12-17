@@ -380,24 +380,3 @@ encode_point_type('2dm') -> <<0,64>>;
 encode_point_type('3d') -> <<0,128>>;
 encode_point_type('3dm') -> <<0,192>>.
 
-hex_to_bin(<<C:2/binary>>) ->
-  Int = binary_to_integer(C, 16),
-  << Int >>;
-hex_to_bin(<<C:2/binary, Rest/binary>>) ->
-  Int = binary_to_integer(C, 16),
-  RestBin = hex_to_bin(Rest),
-  << Int, RestBin/binary >>.
-
-bin_to_hex(<<C>>) ->
-  Int = int_to_hex(C),
-  << Int/binary >>;
-bin_to_hex(<<C, Rest/binary>>) ->
-  Int = int_to_hex(C),
-  RestBin = bin_to_hex(Rest),
-  << Int/binary, RestBin/binary >>.
-
-int_to_hex(C) ->
-  case integer_to_binary(C, 16) of
-    <<_,_>> = Val -> Val;
-    <<Byte>> -> <<"0", Byte>>
-  end.
