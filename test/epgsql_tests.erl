@@ -497,6 +497,18 @@ uuid_type_test(Module) ->
 point_type_test(Module) ->
     check_type(Module, point, "'(23.15, 100)'", {23.15, 100.0}, []).
 
+geometry_type_test(Module) ->
+    check_type(Module, geometry, "'COMPOUNDCURVE(CIRCULARSTRING(0 0,1 1,1 0),(1 0,0 1))'", 
+      {compound_curve,'2d',
+          [{circular_string,'2d',
+              [{point,'2d',0.0,0.0,undefined,undefined},
+               {point,'2d',1.0,1.0,undefined,undefined},
+               {point,'2d',1.0,0.0,undefined,undefined}]},
+         {line_string,'2d',
+              [{point,'2d',1.0,0.0,undefined,undefined},
+                 {point,'2d',0.0,1.0,undefined,undefined}]}]},
+      []).
+
 uuid_select_test(Module) ->
     with_rollback(
       Module,
