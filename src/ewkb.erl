@@ -1,6 +1,6 @@
 -module(ewkb).
 
--export([parse_geometry/1, format_geometry/1]).
+-export([decode_geometry/1, encode_geometry/1]).
 
 -type point_type() :: '2d' | '3d' | '2dm' | '3dm'.
 
@@ -144,43 +144,43 @@
                    | triangle.%
 
 
-parse_geometry(Binary) ->
-  {Geometry, <<>>} = parse_geometry_data(Binary),
+decode_geometry(Binary) ->
+  {Geometry, <<>>} = decode_geometry_data(Binary),
   Geometry.
 
-format_geometry(Geometry) ->
-  Type = format_type(Geometry),
-  PointType = format_point_type(Geometry),
-  Data = format_geometry_data(Geometry),
-  <<"01", Type/binary, PointType/binary, Data/binary>>.
+encode_geometry(Geometry) ->
+  Type = encode_type(Geometry),
+  PointType = encode_point_type(Geometry),
+  Data = encode_geometry_data(Geometry),
+  <<1, Type/binary, PointType/binary, Data/binary>>.
 
-format_geometry_data(#point{ point_type = '2d', x = X, y = Y }) ->
-  Xbin = format_float64(X),
-  Ybin = format_float64(Y),
+encode_geometry_data(#point{ point_type = '2d', x = X, y = Y }) ->
+  Xbin = encode_float64(X),
+  Ybin = encode_float64(Y),
   <<Xbin/binary, Ybin/binary>>;
-format_geometry_data(#point{ point_type = '2dm', x = X, y = Y, m = M }) ->
-  Xbin = format_float64(X),
-  Ybin = format_float64(Y),
-  Mbin = format_float64(M),
+encode_geometry_data(#point{ point_type = '2dm', x = X, y = Y, m = M }) ->
+  Xbin = encode_float64(X),
+  Ybin = encode_float64(Y),
+  Mbin = encode_float64(M),
   <<Xbin/binary, Ybin/binary, Mbin/binary>>;
-format_geometry_data(#point{ point_type = '3d', x = X, y = Y, z = Z }) ->
-  Xbin = format_float64(X),
-  Ybin = format_float64(Y),
-  Zbin = format_float64(Z),
+encode_geometry_data(#point{ point_type = '3d', x = X, y = Y, z = Z }) ->
+  Xbin = encode_float64(X),
+  Ybin = encode_float64(Y),
+  Zbin = encode_float64(Z),
   <<Xbin/binary, Ybin/binary, Zbin/binary>>;
-format_geometry_data(#point{ point_type = '3dm', x = X, y = Y, z = Z, m = M }) ->
-  Xbin = format_float64(X),
-  Ybin = format_float64(Y),
-  Zbin = format_float64(Z),
-  Mbin = format_float64(M),
+encode_geometry_data(#point{ point_type = '3dm', x = X, y = Y, z = Z, m = M }) ->
+  Xbin = encode_float64(X),
+  Ybin = encode_float64(Y),
+  Zbin = encode_float64(Z),
+  Mbin = encode_float64(M),
   <<Xbin/binary, Ybin/binary, Zbin/binary, Mbin/binary>>;
-format_geometry_data({SimpleCollection, _, Data})
+encode_geometry_data({SimpleCollection, _, Data})
     when SimpleCollection == line_string;
          SimpleCollection == circular_string;
          SimpleCollection == polygon;
          SimpleCollection == triangle ->
-  format_collection(Data);
-format_geometry_data({TypedCollection, _, Data})
+  encode_collection(Data);
+encode_geometry_data({TypedCollection, _, Data})
     when 
         TypedCollection == multi_point;
         TypedCollection == multi_line_string;
@@ -192,26 +192,26 @@ format_geometry_data({TypedCollection, _, Data})
         TypedCollection == geometry_collection;
         TypedCollection == polyhedral_surface;
         TypedCollection == tin ->
-  format_typed_collection(Data).
+  encode_typed_collection(Data).
 
-format_collection(Collection) when is_list(Collection) ->
+encode_collection(Collection) when is_list(Collection) ->
   Length = length(Collection),
-  LengthBin = format_int32(Length),
+  LengthBin = encode_int32(Length),
   CollectionBin = lists:foldl(
     fun(Element, Acc) ->
-      ElementBin = format_geometry_data(Element),
+      ElementBin = encode_geometry_data(Element),
       <<Acc/binary, ElementBin/binary>>
     end,
     <<>>,
     Collection),
   <<LengthBin/binary, CollectionBin/binary>>.
 
-format_typed_collection(Collection) when is_list(Collection) ->
+encode_typed_collection(Collection) when is_list(Collection) ->
   Length = length(Collection),
-  LengthBin = format_int32(Length),
+  LengthBin = encode_int32(Length),
   CollectionBin = lists:foldl(
     fun(Element, Acc) ->
-      ElementBin = format_geometry(Element),
+      ElementBin = encode_geometry(Element),
       <<Acc/binary, ElementBin/binary>>
     end,
     <<>>,
@@ -219,39 +219,37 @@ format_typed_collection(Collection) when is_list(Collection) ->
   <<LengthBin/binary, CollectionBin/binary>>.  
   
 
-format_int32(Int) when is_integer(Int) ->
-  Bin = <<Int:1/little-integer-unit:32>>,
-  bin_to_hex(Bin).
+encode_int32(Int) when is_integer(Int) ->
+  <<Int:1/little-integer-unit:32>>.
 
-format_float64(Int) when is_number(Int) ->
-  Bin = <<Int:1/little-float-unit:64>>,
-  bin_to_hex(Bin).
+encode_float64(Int) when is_number(Int) ->
+  <<Int:1/little-float-unit:64>>.
 
--spec parse_geometry_data(binary()) -> {geometry(), binary()}.
-parse_geometry_data(Binary) ->
-  <<"01", TypeCode:4/binary, SubtypeCode:4/binary, Data/binary>> = Binary,
-  Type = parse_type(TypeCode),
-  Subtype = parse_point_type(SubtypeCode),
-  parse_geometry_data(Type, Subtype, Data).
+-spec decode_geometry_data(binary()) -> {geometry(), binary()}.
+decode_geometry_data(Binary) ->
+  <<1, TypeCode:2/binary, SubtypeCode:2/binary, Data/binary>> = Binary,
+  Type = decode_type(TypeCode),
+  Subtype = decode_point_type(SubtypeCode),
+  decode_geometry_data(Type, Subtype, Data).
 
--spec parse_geometry_data(geom_type(), point_type(), binary()) -> {geometry(), binary()}.
-parse_geometry_data(curve, _, _) -> error({curve, not_supported});
-parse_geometry_data(surface, _, _) -> error({surface, not_supported});
-parse_geometry_data(geometry, _, _) -> error({geometry, not_supported});
-parse_geometry_data(point, PointType, Data) ->
-  parse_point(PointType, Data);
-parse_geometry_data(LineType, PointType, Data) 
+-spec decode_geometry_data(geom_type(), point_type(), binary()) -> {geometry(), binary()}.
+decode_geometry_data(curve, _, _) -> error({curve, not_supported});
+decode_geometry_data(surface, _, _) -> error({surface, not_supported});
+decode_geometry_data(geometry, _, _) -> error({geometry, not_supported});
+decode_geometry_data(point, PointType, Data) ->
+  decode_point(PointType, Data);
+decode_geometry_data(LineType, PointType, Data) 
     when LineType == line_string; 
          LineType == circular_string ->
-  {Points, Rest} = parse_collection(point, PointType, Data),
+  {Points, Rest} = decode_collection(point, PointType, Data),
   {{LineType, PointType, Points}, Rest};
-parse_geometry_data(polygon, PointType, Data) ->
-  {Lines, Rest} = parse_collection(line_string, PointType, Data),
+decode_geometry_data(polygon, PointType, Data) ->
+  {Lines, Rest} = decode_collection(line_string, PointType, Data),
   {#polygon{ point_type = PointType, rings = Lines }, Rest};
-parse_geometry_data(triangle, PointType, Data) ->
-  {#polygon{ rings = Rings }, Rest} = parse_geometry_data(polygon, PointType, Data),
+decode_geometry_data(triangle, PointType, Data) ->
+  {#polygon{ rings = Rings }, Rest} = decode_geometry_data(polygon, PointType, Data),
   {#triangle{ point_type = PointType, rings = Rings }, Rest};
-parse_geometry_data(Collection, PointType, Data)
+decode_geometry_data(Collection, PointType, Data)
     when 
         Collection == multi_point;
         Collection == multi_line_string;
@@ -263,46 +261,46 @@ parse_geometry_data(Collection, PointType, Data)
         Collection == geometry_collection;
         Collection == polyhedral_surface;
         Collection == tin  ->
-    {Lines, Rest} = parse_typed_collection(Data),
+    {Lines, Rest} = decode_typed_collection(Data),
     {{Collection, PointType, Lines}, Rest}.
 
--spec parse_collection(geom_type(), point_type(), binary()) -> {[geometry()], binary()}.
-parse_collection(Type, PointType, Data) ->
-  {Length, CountRest} = parse_int32(Data),
+-spec decode_collection(geom_type(), point_type(), binary()) -> {[geometry()], binary()}.
+decode_collection(Type, PointType, Data) ->
+  {Length, CountRest} = decode_int32(Data),
   lists:foldl(
     fun(_, {Geoms, Rest}) ->
-      {Geom, R} = parse_geometry_data(Type, PointType, Rest),
+      {Geom, R} = decode_geometry_data(Type, PointType, Rest),
       {Geoms ++ [Geom], R}
     end,
     {[], CountRest},
     lists:seq(1, Length)).
 
--spec parse_typed_collection(binary()) -> {[geometry()], binary()}.
-parse_typed_collection(Data) ->
-  {Length, CountRest} = parse_int32(Data),
+-spec decode_typed_collection(binary()) -> {[geometry()], binary()}.
+decode_typed_collection(Data) ->
+  {Length, CountRest} = decode_int32(Data),
   lists:foldl(
     fun(_, {Geoms, Rest}) ->
-      {Geom, R} = parse_geometry_data(Rest),
+      {Geom, R} = decode_geometry_data(Rest),
       {Geoms ++ [Geom], R}
     end,
     {[], CountRest},
     lists:seq(1, Length)).
 
 
--spec parse_int32(binary()) -> {integer(), binary()}.
-parse_int32(<<Hex:8/binary, Rest/binary>>) ->
-  <<Int:1/little-integer-unit:32>> = hex_to_bin(Hex),
+-spec decode_int32(binary()) -> {integer(), binary()}.
+decode_int32(<<Hex:4/binary, Rest/binary>>) ->
+  <<Int:1/little-integer-unit:32>> = Hex,
   {Int, Rest}.
 
--spec parse_float64(binary()) -> {float(), binary()}.
-parse_float64(<<Hex:16/binary, Rest/binary>>) ->
-  <<Float:1/little-float-unit:64>> = hex_to_bin(Hex),
+-spec decode_float64(binary()) -> {float(), binary()}.
+decode_float64(<<Hex:8/binary, Rest/binary>>) ->
+  <<Float:1/little-float-unit:64>> = Hex,
   {Float, Rest}.
 
-parse_point(PointType, Data) ->
+decode_point(PointType, Data) ->
   {Values, Rest} = lists:foldl(
     fun(_, {Values, Rest}) ->
-      {Value, R} = parse_float64(Rest),
+      {Value, R} = decode_float64(Rest),
       {Values ++ [Value], R}
     end,
     {[], Data},
@@ -325,62 +323,62 @@ point_size('2dm') -> 3;
 point_size('3d')  -> 3;
 point_size('3dm') -> 4.
 
--spec parse_type(binary()) -> geom_type().
-parse_type(<<"0000">>) -> geometry;
-parse_type(<<"0100">>) -> point;
-parse_type(<<"0200">>) -> line_string;
-parse_type(<<"0300">>) -> polygon;
-parse_type(<<"0400">>) -> multi_point;
-parse_type(<<"0500">>) -> multi_line_string;
-parse_type(<<"0600">>) -> multi_polygon;
-parse_type(<<"0700">>) -> geometry_collection;
-parse_type(<<"0800">>) -> circular_string;
-parse_type(<<"0900">>) -> compound_curve;
-parse_type(<<"0A00">>) -> curve_polygon;
-parse_type(<<"0B00">>) -> multi_curve;
-parse_type(<<"0C00">>) -> multi_surface;
-parse_type(<<"0D00">>) -> curve;
-parse_type(<<"0E00">>) -> surface;
-parse_type(<<"0F00">>) -> polyhedral_surface;
-parse_type(<<"1000">>) -> tin;
-parse_type(<<"1100">>) -> triangle.
+-spec decode_type(binary()) -> geom_type().
+decode_type(<<0,0>>) -> geometry;
+decode_type(<<1,0>>) -> point;
+decode_type(<<2,0>>) -> line_string;
+decode_type(<<3,0>>) -> polygon;
+decode_type(<<4,0>>) -> multi_point;
+decode_type(<<5,0>>) -> multi_line_string;
+decode_type(<<6,0>>) -> multi_polygon;
+decode_type(<<7,0>>) -> geometry_collection;
+decode_type(<<8,0>>) -> circular_string;
+decode_type(<<9,0>>) -> compound_curve;
+decode_type(<<10,0>>) -> curve_polygon;
+decode_type(<<11,0>>) -> multi_curve;
+decode_type(<<12,0>>) -> multi_surface;
+decode_type(<<13,0>>) -> curve;
+decode_type(<<14,0>>) -> surface;
+decode_type(<<15,0>>) -> polyhedral_surface;
+decode_type(<<16,0>>) -> tin;
+decode_type(<<17,0>>) -> triangle.
 
--spec format_type(geometry() | geom_type()) -> binary().
-format_type(Geometry) when is_tuple(Geometry) ->
-  format_type(element(1, Geometry));
-format_type(geometry)            -> <<"0000">>;
-format_type(point)               -> <<"0100">>;
-format_type(line_string)         -> <<"0200">>;
-format_type(polygon)             -> <<"0300">>;
-format_type(multi_point)         -> <<"0400">>;
-format_type(multi_line_string)   -> <<"0500">>;
-format_type(multi_polygon)       -> <<"0600">>;
-format_type(geometry_collection) -> <<"0700">>;
-format_type(circular_string)     -> <<"0800">>;
-format_type(compound_curve)      -> <<"0900">>;
-format_type(curve_polygon)       -> <<"0A00">>;
-format_type(multi_curve)         -> <<"0B00">>;
-format_type(multi_surface)       -> <<"0C00">>;
-format_type(curve)               -> <<"0D00">>;
-format_type(surface)             -> <<"0E00">>;
-format_type(polyhedral_surface)  -> <<"0F00">>;
-format_type(tin)                 -> <<"1000">>;
-format_type(triangle)            -> <<"1100">>.
+-spec encode_type(geometry() | geom_type()) -> binary().
+encode_type(Geometry) when is_tuple(Geometry) ->
+  encode_type(element(1, Geometry));
+encode_type(geometry)            -> <<00, 0>>;
+encode_type(point)               -> <<01, 0>>;
+encode_type(line_string)         -> <<02, 0>>;
+encode_type(polygon)             -> <<03, 0>>;
+encode_type(multi_point)         -> <<04, 0>>;
+encode_type(multi_line_string)   -> <<05, 0>>;
+encode_type(multi_polygon)       -> <<06, 0>>;
+encode_type(geometry_collection) -> <<07, 0>>;
+encode_type(circular_string)     -> <<08, 0>>;
+encode_type(compound_curve)      -> <<09, 0>>;
+encode_type(curve_polygon)       -> <<10, 0>>;
+encode_type(multi_curve)         -> <<11, 0>>;
+encode_type(multi_surface)       -> <<12, 0>>;
+encode_type(curve)               -> <<13, 0>>;
+encode_type(surface)             -> <<14, 0>>;
+encode_type(polyhedral_surface)  -> <<15, 0>>;
+encode_type(tin)                 -> <<16, 0>>;
+encode_type(triangle)            -> <<17, 0>>.
 
 
--spec parse_point_type(binary()) -> point_type().
-parse_point_type(<<"0000">>) -> '2d';
-parse_point_type(<<"0080">>) -> '3d';
-parse_point_type(<<"0040">>) -> '2dm';
-parse_point_type(<<"00c0">>) -> '3dm'.
+-spec decode_point_type(binary()) -> point_type().
+decode_point_type(<<0,0>>) -> '2d';
+decode_point_type(<<0, 64>>) -> '2dm';
+decode_point_type(<<0, 128>>) -> '3d';
+decode_point_type(<<0, 192>>) -> '3dm'.
 
--spec format_point_type(geometry() | point_type()) -> binary().
-format_point_type(Geometry) when is_tuple(Geometry) ->
-  format_point_type(element(2, Geometry));
-format_point_type('2d') -> <<"0000">>;
-format_point_type('3d') -> <<"0080">>;
-format_point_type('2dm') -> <<"0040">>;
-format_point_type('3dm') -> <<"00c0">>.
+-spec encode_point_type(geometry() | point_type()) -> binary().
+encode_point_type(Geometry) when is_tuple(Geometry) ->
+  encode_point_type(element(2, Geometry));
+encode_point_type('2d') -> <<0,0>>;
+encode_point_type('2dm') -> <<0,64>>;
+encode_point_type('3d') -> <<0,128>>;
+encode_point_type('3dm') -> <<0,192>>.
 
 hex_to_bin(<<C:2/binary>>) ->
   Int = binary_to_integer(C, 16),

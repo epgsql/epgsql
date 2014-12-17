@@ -31,6 +31,7 @@ encode(uuid, B) when is_binary(B)           -> encode_uuid(B);
 encode({array, char}, L) when is_list(L)    -> encode_array(bpchar, L);
 encode({array, Type}, L) when is_list(L)    -> encode_array(Type, L);
 encode(point, {X,Y})                        -> encode_point({X,Y});
+encode(geometry, Data)                      -> encode_geometry(Data);
 encode(Type, L) when is_list(L)             -> encode(Type, list_to_binary(L));
 encode(_Type, _Value)                       -> {error, unsupported}.
 
@@ -52,6 +53,7 @@ decode(interval = Type, B)                  -> ?datetime:decode(Type, B);
 decode(uuid, B)                             -> decode_uuid(B);
 decode({array, _Type}, B)                   -> decode_array(B);
 decode(point, B)                            -> decode_point(B);
+decode(geometry, B)                         -> ewkb:decode_geometry(B);
 decode(_Other, Bin)                         -> Bin.
 
 encode_array(Type, A) ->
@@ -126,21 +128,27 @@ encode_point({X, Y}) when is_number(X), is_number(Y) ->
 decode_point(<<X:1/big-float-unit:64, Y:1/big-float-unit:64>>) ->
     {X, Y}.
 
-supports(point)   -> true;
-supports(bool)    -> true;
-supports(bpchar)  -> true;
-supports(int2)    -> true;
-supports(int4)    -> true;
-supports(int8)    -> true;
-supports(float4)  -> true;
-supports(float8)  -> true;
-supports(bytea)   -> true;
-supports(text)    -> true;
-supports(varchar) -> true;
-supports(record)  -> true;
-supports(date)    -> true;
-supports(time)    -> true;
-supports(timetz)  -> true;
+encode_geometry(Data) ->
+    Bin = ewkb:encode_geometry(Data),
+    Size = byte_size(Bin),
+    <<Size:?int32, Bin/binary>>.
+
+supports(geometry) -> true;
+supports(point)    -> true;
+supports(bool)     -> true;
+supports(bpchar)   -> true;
+supports(int2)     -> true;
+supports(int4)     -> true;
+supports(int8)     -> true;
+supports(float4)   -> true;
+supports(float8)   -> true;
+supports(bytea)    -> true;
+supports(text)     -> true;
+supports(varchar)  -> true;
+supports(record)   -> true;
+supports(date)     -> true;
+supports(time)     -> true;
+supports(timetz)   -> true;
 supports(timestamp)   -> true;
 supports(timestamptz) -> true;
 supports(interval)    -> true;
