@@ -66,7 +66,7 @@ encode({array, char}, L, Codec) when is_list(L) -> encode_array(bpchar, type2oid
 encode({array, Type}, L, Codec) when is_list(L) -> encode_array(Type, type2oid(Type, Codec), L, Codec);
 encode(hstore, {L}, _) when is_list(L)      -> encode_hstore(L);
 encode(point, {X,Y}, _)                     -> encode_point({X,Y});
-encode(geometry, Data)                      -> encode_geometry(Data);
+encode(geometry, Data, _)                   -> encode_geometry(Data);
 encode(Type, L, Codec) when is_list(L)      -> encode(Type, list_to_binary(L), Codec);
 encode(_Type, _Value, _)                    -> {error, unsupported}.
 
@@ -89,7 +89,7 @@ decode(uuid, B, _)                             -> decode_uuid(B);
 decode(hstore, Hstore, _)                      -> decode_hstore(Hstore);
 decode({array, _Type}, B, Codec)               -> decode_array(B, Codec);
 decode(point, B, _)                            -> decode_point(B);
-decode(geometry, B)                            -> ewkb:decode_geometry(B);
+decode(geometry, B, _)                         -> ewkb:decode_geometry(B);
 decode(_Other, Bin, _)                         -> Bin.
 
 encode_array(Type, Oid, A, Codec) ->
