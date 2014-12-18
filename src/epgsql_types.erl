@@ -93,7 +93,6 @@ oid2type(2776)  -> anynonarray;
 oid2type(2950)  -> uuid;
 oid2type(2951)  -> {array, uuid};
 oid2type(3500)  -> anyenum;
-oid2type(26256) -> geometry;
 oid2type(Oid)   -> {unknown_oid, Oid}.
 
 type2oid(bool)                  -> 16;
@@ -187,5 +186,4 @@ type2oid(anynonarray)           -> 2776;
 type2oid(uuid)                  -> 2950;
 type2oid({array, uuid})         -> 2951;
 type2oid(anyenum)               -> 3500;
-type2oid(geometry)              -> 26256;
 type2oid(Type)                  -> {unknown_type, Type}.
