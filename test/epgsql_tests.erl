@@ -573,6 +573,10 @@ hstore_type_test(Module) ->
     check_type(Module, hstore, "'a => 1, b => 2.0, c => null'",
                {[{<<"c">>, null}, {<<"b">>, <<"2.0">>}, {<<"a">>, <<"1">>}]}, Values).
 
+net_type_test(Module) ->
+    check_type(Module, cidr, "'127.0.0.1/32'", {{127,0,0,1}, 32}, [{{127,0,0,1}, 32}, {{0,0,0,0,0,0,0,1}, 128}]),
+    check_type(Module, inet, "'127.0.0.1'", {127,0,0,1}, [{127,0,0,1}, {0,0,0,0,0,0,0,1}]).
+
 array_type_test(Module) ->
     with_connection(
       Module,
@@ -605,7 +609,9 @@ array_type_test(Module) ->
           Select(timestamptz, [{{2008,1,2},{3,4,5.0}}, {{2008,1,2},{3,4,6.0}}]),
           Select(interval, [{{1,2,3.1},0,0}, {{1,2,3.2},0,0}]),
           Select(hstore, [{[{null, null}, {a, 1}, {1, 2}]}]),
-          Select(hstore, [[{[{null, null}, {a, 1}, {1, 2}]}, {[]}], [{[{a, 1}]}, {[{null, 2}]}]])
+          Select(hstore, [[{[{null, null}, {a, 1}, {1, 2}]}, {[]}], [{[{a, 1}]}, {[{null, 2}]}]]),
+          Select(cidr, [{{127,0,0,1}, 32}, {{0,0,0,0,0,0,0,1}, 128}]),
+          Select(inet, [{127,0,0,1}, {0,0,0,0,0,0,0,1}])
       end).
 
 text_format_test(Module) ->
@@ -618,7 +624,6 @@ text_format_test(Module) ->
                                {ok, _Cols, [{V2}]} = Module:equery(C, Query, [V]),
                                {ok, _Cols, [{V2}]} = Module:equery(C, Query, [V2])
                        end,
-              Select("inet", "127.0.0.1"),
               Select("numeric", "123456")
       end).
 
