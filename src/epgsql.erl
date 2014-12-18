@@ -90,7 +90,7 @@ connect(C, Host, Username, Password, Opts) ->
 
 -spec update_type_cache(connection()) -> ok.
 update_type_cache(C) ->
-    DynamicTypes = [<<"hstore">>],
+    DynamicTypes = [<<"hstore">>,<<"geometry">>],
     Query = "SELECT typname, oid::int4, typarray::int4"
             " FROM pg_type"
             " WHERE typname = ANY($1::varchar[])",
