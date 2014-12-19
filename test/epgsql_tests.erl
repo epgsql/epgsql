@@ -653,6 +653,7 @@ execute_timeout_test(Module) ->
               {ok, S} = Module:parse(C, "select pg_sleep($1)"),
               ok = Module:bind(C, S, [2]),
               ?TIMEOUT_ERROR = Module:execute(C, S, 0),
+              ok = Module:sync(C),
               ok = Module:bind(C, S, [0]),
               {ok, [{<<>>}]} = Module:execute(C, S, 0),
               ok = Module:close(C, S),
