@@ -665,7 +665,8 @@ connection_closed_test(Module) ->
     P = self(),
     F = fun() ->
                 process_flag(trap_exit, true),
-                {ok, C} = Module:connect(?host, [{port, ?port}]),
+                {ok, C} = Module:connect(?host, "epgsql_test",
+                                         [{port, ?port}, {database, "epgsql_test_db1"}]),
                 P ! {connected, C},
                 receive
                     Any -> P ! Any
@@ -684,7 +685,8 @@ active_connection_closed_test(Module) ->
     P = self(),
     F = fun() ->
                 process_flag(trap_exit, true),
-                {ok, C} = Module:connect(?host, [{port, ?port}]),
+                {ok, C} = Module:connect(?host, [{database,
+                                                  "epgsql_test_db1"}, {port, ?port}]),
                 P ! {connected, C},
                 R = Module:squery(C, "select pg_sleep(10)"),
                 P ! R
@@ -706,7 +708,7 @@ warning_notice_test(Module) ->
                begin
                  raise warning 'oops';
                end;
-               $$ language plepgsql;
+               $$ language plpgsql;
                select pg_temp.raise()",
           [{ok, _, _}, _] = Module:squery(C, Q),
           receive
