@@ -755,6 +755,23 @@ run_tests() ->
     eunit:test(Mods, []).
 
 all_test_() ->
+    Version =
+        erlang:list_to_binary(
+          re:replace(os:cmd("git rev-parse HEAD"), "\\s+", "")),
+
+    with_connection(
+      epgsql,
+      fun(C) ->
+              {ok, _Cols, [{DBVersion}]} = epgsql:squery(C, "SELECT version FROM schema_version"),
+              case DBVersion == Version of
+                  false ->
+                      error_logger:info_msg("Git version of test schema does not match: ~p ~p~nPlease run make create_testdbs to update your test databases", [Version, DBVersion]),
+                      erlang:exit(1);
+                  _ ->
+                      undefined
+              end
+      end),
+
     Tests =
         lists:map(
           fun({Name, _}) ->

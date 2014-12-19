@@ -9,6 +9,8 @@ compile:
 clean:
 	@$(REBAR) clean
 
+# The INSERT is used to make sure the schema_version matches the tests
+# being run.
 create_testdbs:
 	psql template1 < ./test_data/test_schema.sql
 	psql epgsql_test_db1 -c "INSERT INTO schema_version (version) VALUES ('${LASTVERSION}');"
