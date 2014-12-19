@@ -1,4 +1,5 @@
 REBAR = rebar
+LASTVERSION = $(shell git rev-parse HEAD )
 
 all: compile
 
@@ -10,6 +11,7 @@ clean:
 
 create_testdbs:
 	psql template1 < ./test_data/test_schema.sql
+	psql epgsql_test_db1 -c "INSERT INTO schema_version (version) VALUES ('${LASTVERSION}');"
 
 test:
 	@$(REBAR) eunit
