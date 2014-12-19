@@ -1,3 +1,4 @@
+
 -- script to create test schema for epgsql unit tests --
 --
 -- this script should be run as the same user the tests will be run as,
@@ -25,6 +26,9 @@ CREATE USER epgsql_test_md5 WITH PASSWORD 'epgsql_test_md5';
 CREATE USER epgsql_test_cleartext WITH PASSWORD 'epgsql_test_cleartext';
 CREATE USER epgsql_test_cert;
 
+DROP DATABASE epgsql_test_db1;
+DROP DATABASE epgsql_test_db2;
+
 CREATE DATABASE epgsql_test_db1 WITH ENCODING 'UTF8';
 CREATE DATABASE epgsql_test_db2 WITH ENCODING 'UTF8';
 
@@ -34,6 +38,8 @@ GRANT ALL ON DATABASE epgsql_test_db1 to epgsql_test_cleartext;
 GRANT ALL ON DATABASE epgsql_test_db2 to epgsql_test;
 
 \c epgsql_test_db1;
+
+CREATE TABLE schema_version (version varchar);
 
 CREATE EXTENSION hstore;
 CREATE TABLE test_table1 (id integer primary key, value text);
