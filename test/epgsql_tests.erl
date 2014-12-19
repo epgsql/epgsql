@@ -21,6 +21,10 @@
 -define(UUID3,
         <<198,188,155,66,149,151,17,227,138,98,112,24,139,130,16,73>>).
 
+-define(TIMEOUT_ERROR,
+        {error,{error,error,<<"57014">>,
+                <<"canceling statement due to statement timeout">>,[]}}).
+
 %% From uuid.erl in http://gitorious.org/avtobiff/erlang-uuid
 uuid_to_string(<<U0:32, U1:16, U2:16, U3:16, U4:48>>) ->
     lists:flatten(io_lib:format(
@@ -634,25 +638,27 @@ query_timeout_test(Module) ->
     with_connection(
       Module,
       fun(C) ->
-              {error, timeout} = Module:squery(C, "select pg_sleep(1)"),
-              {error, timeout} = Module:equery(C, "select pg_sleep(2)"),
-              {ok, _Cols, [{1}]} = Module:equery(C, "select 1")
+              {ok, _, _} = Module:squery(C, "SET statement_timeout = 500"),
+              ?TIMEOUT_ERROR = Module:squery(C, "SELECT pg_sleep(1)"),
+              ?TIMEOUT_ERROR = Module:equery(C, "SELECT pg_sleep(2)"),
+              {ok, _Cols, [{1}]} = Module:equery(C, "SELECT 1")
       end,
-      [{timeout, 10}]).
+      []).
 
 execute_timeout_test(Module) ->
     with_connection(
       Module,
       fun(C) ->
+              {ok, _, _} = Module:squery(C, "SET statement_timeout = 500"),
               {ok, S} = Module:parse(C, "select pg_sleep($1)"),
               ok = Module:bind(C, S, [2]),
-              {error, timeout} = Module:execute(C, S, 0),
+              ?TIMEOUT_ERROR = Module:execute(C, S, 0),
               ok = Module:bind(C, S, [0]),
               {ok, [{<<>>}]} = Module:execute(C, S, 0),
               ok = Module:close(C, S),
               ok = Module:sync(C)
       end,
-      [{timeout, 10}]).
+      []).
 
 connection_closed_test(Module) ->
     P = self(),
