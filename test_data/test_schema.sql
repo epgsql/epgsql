@@ -35,6 +35,8 @@ GRANT ALL ON DATABASE epgsql_test_db2 to epgsql_test;
 
 \c epgsql_test_db1;
 
+CREATE EXTENSION postgis;
+
 CREATE EXTENSION hstore;
 CREATE TABLE test_table1 (id integer primary key, value text);
 
@@ -59,7 +61,9 @@ CREATE TABLE test_table2 (
   c_timestamp timestamp,
   c_timestamptz timestamptz,
   c_interval interval,
-  c_hstore hstore);
+  c_hstore hstore,
+  c_point point,
+  c_geometry geometry);
 
 CREATE LANGUAGE plpgsql;
 

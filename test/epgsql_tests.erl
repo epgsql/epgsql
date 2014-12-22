@@ -800,6 +800,7 @@ with_connection(Module, F, Username, Args) ->
     Args2 = [{port, ?port}, {database, "epgsql_test_db1"} | Args],
     {ok, C} = Module:connect(?host, Username, Args2),
     try
+        epgsql:update_type_cache(C),
         F(C)
     after
         Module:close(C)

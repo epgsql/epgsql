@@ -187,7 +187,8 @@ decode_hstore1(N, <<KeyLen:?int32, Key:KeyLen/binary, ValLen:?int32, Value:ValLe
     decode_hstore1(N - 1, Rest, [{Key, Value} | Acc]).
 
 encode_point({X, Y}) when is_number(X), is_number(Y) ->
-    <<X:1/big-float-unit:64, Y:1/big-float-unit:64>>.
+    Bin = <<X:1/big-float-unit:64, Y:1/big-float-unit:64>>,
+    <<(byte_size(Bin)):?int32, Bin/binary>>.
 
 decode_point(<<X:1/big-float-unit:64, Y:1/big-float-unit:64>>) ->
     {X, Y}.
