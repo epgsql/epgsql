@@ -15,7 +15,8 @@
          execute_batch/2,
          close/2, close/3,
          sync/1,
-         cancel/1]).
+         cancel/1,
+         complete_connect/2]).
 
 -include("epgsql.hrl").
 
@@ -37,7 +38,7 @@ connect(Host, Username, Password, Opts) ->
 -spec connect(epgsql:connection(), inet:ip_address() | inet:hostname(),
               string(), string(), [epgsql:connect_option()]) -> reference().
 connect(C, Host, Username, Password, Opts) ->
-    cast(C, {connect, Host, Username, Password, Opts}).
+    complete_connect(C, cast(C, {connect, Host, Username, Password, Opts})).
 
 -spec close(epgsql:connection()) -> ok.
 close(C) ->
@@ -116,4 +117,23 @@ cancel(C) ->
 cast(C, Command) ->
     Ref = make_ref(),
     gen_server:cast(C, {{cast, self(), Ref}, Command}),
+    Ref.
+
+complete_connect(C, Ref) ->
+    receive
+        %% If we connect, then try and update the type cache.  When
+        %% all is said and done, pass the result along as a message.
+        {C, Ref, Msg} ->
+            Retval =
+                case Msg of
+                    connected ->
+                        ok = epgsql:update_type_cache(C),
+                        {C, Ref, connected};
+                    {error, Error} ->
+                        {C, Ref, {error, Error}}
+                end,
+            self() ! Retval;
+        {'EXIT', C, Reason} ->
+            self() ! {'EXIT', C, Reason}
+    end,
     Ref.
