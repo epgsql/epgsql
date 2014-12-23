@@ -27,35 +27,6 @@
 
 -include("epgsql.hrl").
 
--type connection() :: pid().
--type connect_option() :: {database, string()}
-                          | {port, inet:port_number()}
-                          | {ssl, boolean() | required}
-                          | {ssl_opts, list()} % ssl:option(), see OTP ssl_api.hrl
-                          | {timeout, timeout()}
-                          | {async, pid()}.
--type connect_error() :: #error{}.
--type query_error() :: #error{}.
-
--type bind_param() ::
-        null
-        | boolean()
-        | string()
-        | binary()
-        | integer()
-        | float()
-        | calendar:date()
-        | calendar:time()                       %actualy, `Seconds' may be float()
-        | calendar:datetime()
-        | {calendar:time(), Days::non_neg_integer(), Months::non_neg_integer()}
-        | [bind_param()].                       %array (maybe nested)
-
--type squery_row() :: {binary()}.
--type equery_row() :: {bind_param()}.
--type ok_reply(RowType) :: {ok, [#column{}], [RowType]}  % SELECT
-                         | {ok, non_neg_integer()}   % UPDATE / INSERT
-                         | {ok, non_neg_integer(), [#column{}], [RowType]}. % UPDATE / INSERT + RETURNING
-
 %% -- client interface --
 connect(Settings) ->
 	Host = proplists:get_value(host, Settings, "localhost"),
