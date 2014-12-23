@@ -20,6 +20,10 @@
 -- ssl support must be configured, and the sslinfo contrib module
 -- loaded for the ssl tests to succeed.
 
+-- NOTE: you will need the postgis extensions to run these tests!
+-- On Ubuntu, you can install them with a command like this:
+--   apt-get install postgresql-9.3-postgis-2.1
+
 
 CREATE USER epgsql_test;
 CREATE USER epgsql_test_md5 WITH PASSWORD 'epgsql_test_md5';
@@ -42,6 +46,8 @@ GRANT ALL ON DATABASE epgsql_test_db2 to epgsql_test;
 CREATE TABLE schema_version (version varchar);
 
 CREATE EXTENSION hstore;
+CREATE EXTENSION postgis;
+
 CREATE TABLE test_table1 (id integer primary key, value text);
 
 INSERT INTO test_table1 (id, value) VALUES (1, 'one');
@@ -66,6 +72,8 @@ CREATE TABLE test_table2 (
   c_timestamptz timestamptz,
   c_interval interval,
   c_hstore hstore,
+  c_point point,
+   c_geometry geometry,
   c_cidr cidr,
   c_inet inet);
 
