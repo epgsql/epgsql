@@ -22,17 +22,20 @@
 -export_type([connection/0, connect_option/0,
               connect_error/0, query_error/0,
               bind_param/0,
-              squery_row/0, equery_row/0, ok_reply/1]).
+              squery_row/0, equery_row/0, reply/1]).
 
 -include("pgsql.hrl").
 
+-type query() :: string() | iodata().
+-type host() :: inet:ip_address() | inet:hostname().
 -type connection() :: pid().
--type connect_option() :: {database, string()}
-                          | {port, inet:port_number()}
-                          | {ssl, boolean() | required}
-                          | {ssl_opts, list()} % ssl:option(), see OTP ssl_api.hrl
-                          | {timeout, timeout()}
-                          | {async, pid()}.
+-type connect_option() ::
+    {database, DBName     :: string()}             |
+    {port,     PortNum    :: inet:port_number()}   |
+    {ssl,      IsEnabled  :: boolean() | required} |
+    {ssl_opts, SslOptions :: [ssl:ssl_option()]}   | % @see OTP ssl app, ssl_api.hrl
+    {timeout,  TimeoutMs  :: timeout()}            | % default: 5000 ms
+    {async,    Receiver   :: pid()}. % process to receive LISTEN/NOTIFY msgs
 -type connect_error() :: #error{}.
 -type query_error() :: #error{}.
 
@@ -51,9 +54,12 @@
 
 -type squery_row() :: {binary()}.
 -type equery_row() :: {bind_param()}.
--type ok_reply(RowType) :: {ok, [#column{}], [RowType]}  % SELECT
-                         | {ok, non_neg_integer()}   % UPDATE / INSERT
-                         | {ok, non_neg_integer(), [#column{}], [RowType]}. % UPDATE / INSERT + RETURNING
+-type ok_reply(RowType) ::
+    {ok, Count :: non_neg_integer()} |                                                            % select
+    {ok, ColumnsDescription :: [#column{}], RowsValues :: [RowType]} |                            % update/insert
+    {ok, Count :: non_neg_integer(), ColumnsDescription :: [#column{}], RowsValues :: [RowType]}. % update/insert + returning
+-type error_reply() :: {error, query_error()}.
+-type reply(RowType) :: ok_reply(RowType) | error_reply().
 
 %% -- client interface --
 
@@ -63,13 +69,21 @@ connect(Host, Opts) ->
 connect(Host, Username, Opts) ->
     connect(Host, Username, "", Opts).
 
+-spec connect(host(), string(), string(), [connect_option()])
+        -> {ok, Connection :: connection()} | {error, Reason :: connect_error()}.
+%% @doc connects to Postgres
+%% where
+%% `Host'     - host to connect to
+%% `Username' - username to connect as, defaults to `$USER'
+%% `Password' - optional password to authenticate with
+%% `Opts'     - proplist of extra options
+%% returns `{ok, Connection}' otherwise `{error, Reason}'
 connect(Host, Username, Password, Opts) ->
     {ok, C} = pgsql_sock:start_link(),
     connect(C, Host, Username, Password, Opts).
 
--spec connect(connection(), inet:ip_address() | inet:hostname(),
-              string(), string(), [connect_option()]) ->
-                     {ok, pid()} | {error, connect_error()}.
+-spec connect(connection(), host(), string(), string(), [connect_option()])
+        -> {ok, Connection :: connection()} | {error, Reason :: connect_error()}.
 connect(C, Host, Username, Password, Opts) ->
     %% TODO connect timeout
     case gen_server:call(C,
@@ -89,11 +103,10 @@ close(C) ->
 get_parameter(C, Name) ->
     pgsql_sock:get_parameter(C, Name).
 
--spec squery(connection(), string() | iodata()) ->
-                    ok_reply(squery_row()) | {error, query_error()} |
-                    [ok_reply(squery_row()) | {error, query_error()}].
-squery(C, Sql) ->
-    gen_server:call(C, {squery, Sql}, infinity).
+-spec squery(connection(), query()) -> reply(squery_row()) | [reply(squery_row())].
+%% @doc runs simple `SqlQuery' via given `Connection'
+squery(Connection, SqlQuery) ->
+    gen_server:call(Connection, {squery, SqlQuery}, infinity).
 
 equery(C, Sql) ->
     equery(C, Sql, []).
@@ -108,8 +121,7 @@ equery(C, Sql, Parameters) ->
             Error
     end.
 
--spec equery(connection(), string(), string() | iodata(), [bind_param()]) ->
-                    ok_reply(equery_row()) | {error, query_error()}.
+-spec equery(connection(), string(), query(), [bind_param()]) -> reply(equery_row()).
 equery(C, Name, Sql, Parameters) ->
     case parse(C, Name, Sql, []) of
         {ok, #statement{types = Types} = S} ->
@@ -127,7 +139,7 @@ parse(C, Sql) ->
 parse(C, Sql, Types) ->
     parse(C, "", Sql, Types).
 
--spec parse(connection(), iolist(), string() | iodata(), [epgsql_type()]) ->
+-spec parse(connection(), iolist(), query(), [epgsql_type()]) ->
                    {ok, #statement{}} | {error, query_error()}.
 parse(C, Name, Sql, Types) ->
     sync_on_error(C, gen_server:call(C, {parse, Name, Sql, Types}, infinity)).
@@ -161,8 +173,7 @@ execute(C, S, N) ->
 execute(C, S, PortalName, N) ->
     gen_server:call(C, {execute, S, PortalName, N}, infinity).
 
--spec execute_batch(connection(), [{#statement{}, [bind_param()]}]) ->
-                           [ok_reply(equery_row()) | {error, query_error()}].
+-spec execute_batch(connection(), [{#statement{}, [bind_param()]}]) -> [reply(equery_row())].
 execute_batch(C, Batch) ->
     gen_server:call(C, {execute_batch, Batch}, infinity).
 
