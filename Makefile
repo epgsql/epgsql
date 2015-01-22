@@ -12,8 +12,10 @@ clean:
 # The INSERT is used to make sure the schema_version matches the tests
 # being run.
 create_testdbs:
-	psql template1 < ./test_data/test_schema.sql
-	psql epgsql_test_db1 -c "INSERT INTO schema_version (version) VALUES ('${LASTVERSION}');"
+	# Uses the test environment set up with setup_test_db.sh
+	echo "CREATE DATABASE davidw;" | psql -h localhost -p 10432 template1
+	psql -h localhost -p 10432 template1 < ./test_data/test_schema.sql
+	psql -h localhost -p 10432 epgsql_test_db1 -c "INSERT INTO schema_version (version) VALUES ('${LASTVERSION}');"
 
 test:
 	@$(REBAR) eunit

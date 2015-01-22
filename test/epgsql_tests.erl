@@ -8,7 +8,7 @@
 -include("epgsql.hrl").
 
 -define(host, "localhost").
--define(port, 5432).
+-define(port, 10432).
 
 -define(ssl_apps, [crypto, asn1, public_key, ssl]).
 
@@ -573,9 +573,13 @@ hstore_type_test(Module) ->
         {[{<<"a">>, <<"c">>}, {<<"c">>, <<"d">>}]},
         {[{<<"a">>, <<"c">>}, {<<"c">>, null}]}
     ],
-    check_type(Module, hstore, "''", {[]}, []),
-    check_type(Module, hstore, "'a => 1, b => 2.0, c => null'",
-               {[{<<"c">>, null}, {<<"b">>, <<"2.0">>}, {<<"a">>, <<"1">>}]}, Values).
+    with_connection(
+      Module,
+      fun(C) ->
+              check_type(Module, hstore, "''", {[]}, []),
+              check_type(Module, hstore, "'a => 1, b => 2.0, c => null'",
+                         {[{<<"c">>, null}, {<<"b">>, <<"2.0">>}, {<<"a">>, <<"1">>}]}, Values)
+      end).
 
 net_type_test(Module) ->
     check_type(Module, cidr, "'127.0.0.1/32'", {{127,0,0,1}, 32}, [{{127,0,0,1}, 32}, {{0,0,0,0,0,0,0,1}, 128}]),

@@ -48,6 +48,7 @@ CREATE TABLE schema_version (version varchar);
 -- This requires Postgres to be compiled with SSL:
 -- http://www.postgresql.org/docs/9.4/static/sslinfo.html
 CREATE EXTENSION sslinfo;
+
 CREATE EXTENSION hstore;
 CREATE EXTENSION postgis;
 
@@ -76,7 +77,7 @@ CREATE TABLE test_table2 (
   c_interval interval,
   c_hstore hstore,
   c_point point,
-   c_geometry geometry,
+  c_geometry geometry,
   c_cidr cidr,
   c_inet inet);
 
