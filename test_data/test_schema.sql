@@ -45,6 +45,9 @@ GRANT ALL ON DATABASE epgsql_test_db2 to epgsql_test;
 
 CREATE TABLE schema_version (version varchar);
 
+-- This requires Postgres to be compiled with SSL:
+-- http://www.postgresql.org/docs/9.4/static/sslinfo.html
+CREATE EXTENSION sslinfo;
 CREATE EXTENSION hstore;
 CREATE EXTENSION postgis;
 
