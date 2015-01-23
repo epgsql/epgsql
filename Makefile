@@ -13,9 +13,9 @@ clean:
 # being run.
 create_testdbs:
 	# Uses the test environment set up with setup_test_db.sh
-	echo "CREATE DATABASE davidw;" | psql -h localhost -p 10432 template1
-	psql -h localhost -p 10432 template1 < ./test_data/test_schema.sql
-	psql -h localhost -p 10432 epgsql_test_db1 -c "INSERT INTO schema_version (version) VALUES ('${LASTVERSION}');"
+	echo "CREATE DATABASE ${USER};" | psql -h 127.0.0.1 -p 10432 template1
+	psql -h 127.0.0.1 -p 10432 template1 < ./test_data/test_schema.sql
+	psql -h 127.0.0.1 -p 10432 epgsql_test_db1 -c "INSERT INTO schema_version (version) VALUES ('${LASTVERSION}');"
 
 test:
 	@$(REBAR) eunit
