@@ -9,7 +9,10 @@ fi
 ## this:
 
 initdb --locale en_US.UTF-8 datadir
-echo "ssl = on" >> datadir/postgresql.conf
+cat > datadir/postgresql.conf <<EOF
+ssl = on
+ssl_ca_file = 'root.crt'
+EOF
 
 cp test_data/epgsql.crt datadir/server.crt
 cp test_data/epgsql.key datadir/server.key
@@ -25,6 +28,6 @@ host    epgsql_test_db1 $USER                   127.0.0.1/32    trust
 host    epgsql_test_db1 epgsql_test             127.0.0.1/32    trust
 host    epgsql_test_db1 epgsql_test_md5         127.0.0.1/32    md5
 host    epgsql_test_db1 epgsql_test_cleartext   127.0.0.1/32    password
-hostssl epgsql_test_db1 epgsql_test_cert        127.0.0.1/32    cert
+hostssl epgsql_test_db1 epgsql_test_cert        127.0.0.1/32    cert clientcert=1
 EOF
 
