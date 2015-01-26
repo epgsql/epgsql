@@ -7,11 +7,6 @@
 -- ssl support must be configured, and the sslinfo contrib module
 -- loaded for the ssl tests to succeed.
 
--- NOTE: you will need the postgis extensions to run these tests!
--- On Ubuntu, you can install them with a command like this:
---   apt-get install postgresql-9.3-postgis-2.1
-
-
 CREATE USER epgsql_test;
 CREATE USER epgsql_test_md5 WITH PASSWORD 'epgsql_test_md5';
 CREATE USER epgsql_test_cleartext WITH PASSWORD 'epgsql_test_cleartext';

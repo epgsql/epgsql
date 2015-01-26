@@ -320,3 +320,9 @@ in order to avoid modifying the system installation of Postgres.
 3. `make create_testdbs` # Creates the test database environment.
 
 3. `make test` # Runs the tests
+
+NOTE: you will need the postgis extensions to run these tests!  On
+Ubuntu, you can install them with a command like this:
+
+    apt-get install postgresql-9.3-postgis-2.1
+
