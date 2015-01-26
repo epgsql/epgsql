@@ -37,7 +37,7 @@ connect(Host, Username, Password, Opts) ->
 -spec connect(epgsql:connection(), inet:ip_address() | inet:hostname(),
               string(), string(), [epgsql:connect_option()]) -> reference().
 connect(C, Host, Username, Password, Opts) ->
-    incremental(C, {connect, Host, Username, Password, Opts}).
+    epgsqla:complete_connect(C, incremental(C, {connect, Host, Username, Password, Opts})).
 
 -spec close(epgsql:connection()) -> ok.
 close(C) ->
