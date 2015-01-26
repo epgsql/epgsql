@@ -30,6 +30,7 @@ GRANT ALL ON DATABASE epgsql_test_db2 to epgsql_test;
 
 \c epgsql_test_db1;
 
+DROP TABLE schema_version;
 CREATE TABLE schema_version (version varchar);
 
 -- This requires Postgres to be compiled with SSL:
