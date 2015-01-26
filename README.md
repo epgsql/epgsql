@@ -317,6 +317,6 @@ in order to avoid modifying the system installation of Postgres.
 
 2. `./start_test_db.sh` # Starts a Postgres instance on its own port (10432).
 
-3. `make create_testdbs` # Creaets the test database environment.
+3. `make create_testdbs` # Creates the test database environment.
 
 3. `make test` # Runs the tests
