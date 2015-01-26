@@ -43,7 +43,7 @@ noise(N) ->
 %%
 
 -define(host, "localhost").
--define(port, 5432).
+-define(port, 10432).
 
 with_connection(F) ->
     with_connection(F, "epgsql_test", []).
