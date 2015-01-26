@@ -313,6 +313,11 @@ In order to run the epgsql tests, you will need to set up a local
 Postgres database that runs within its own, self-contained directory,
 in order to avoid modifying the system installation of Postgres.
 
+NOTE: you will need the postgis and hstore extensions to run these
+tests!  On Ubuntu, you can install them with a command like this:
+
+    apt-get install postgresql-9.3-postgis-2.1 postgresql-contrib
+
 1. `./setup_test_db.sh` # This sets up an installation of Postgres in datadir/
 
 2. `./start_test_db.sh` # Starts a Postgres instance on its own port (10432).
@@ -321,8 +326,4 @@ in order to avoid modifying the system installation of Postgres.
 
 3. `make test` # Runs the tests
 
-NOTE: you will need the postgis extensions to run these tests!  On
-Ubuntu, you can install them with a command like this:
-
-    apt-get install postgresql-9.3-postgis-2.1
 
