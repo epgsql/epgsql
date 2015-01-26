@@ -577,7 +577,8 @@ hstore_type_test(Module) ->
       Module,
       fun(C) ->
               check_type(Module, hstore, "''", {[]}, []),
-              check_type(Module, hstore, "'a => 1, b => 2.0, c => null'",
+              check_type(Module, hstore,
+                         "'a => 1, b => 2.0, c => null'",
                          {[{<<"c">>, null}, {<<"b">>, <<"2.0">>}, {<<"a">>, <<"1">>}]}, Values)
       end).
 
