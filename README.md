@@ -35,14 +35,8 @@ provide a common fork for community development.
 
 * Known problems
 
-  A timeout supplied at connect time works as a socket connect timeout,
-  not a query timeout. It passes all tests from original driver except for
-  the 3 failing timeout tests.
   SSL performance can degrade if the driver process has a large inbox
   (thousands of messages).
-  Usage of unnamed prepared statement and portals leads to unpredicted results
-  in case of concurrent access to same connection.
-
 
 * Connect
 
@@ -315,11 +309,14 @@ https://groups.google.com/forum/#!forum/epgsql
 
 ## Test Setup
 
-In order to run the epgsql tests, you will need to make some
-modifications to your local Postgres setup:
+In order to run the epgsql tests, you will need to set up a local
+Postgres database that runs within its own, self-contained directory,
+in order to avoid modifying the system installation of Postgres.
 
-1. Add the lines at the top of `test_data/test_schema.sql` to your `/etc/postgresql/pg_hba.conf` file.  Change $USER to your username.
+1. `./setup_test_db.sh` # This sets up an installation of Postgres in datadir/
 
-2. Run the test_data/test_schema.sql script like so: `psql template1 < test_data/test_schema.sql`, as the user you intend to run the tests as.
+2. `./start_test_db.sh` # Starts a Postgres instance on its own port (10432).
 
-3. `make test` .  Currently, 6 of the tests fail.
+3. `make create_testdbs` # Creaets the test database environment.
+
+3. `make test` # Runs the tests
