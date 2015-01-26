@@ -636,9 +636,6 @@ text_format_test(Module) ->
               Select("numeric", "123456")
       end).
 
-connect_timeout_test(Module) ->
-    {error, timeout} = Module:connect(?host, [{port, ?port}, {timeout, 0}]).
-
 query_timeout_test(Module) ->
     with_connection(
       Module,
