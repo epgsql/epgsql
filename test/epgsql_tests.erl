@@ -502,7 +502,7 @@ point_type_test(Module) ->
     check_type(Module, point, "'(23.15, 100)'", {23.15, 100.0}, []).
 
 geometry_type_test(Module) ->
-    check_type(Module, geometry, "'COMPOUNDCURVE(CIRCULARSTRING(0 0,1 1,1 0),(1 0,0 1))'", 
+    check_type(Module, geometry, "'COMPOUNDCURVE(CIRCULARSTRING(0 0,1 1,1 0),(1 0,0 1))'",
       {compound_curve,'2d',
           [{circular_string,'2d',
               [{point,'2d',0.0,0.0,undefined,undefined},
@@ -568,10 +568,14 @@ hstore_type_test(Module) ->
     Values = [
         {[]},
         {[{null, null}]},
+        {[{null, undefined}]}
         {[{1, null}]},
         {[{1.0, null}]},
+        {[{1, undefined}]},
+        {[{1.0, undefined}]},
         {[{<<"a">>, <<"c">>}, {<<"c">>, <<"d">>}]},
-        {[{<<"a">>, <<"c">>}, {<<"c">>, null}]}
+        {[{<<"a">>, <<"c">>}, {<<"c">>, null}]},
+        {[{<<"a">>, <<"c">>}, {<<"c">>, undefined}]}
     ],
     check_type(Module, hstore, "''", {[]}, []),
     check_type(Module, hstore, "'a => 1, b => 2.0, c => null'",
@@ -612,8 +616,8 @@ array_type_test(Module) ->
           Select(timestamp, [{{2008,1,2},{3,4,5.0}}, {{2008,1,2},{3,4,6.0}}]),
           Select(timestamptz, [{{2008,1,2},{3,4,5.0}}, {{2008,1,2},{3,4,6.0}}]),
           Select(interval, [{{1,2,3.1},0,0}, {{1,2,3.2},0,0}]),
-          Select(hstore, [{[{null, null}, {a, 1}, {1, 2}]}]),
-          Select(hstore, [[{[{null, null}, {a, 1}, {1, 2}]}, {[]}], [{[{a, 1}]}, {[{null, 2}]}]]),
+          Select(hstore, [{[{null, null}, {a, 1}, {1, 2}, {b, undefined}]}]),
+          Select(hstore, [[{[{null, null}, {a, 1}, {1, 2}, {b, undefined}]}, {[]}], [{[{a, 1}]}, {[{null, 2}]}]]),
           Select(cidr, [{{127,0,0,1}, 32}, {{0,0,0,0,0,0,0,1}, 128}]),
           Select(inet, [{127,0,0,1}, {0,0,0,0,0,0,0,1}])
       end).
@@ -884,15 +888,16 @@ check_type(Module, Type, In, Out, Values, Column) ->
                                end,
                                ok = Module:sync(C)
                        end,
-              lists:foreach(Insert, [null | Values])
+              lists:foreach(Insert, [null, undefined | Values])
       end).
 
-compare(_Type, null, null) -> true;
-compare(float4, V1, V2)    -> abs(V2 - V1) < 0.000001;
-compare(float8, V1, V2)    -> abs(V2 - V1) < 0.000000000000001;
-compare(hstore, {V1}, V2)  -> compare(hstore, V1, V2);
-compare(hstore, V1, {V2})  -> compare(hstore, V1, V2);
-compare(hstore, V1, V2)    ->
+compare(_Type, null, null)      -> true;
+compare(_Type, undefined, null) -> true;
+compare(float4, V1, V2)         -> abs(V2 - V1) < 0.000001;
+compare(float8, V1, V2)         -> abs(V2 - V1) < 0.000000000000001;
+compare(hstore, {V1}, V2)       -> compare(hstore, V1, V2);
+compare(hstore, V1, {V2})       -> compare(hstore, V1, V2);
+compare(hstore, V1, V2)         ->
     orddict:from_list(format_hstore(V1)) =:= orddict:from_list(format_hstore(V2));
 compare(Type, V1 = {_, _, MS}, {D2, {H2, M2, S2}}) when Type == timestamp;
                                                         Type == timestamptz ->
@@ -907,6 +912,7 @@ format_hstore(Hstore) ->
 format_hstore_key(Key) -> format_hstore_string(Key).
 
 format_hstore_value(null) -> null;
+format_hstore_value(undefined) -> null;
 format_hstore_value(Value) -> format_hstore_string(Value).
 
 format_hstore_string(Num) when is_number(Num) -> iolist_to_binary(io_lib:format("~w", [Num]));
