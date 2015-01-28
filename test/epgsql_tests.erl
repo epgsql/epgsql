@@ -579,7 +579,7 @@ hstore_type_test(Module) ->
     ],
     with_connection(
       Module,
-      fun(C) ->
+      fun(_C) ->
               check_type(Module, hstore, "''", {[]}, []),
               check_type(Module, hstore,
                          "'a => 1, b => 2.0, c => null'",
