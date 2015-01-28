@@ -50,6 +50,7 @@ type2oid(Type, #codec{type2oid = Type2Oid}) ->
     end.
 
 encode(_Any, null, _)                       -> <<-1:?int32>>;
+encode(_Any, undefined, _)                  -> <<-1:?int32>>;
 encode(bool, true, _)                       -> <<1:?int32, 1:1/big-signed-unit:8>>;
 encode(bool, false, _)                      -> <<1:?int32, 0:1/big-signed-unit:8>>;
 encode(int2, N, _)                          -> <<2:?int32, N:1/big-signed-unit:16>>;
@@ -142,8 +143,9 @@ encode_hstore_entry({Key, Value}) ->
 
 encode_hstore_key(Key) -> encode_hstore_string(Key).
 
-encode_hstore_value(null) -> <<-1:?int32>>;
-encode_hstore_value(Val) -> encode_hstore_string(Val).
+encode_hstore_value(null)      -> <<-1:?int32>>;
+encode_hstore_value(undefined) -> <<-1:?int32>>;
+encode_hstore_value(Val)       -> encode_hstore_string(Val).
 
 encode_hstore_string(Str) when is_list(Str) -> encode_hstore_string(list_to_binary(Str));
 encode_hstore_string(Str) when is_atom(Str) -> encode_hstore_string(atom_to_binary(Str, utf8));
