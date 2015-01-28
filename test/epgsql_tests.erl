@@ -568,7 +568,7 @@ hstore_type_test(Module) ->
     Values = [
         {[]},
         {[{null, null}]},
-        {[{null, undefined}]}
+        {[{null, undefined}]},
         {[{1, null}]},
         {[{1.0, null}]},
         {[{1, undefined}]},
