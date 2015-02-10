@@ -28,7 +28,7 @@ of the protocol feature that allows faster execution.
 
 see `CHANGES` for full list.
 
-### Differences between devel branch and mabrek's original async fork:
+### Differences between current epgsql and mabrek's original async fork:
 
 - Unnamed statements are used unless specified otherwise. This may
   cause problems for people attempting to use the same connection
@@ -364,8 +364,13 @@ PG type       | Representation
   array       | `[1, 2, 3]`
   record      | `{int2, time, text, ...}` (decode only)
   point       |  `{10.2, 100.12}`
+  int4range   | `[1,5)`
 
   `timestamp` and `timestamptz` parameters can take `erlang:now()` format: `{MegaSeconds, Seconds, MicroSeconds}`
+
+  `int4range` is a range type for ints (bigint not supported yet) that obeys inclusive/exclusive semantics,
+  bracket and parentheses respectively. Additionally, infinities are represented by the atoms `minus_infinity`
+  and `plus_infinity`
 
 ## Errors
 
@@ -407,7 +412,17 @@ Message formats:
 ## Mailing list
 
   [Google groups](https://groups.google.com/forum/#!forum/epgsql)
-  
+
+## Contributing
+
+epgsql is a community driven effort - we welcome contributions!
+Here's how to create a patch that's easy to integrate:
+
+* Create a new branch for the proposed fix.
+* Make sure it includes a test and documentation, if appropriate.
+* Open a pull request against the `devel` branch of epgsql.
+* Passing build in travis
+
 ## Test Setup
 
 In order to run the epgsql tests, you will need to set up a local
@@ -426,3 +441,5 @@ tests!  On Ubuntu, you can install them with a command like this:
 3. `make create_testdbs` # Creates the test database environment.
 
 4. `make test` # Runs the tests
+
+[![Build Status Master](https://travis-ci.org/chef/epgsql-1.svg?branch=master)](https://travis-ci.org/chef/epgsql-1)
