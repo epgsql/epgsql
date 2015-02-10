@@ -77,6 +77,7 @@ encode(point, {X,Y}, _)                     -> encode_point({X,Y});
 encode(geometry, Data, _)                   -> encode_geometry(Data);
 encode(cidr, B, Codec)                      -> encode(bytea, encode_net(B), Codec);
 encode(inet, B, Codec)                      -> encode(bytea, encode_net(B), Codec);
+encode(int4range, R, _) when is_tuple(R)    -> encode_int4range(R);
 encode(Type, L, Codec) when is_list(L)      -> encode(Type, list_to_binary(L), Codec);
 encode(_Type, _Value, _)                    -> {error, unsupported}.
 
@@ -102,6 +103,7 @@ decode(cidr, B, _)                             -> decode_net(B);
 decode({array, _Type}, B, Codec)               -> decode_array(B, Codec);
 decode(point, B, _)                            -> decode_point(B);
 decode(geometry, B, _)                         -> ewkb:decode_geometry(B);
+decode(int4range, B, _)                        -> decode_int4range(B);
 decode(_Other, Bin, _)                         -> Bin.
 
 encode_array(Type, Oid, A, Codec) ->
@@ -231,6 +233,30 @@ decode_net(<<?INET, ?MAX_IP_MASK, 0, ?IP_SIZE, Bin/binary>>) ->
     list_to_tuple(binary_to_list(Bin));
 decode_net(<<?INET6, ?MAX_IP6_MASK, 0, ?IP6_SIZE, Bin/binary>>) ->
     list_to_tuple([X || <<X:16>> <= Bin]).
+
+%% @doc encode an int4range
+encode_int4range({minus_infinity, plus_infinity}) ->
+    <<1:?int32, 24:1/big-signed-unit:8>>;
+encode_int4range({From, plus_infinity}) ->
+    FromInt = to_int(From),
+    <<9:?int32, 18:1/big-signed-unit:8, 4:?int32, FromInt:?int32>>;
+encode_int4range({minus_infinity, To}) ->
+    ToInt = to_int(To),
+    <<9:?int32, 8:1/big-signed-unit:8, 4:?int32, ToInt:?int32>>;
+encode_int4range({From, To}) ->
+    FromInt = to_int(From),
+    ToInt = to_int(To),
+    <<17:?int32, 2:1/big-signed-unit:8, 4:?int32, FromInt:?int32, 4:?int32, ToInt:?int32>>.
+
+to_int(N) when is_integer(N) -> N;
+to_int(S) when is_list(S) -> erlang:list_to_integer(S);
+to_int(B) when is_binary(B) -> erlang:binary_to_integer(B).
+
+%% @doc decode an int4range
+decode_int4range(<<2:1/big-signed-unit:8, 4:?int32, From:?int32, 4:?int32, To:?int32>>) -> {From, To};
+decode_int4range(<<8:1/big-signed-unit:8, 4:?int32, To:?int32>>) -> {minus_infinity, To};
+decode_int4range(<<18:1/big-signed-unit:8, 4:?int32, From:?int32>>) -> {From, plus_infinity};
+decode_int4range(<<24:1/big-signed-unit:8>>) -> {minus_infinity, plus_infinity}.
 
 supports(bool)    -> true;
 supports(bpchar)  -> true;
