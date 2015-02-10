@@ -28,7 +28,7 @@ of the protocol feature that allows faster execution.
 
 see `CHANGES` for full list.
 
-### Differences between devel branch and mabrek's original async fork:
+### Differences between current epgsql and mabrek's original async fork:
 
 - Unnamed statements are used unless specified otherwise. This may
   cause problems for people attempting to use the same connection
@@ -407,7 +407,16 @@ Message formats:
 ## Mailing list
 
   [Google groups](https://groups.google.com/forum/#!forum/epgsql)
-  
+
+## Contributing
+
+epgsql is a community driven effort - we welcome contributions!
+Here's how to create a patch that's easy to integrate:
+
+* Create a new branch for the proposed fix.
+* Make sure it includes a test and documentation, if appropriate.
+* Open a pull request against the `devel` branch of epgsql.
+
 ## Test Setup
 
 In order to run the epgsql tests, you will need to set up a local
