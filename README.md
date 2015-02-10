@@ -364,8 +364,13 @@ PG type       | Representation
   array       | `[1, 2, 3]`
   record      | `{int2, time, text, ...}` (decode only)
   point       |  `{10.2, 100.12}`
+  int4range   | `[1,5)`
 
   `timestamp` and `timestamptz` parameters can take `erlang:now()` format: `{MegaSeconds, Seconds, MicroSeconds}`
+
+  `int4range` is a range type for ints (bigint not supported yet) that obeys inclusive/exclusive semantics,
+  bracket and parentheses respectively. Additionally, infinities are represented by the atoms `minus_infinity`
+  and `plus_infinity`
 
 ## Errors
 
