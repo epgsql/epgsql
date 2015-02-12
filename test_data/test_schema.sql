@@ -62,7 +62,8 @@ CREATE TABLE test_table2 (
   c_point point,
   c_geometry geometry,
   c_cidr cidr,
-  c_inet inet);
+  c_inet inet,
+  c_int4range int4range);
 
 CREATE LANGUAGE plpgsql;
 
