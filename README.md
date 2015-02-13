@@ -421,6 +421,7 @@ Here's how to create a patch that's easy to integrate:
 * Create a new branch for the proposed fix.
 * Make sure it includes a test and documentation, if appropriate.
 * Open a pull request against the `devel` branch of epgsql.
+* Passing build in travis
 
 ## Test Setup
 
@@ -440,3 +441,6 @@ tests!  On Ubuntu, you can install them with a command like this:
 3. `make create_testdbs` # Creates the test database environment.
 
 4. `make test` # Runs the tests
+
+[![Build Status Master](https://travis-ci.org/epgsql/epgsql.svg?branch=master)](https://travis-ci.org/epgsql/epgsql)
+[![Build Status Devel](https://travis-ci.org/epgsql/epgsql.svg?branch=devel)](https://travis-ci.org/epgsql/epgsql)
