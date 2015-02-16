@@ -27,7 +27,7 @@
 
 -include("epgsql.hrl").
 
--type query() :: string() | iodata().
+-type sql_query() :: string() | iodata().
 -type host() :: inet:ip_address() | inet:hostname().
 -type connection() :: pid().
 -type connect_option() ::
@@ -119,7 +119,7 @@ close(C) ->
 get_parameter(C, Name) ->
     epgsql_sock:get_parameter(C, Name).
 
--spec squery(connection(), query()) -> reply(squery_row()) | [reply(squery_row())].
+-spec squery(connection(), sql_query()) -> reply(squery_row()) | [reply(squery_row())].
 %% @doc runs simple `SqlQuery' via given `Connection'
 squery(Connection, SqlQuery) ->
     gen_server:call(Connection, {squery, SqlQuery}, infinity).
@@ -137,7 +137,7 @@ equery(C, Sql, Parameters) ->
             Error
     end.
 
--spec equery(connection(), string(), query(), [bind_param()]) -> reply(equery_row()).
+-spec equery(connection(), string(), sql_query(), [bind_param()]) -> reply(equery_row()).
 equery(C, Name, Sql, Parameters) ->
     case parse(C, Name, Sql, []) of
         {ok, #statement{types = Types} = S} ->
@@ -155,7 +155,7 @@ parse(C, Sql) ->
 parse(C, Sql, Types) ->
     parse(C, "", Sql, Types).
 
--spec parse(connection(), iolist(), query(), [epgsql_type()]) ->
+-spec parse(connection(), iolist(), sql_query(), [epgsql_type()]) ->
                    {ok, #statement{}} | {error, query_error()}.
 parse(C, Name, Sql, Types) ->
     sync_on_error(C, gen_server:call(C, {parse, Name, Sql, Types}, infinity)).
