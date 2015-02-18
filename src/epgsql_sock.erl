@@ -120,8 +120,12 @@ handle_cast({{Method, From, Ref}, Command} = Req, State)
 handle_cast(stop, State) ->
     {stop, normal, flush_queue(State, {error, closed})};
 
-handle_cast(cancel, State = #state{backend = {Pid, Key}}) ->
-    {ok, {Addr, Port}} = inet:peername(State#state.sock),
+handle_cast(cancel, State = #state{backend = {Pid, Key},
+                                   sock = TimedOutSock}) ->
+    {ok, {Addr, Port}} = case State#state.mod of
+                             gen_tcp -> inet:peername(TimedOutSock);
+                             ssl -> ssl:peername(TimedOutSock)
+                         end,
     SockOpts = [{active, false}, {packet, raw}, binary],
     %% TODO timeout
     {ok, Sock} = gen_tcp:connect(Addr, Port, SockOpts),
