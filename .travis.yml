@@ -1,0 +1,12 @@
+language: erlang
+otp_release:
+   - 17.1
+   - R16B03
+addons:
+  postgresql: "9.3"
+before_script:
+  - ./setup_test_db.sh
+  - ./start_test_db.sh &
+  - make create_testdbs
+script:
+  - make test
