@@ -22,7 +22,7 @@
 
 -export_type([connection/0, connect_option/0,
               connect_error/0, query_error/0,
-              bind_param/0,
+              sql_query/0, bind_param/0,
               squery_row/0, equery_row/0, reply/1]).
 
 -include("epgsql.hrl").
