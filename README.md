@@ -8,7 +8,8 @@ provide a common fork for community development.
 
 If you want to get up to speed quickly with code that lets you run
 Postgres queries, you might consider trying
-[epgsql/pgapp](https://github.com/epgsql/pgapp), which adds:
+[epgsql/pgapp](https://github.com/epgsql/pgapp), which adds the
+following, on top of the epgsql driver::
 
 - A 'resource pool' (currently poolboy), which lets you decide how
   many Postgres workers you want to utilize.
