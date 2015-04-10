@@ -18,6 +18,7 @@
          cancel/1,
          update_type_cache/1,
          with_transaction/2,
+         to_proplist/2,
          sync_on_error/2]).
 
 -export_type([connection/0, connect_option/0,
@@ -219,6 +220,14 @@ cancel(C) ->
     epgsql_sock:cancel(C).
 
 %% misc helper functions
+
+-spec to_proplist(Colums::[#column{}], Rows::[equery_row()]) -> [tuple()].
+to_proplist(_Columns, []) ->
+    [];
+to_proplist(Columns, Rows) ->
+    ColumnNames = [erlang:binary_to_atom(C#column.name, latin1) || C <- Columns],
+    [lists:zip(ColumnNames, erlang:tuple_to_list(Row)) || Row <- Rows].
+
 -spec with_transaction(connection(), fun((connection()) -> Reply)) ->
                               Reply | {rollback, any()}
                                   when

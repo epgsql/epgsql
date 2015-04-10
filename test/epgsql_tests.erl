@@ -210,6 +210,15 @@ extended_select_test(Module) ->
               [{1, <<"one">>}, {2, <<"two">>}] = Rows
       end).
 
+to_proplist_test(Module) ->
+    with_connection(
+      Module,
+      fun(C) ->
+              {ok, Cols, Rows} = Module:equery(C, "select * from test_table1", []),
+              [[{id,1},{value,<<"one">>}],[{id,2},{value,<<"two">>}]] =
+                  epgsql:to_proplist(Cols, Rows)
+      end).
+
 extended_sync_ok_test(Module) ->
     with_connection(
       Module,

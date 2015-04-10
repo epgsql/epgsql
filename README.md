@@ -426,6 +426,18 @@ Message formats:
 - `Error`       - an `#error{}` record, see `epgsql.hrl`
 
 
+## Utility functions
+
+epgsql contains several utility functions:
+
+`epgsql:to_proplist/2` takes the `Columns` and `Results` from a query
+result, and transforms them into a proplist.
+
+```erlang
+{ok, Columns, Results} = epgsql:equery("SELECT * FROM USERS"),
+Proplist = epgsql:to_proplist(Columns, Results).
+```
+
 ## Mailing list
 
   [Google groups](https://groups.google.com/forum/#!forum/epgsql)
