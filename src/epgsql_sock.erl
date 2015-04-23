@@ -202,8 +202,8 @@ command({connect, Host, Username, Password, Opts}, State) ->
              State2#state{handler = auth,
                           async = Async}};
 
-        {error, Reason} = Error ->
-            {stop, Reason, finish(State, Error)}
+        {error, _Reason} = Error ->
+            {stop, shutdown, finish(State, Error)}
     end;
 
 command({squery, Sql}, State) ->
@@ -680,14 +680,19 @@ on_message({?READY_FOR_QUERY, <<Status:8>>}, State) ->
              end,
     {noreply, State2#state{txstatus = Status}};
 
-on_message(Error = {error, _}, State) ->
-    State2 = case command_tag(State) of
-                 C when C == squery; C == equery; C == execute_batch ->
-                     add_result(State, Error, Error);
-                 _ ->
-                     sync_required(finish(State, Error))
-             end,
-    {noreply, State2};
+on_message(Error = {error, Reason}, State) ->
+    case queue:is_empty(State#state.queue) of
+        true ->
+            {stop, {shutdown, Reason}, State};
+        false ->
+            State2 = case command_tag(State) of
+                C when C == squery; C == equery; C == execute_batch ->
+                    add_result(State, Error, Error);
+                _ ->
+                    sync_required(finish(State, Error))
+            end,
+            {noreply, State2}
+    end;
 
 %% NoticeResponse
 on_message({?NOTICE, Data}, State) ->
