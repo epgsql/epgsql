@@ -400,6 +400,8 @@ PG type       | Representation
   point       |  `{10.2, 100.12}`
   int4range   | `[1,5)`
   hstore      | `{list({binary(), binary() | null})}`
+  json/jsonb  | `<<"{ \"key\": [ 1, 1.0, true, \"string\" ] }">>`
+
 
   `timestamp` and `timestamptz` parameters can take `erlang:now()` format: `{MegaSeconds, Seconds, MicroSeconds}`
 
