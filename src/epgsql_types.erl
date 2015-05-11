@@ -21,7 +21,9 @@ oid2type(71)    -> pg_type_reltype;
 oid2type(75)    -> pg_attribute_reltype;
 oid2type(81)    -> pg_proc_reltype;
 oid2type(83)    -> pg_class_reltype;
+oid2type(114)   -> json;
 oid2type(142)   -> xml;
+oid2type(199)   -> {array, json};
 oid2type(600)   -> point;
 oid2type(601)   -> lseg;
 oid2type(602)   -> path;
@@ -95,6 +97,8 @@ oid2type(2776)  -> anynonarray;
 oid2type(2950)  -> uuid;
 oid2type(2951)  -> {array, uuid};
 oid2type(3500)  -> anyenum;
+oid2type(3802)  -> jsonb;
+oid2type(3807)  -> {array, jsonb};
 oid2type(3904)  -> int4range;
 oid2type(Oid)   -> {unknown_oid, Oid}.
 
@@ -117,7 +121,9 @@ type2oid(pg_type_reltype)       -> 71;
 type2oid(pg_attribute_reltype)  -> 75;
 type2oid(pg_proc_reltype)       -> 81;
 type2oid(pg_class_reltype)      -> 83;
+type2oid(json)                  -> 114;
 type2oid(xml)                   -> 142;
+type2oid({array, json})         -> 199;
 type2oid(point)                 -> 600;
 type2oid(lseg)                  -> 601;
 type2oid(path)                  -> 602;
@@ -191,5 +197,7 @@ type2oid(anynonarray)           -> 2776;
 type2oid(uuid)                  -> 2950;
 type2oid({array, uuid})         -> 2951;
 type2oid(anyenum)               -> 3500;
+type2oid(jsonb)                 -> 3802;
+type2oid({array, jsonb})        -> 3807;
 type2oid(int4range)             -> 3904;
 type2oid(Type)                  -> {unknown_type, Type}.

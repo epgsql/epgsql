@@ -63,7 +63,9 @@ CREATE TABLE test_table2 (
   c_geometry geometry,
   c_cidr cidr,
   c_inet inet,
-  c_int4range int4range);
+  c_int4range int4range,
+  c_json json,
+  c_jsonb jsonb);
 
 CREATE LANGUAGE plpgsql;
 
