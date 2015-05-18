@@ -188,8 +188,9 @@ execute(C, S, N) ->
              | {error, query_error()}.
 execute(C, S, PortalName, N) ->
     gen_server:call(C, {execute, S, PortalName, N}, infinity).
-
--spec execute_batch(connection(), [{#statement{}, [bind_param()]}]) -> [reply(equery_row())].
+-spec execute_batch(connection(), [{#statement{}, [bind_param()]}]) -> [reply(equery_row())] |
+                                                                       [{ok, [equery_row()]}] |
+                                                                       [{ok, Count :: non_neg_integer(), RowsValues::[equery_row()]}].
 execute_batch(C, Batch) ->
     gen_server:call(C, {execute_batch, Batch}, infinity).
 
