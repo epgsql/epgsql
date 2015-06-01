@@ -434,9 +434,9 @@ tests!  On Ubuntu, you can install them with a command like this:
 
     apt-get install postgresql-9.3-postgis-2.1 postgresql-contrib
 
-1. `./scripts/setup_test_db.sh` # This sets up an installation of Postgres in datadir/
+1. `./setup_test_db.sh` # This sets up an installation of Postgres in datadir/
 
-2. `./scripts/start_test_db.sh` # Starts a Postgres instance on its own port (10432).
+2. `./start_test_db.sh` # Starts a Postgres instance on its own port (10432).
 
 3. `make create_testdbs` # Creates the test database environment.
 

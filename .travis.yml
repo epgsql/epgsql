@@ -10,8 +10,8 @@ addons:
   postgresql: "9.3"
 script:
   - sudo chmod 777 /var/run/postgresql/
-  - ./scripts/setup_test_db.sh
-  - ./scripts/start_test_db.sh &
+  - ./setup_test_db.sh
+  - ./start_test_db.sh &
   - sleep 1
   - make create_testdbs
   - make test
