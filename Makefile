@@ -3,11 +3,14 @@ LASTVERSION = $(shell git rev-parse HEAD )
 
 all: compile
 
-compile:
+compile: src/epgsql_errcodes.erl
 	@$(REBAR) compile
 
 clean:
 	@$(REBAR) clean
+
+src/epgsql_errcodes.erl:
+	(cd scripts/ && ./generate.sh) > src/epgsql_errcodes.erl
 
 # The INSERT is used to make sure the schema_version matches the tests
 # being run.

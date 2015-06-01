@@ -59,9 +59,12 @@ decode_fields(<<Type:8, Rest/binary>>, Acc) ->
 %% TODO add fields from http://www.postgresql.org/docs/9.0/interactive/protocol-error-fields.html
 decode_error(Bin) ->
     Fields = decode_fields(Bin),
+    ErrCode = proplists:get_value($C, Fields),
+    ErrName = epgsql_errcodes:to_name(ErrCode),
     Error = #error{
       severity = lower_atom(proplists:get_value($S, Fields)),
-      code     = proplists:get_value($C, Fields),
+      code     = ErrCode,
+      codename = ErrName,
       message  = proplists:get_value($M, Fields),
       extra    = decode_error_extra(Fields)},
     Error.

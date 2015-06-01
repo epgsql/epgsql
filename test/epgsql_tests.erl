@@ -288,7 +288,7 @@ parse_and_close_test(Module) ->
       fun(C) ->
               Parse = fun() -> Module:parse(C, "test", "select * from test_table1", []) end,
               {ok, S} = Parse(),
-              {error, #error{code = <<"42P05">>}} = Parse(),
+              {error, #error{code = <<"42P05">>, codename = duplicate_prepared_statement}} = Parse(),
               Module:close(C, S),
               {ok, S} = Parse(),
               ok = Module:sync(C)
@@ -333,7 +333,7 @@ bind_and_close_test(Module) ->
       fun(C) ->
               {ok, S} = Module:parse(C, "select * from test_table1"),
               ok = Module:bind(C, S, "one", []),
-              {error, #error{code = <<"42P03">>}} = Module:bind(C, S, "one", []),
+              {error, #error{code = <<"42P03">>, codename = duplicate_cursor}} = Module:bind(C, S, "one", []),
               ok = Module:close(C, portal, "one"),
               ok = Module:bind(C, S, "one", []),
               ok = Module:sync(C)
@@ -345,7 +345,7 @@ execute_error_test(Module) ->
       fun(C) ->
           {ok, S} = Module:parse(C, "insert into test_table1 (id, value) values ($1, $2)"),
           ok = Module:bind(C, S, [1, <<"foo">>]),
-          {error, #error{code = <<"23505">>}} = Module:execute(C, S, 0),
+          {error, #error{code = <<"23505">>, codename = unique_violation}} = Module:execute(C, S, 0),
           {error, sync_required} = Module:bind(C, S, [3, <<"quux">>]),
           ok = Module:sync(C),
           ok = Module:bind(C, S, [3, <<"quux">>]),

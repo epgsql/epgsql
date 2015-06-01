@@ -17,6 +17,7 @@
 -record(error, {
     severity :: fatal | error | atom(), %TODO: concretize
     code :: binary(),
+    codename :: atom(),
     message :: binary(),
     extra :: [{detail, binary()} | {hint, binary()} | {position, binary()}]
 }).
