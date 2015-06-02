@@ -10,7 +10,7 @@ clean:
 	@$(REBAR) clean
 
 src/epgsql_errcodes.erl:
-	(cd scripts/ && ./generate.sh) > src/epgsql_errcodes.erl
+	./generate_errcodes_src.sh > src/epgsql_errcodes.erl
 
 # The INSERT is used to make sure the schema_version matches the tests
 # being run.
