@@ -21,13 +21,13 @@
 -define(UUID3,
         <<198,188,155,66,149,151,17,227,138,98,112,24,139,130,16,73>>).
 
--define(TIMEOUT_ERROR, #error{
+-define(TIMEOUT_ERROR, {error, #error{
         severity = error,
         code = <<"57014">>,
         codename = query_canceled,
         message = <<"canceling statement due to statement timeout">>,
         extra = []
-        }).
+        }}).
 
 %% From uuid.erl in http://gitorious.org/avtobiff/erlang-uuid
 uuid_to_string(<<U0:32, U1:16, U2:16, U3:16, U4:48>>) ->
