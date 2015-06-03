@@ -21,9 +21,13 @@
 -define(UUID3,
         <<198,188,155,66,149,151,17,227,138,98,112,24,139,130,16,73>>).
 
--define(TIMEOUT_ERROR,
-        {error,{error,error,<<"57014">>,
-                <<"canceling statement due to statement timeout">>,[]}}).
+-define(TIMEOUT_ERROR, {error, #error{
+        severity = error,
+        code = <<"57014">>,
+        codename = query_canceled,
+        message = <<"canceling statement due to statement timeout">>,
+        extra = []
+        }}).
 
 %% From uuid.erl in http://gitorious.org/avtobiff/erlang-uuid
 uuid_to_string(<<U0:32, U1:16, U2:16, U3:16, U4:48>>) ->
@@ -288,7 +292,7 @@ parse_and_close_test(Module) ->
       fun(C) ->
               Parse = fun() -> Module:parse(C, "test", "select * from test_table1", []) end,
               {ok, S} = Parse(),
-              {error, #error{code = <<"42P05">>}} = Parse(),
+              {error, #error{code = <<"42P05">>, codename = duplicate_prepared_statement}} = Parse(),
               Module:close(C, S),
               {ok, S} = Parse(),
               ok = Module:sync(C)
@@ -333,7 +337,7 @@ bind_and_close_test(Module) ->
       fun(C) ->
               {ok, S} = Module:parse(C, "select * from test_table1"),
               ok = Module:bind(C, S, "one", []),
-              {error, #error{code = <<"42P03">>}} = Module:bind(C, S, "one", []),
+              {error, #error{code = <<"42P03">>, codename = duplicate_cursor}} = Module:bind(C, S, "one", []),
               ok = Module:close(C, portal, "one"),
               ok = Module:bind(C, S, "one", []),
               ok = Module:sync(C)
@@ -345,7 +349,7 @@ execute_error_test(Module) ->
       fun(C) ->
           {ok, S} = Module:parse(C, "insert into test_table1 (id, value) values ($1, $2)"),
           ok = Module:bind(C, S, [1, <<"foo">>]),
-          {error, #error{code = <<"23505">>}} = Module:execute(C, S, 0),
+          {error, #error{code = <<"23505">>, codename = unique_violation}} = Module:execute(C, S, 0),
           {error, sync_required} = Module:bind(C, S, [3, <<"quux">>]),
           ok = Module:sync(C),
           ok = Module:bind(C, S, [3, <<"quux">>]),
