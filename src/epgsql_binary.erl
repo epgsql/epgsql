@@ -70,6 +70,7 @@ encode(bytea, B, _) when is_binary(B)       -> <<(byte_size(B)):?int32, B/binary
 encode(text, B, _) when is_binary(B)        -> <<(byte_size(B)):?int32, B/binary>>;
 encode(varchar, B, _) when is_binary(B)     -> <<(byte_size(B)):?int32, B/binary>>;
 encode(json, B, _) when is_binary(B)        -> <<(byte_size(B)):?int32, B/binary>>;
+encode(jsonb, B, _) when is_binary(B)       -> <<(byte_size(B)):?int32, B/binary>>;
 encode(uuid, B, _) when is_binary(B)        -> encode_uuid(B);
 encode({array, char}, L, Codec) when is_list(L) -> encode_array(bpchar, type2oid(bpchar, Codec), L, Codec);
 encode({array, Type}, L, Codec) when is_list(L) -> encode_array(Type, type2oid(Type, Codec), L, Codec);
@@ -284,6 +285,7 @@ supports(inet)        -> true;
 supports(geometry)    -> true;
 supports(point)       -> true;
 supports(json)        -> true;
+supports(jsonb)       -> true;
 supports({array, bool})   -> true;
 supports({array, int2})   -> true;
 supports({array, int4})   -> true;
@@ -304,4 +306,5 @@ supports({array, uuid})   -> true;
 supports({array, cidr})   -> true;
 supports({array, inet})   -> true;
 supports({array, json})   -> true;
+supports({array, jsonb})  -> true;
 supports(_Type)       -> false.

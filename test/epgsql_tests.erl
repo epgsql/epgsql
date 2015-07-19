@@ -565,6 +565,11 @@ json_type_test(Module) ->
       Module,
       fun(C) ->
               check_type(Module, json, "'{}'", <<"{}">>,
+<<<<<<< HEAD
+=======
+                         [<<"{}">>, <<"[]">>, <<"1">>, <<"1.0">>, <<"true">>, <<"\"string\"">>, <<"{\"key\": []}">>]),
+              check_type(Module, jsonb, "'{}'", <<"{}">>,
+>>>>>>> jsonb
                          [<<"{}">>, <<"[]">>, <<"1">>, <<"1.0">>, <<"true">>, <<"\"string\"">>, <<"{\"key\": []}">>])
       end
     ).
@@ -634,7 +639,8 @@ array_type_test(Module) ->
           Select(hstore, [[{[{null, null}, {a, 1}, {1, 2}, {b, undefined}]}, {[]}], [{[{a, 1}]}, {[{null, 2}]}]]),
           Select(cidr, [{{127,0,0,1}, 32}, {{0,0,0,0,0,0,0,1}, 128}]),
           Select(inet, [{127,0,0,1}, {0,0,0,0,0,0,0,1}]),
-          Select(json, [<<"{}">>, <<"[]">>, <<"1">>, <<"1.0">>, <<"true">>, <<"\"string\"">>, <<"{\"key\": []}">>])
+          Select(json, [<<"{}">>, <<"[]">>, <<"1">>, <<"1.0">>, <<"true">>, <<"\"string\"">>, <<"{\"key\": []}">>]),
+          Select(jsonb, [<<"{}">>, <<"[]">>, <<"1">>, <<"1.0">>, <<"true">>, <<"\"string\"">>, <<"{\"key\": []}">>])
       end).
 
 text_format_test(Module) ->
