@@ -1,4 +1,4 @@
-REBAR = rebar
+REBAR = rebar3
 LASTVERSION = $(shell git rev-parse HEAD )
 
 all: compile
