@@ -8,114 +8,113 @@
   m :: float()
   }).
 
--type point(PointType) :: #point{ point_type :: PointType }.
+-type point() :: #point{}.
 
 -record(multi_point,{
   point_type :: point_type() ,
-  points :: [point(point_type())]
+  points :: [point()]
   }).
 
--type multi_point(PointType) :: #multi_point{ point_type :: PointType }.
+-type multi_point() :: #multi_point{}.
 
 -record(line_string,{
   point_type :: point_type(),
-  points :: [point(point_type())]
+  points :: [point()]
   }).
 
--type line_string(PointType) :: #line_string{ point_type :: PointType }.
+-type line_string() :: #line_string{}.
 
 -record(multi_line_string,{
   point_type :: point_type(),
-  line_strings :: [line_string(point_type())]
+  line_strings :: [line_string()]
   }).
 
--type multi_line_string(PointType) :: #multi_line_string{ point_type :: PointType }.
+-type multi_line_string() :: #multi_line_string{}.
 
 -record(circular_string,{
   point_type :: point_type(),
-  points :: [point(point_type())]
+  points :: [point()]
   }).
 
--type basic_string(PointType) :: #circular_string{ point_type :: PointType } | #line_string{ point_type :: PointType }.
+-type basic_string() :: #circular_string{} | #line_string{}.
 
 -record(compound_curve,{
   point_type :: point_type(),
-  lines :: [basic_string(point_type())]
+  lines :: [basic_string()]
   }).
 
--type curve(PointType) :: #circular_string{ point_type :: PointType } | #line_string{ point_type :: PointType } | #compound_curve{ point_type :: PointType }.
+-type curve() :: #circular_string{} | #line_string{} | #compound_curve{}.
 
 -record(multi_curve,{
   point_type :: point_type(),
-  curves :: [curve(point_type())]
+  curves :: [curve()]
   }).
 
--type multi_curve(PointType) :: #multi_curve{ point_type :: PointType }.
+-type multi_curve() :: #multi_curve{}.
 
 -record(polygon,{
   point_type :: point_type(),
-  rings :: [line_string(point_type())]
+  rings :: [line_string()]
   }).
 
--type polygon(PointType) :: #polygon{ point_type :: PointType }.
+-type polygon() :: #polygon{}.
 
 -record(multi_polygon,{
   point_type :: point_type(),
-  polygons :: [polygon(point_type())]
+  polygons :: [polygon()]
   }).
 
--type multi_polygon(PointType) :: #multi_polygon{ point_type :: PointType }.
+-type multi_polygon() :: #multi_polygon{}.
 
 -record(triangle,{
   point_type :: point_type(),
-  rings :: [line_string(point_type())]
+  rings :: [line_string()]
   }).
 
--type triangle(PointType) :: #triangle{ point_type :: PointType }.
+-type triangle() :: #triangle{}.
 
 -record(curve_polygon,{
   point_type :: point_type(),
-  rings :: [curve(point_type())]
+  rings :: [curve()]
   }).
 
--type curve_polygon(PointType) :: #curve_polygon{ point_type :: PointType }.
+-type curve_polygon() :: #curve_polygon{}.
 
 -record(polyhedral_surface,{
   point_type :: point_type(),
-  polygons :: [polygon(point_type())]
+  polygons :: [polygon()]
   }).
 
--type polyhedral_surface(PointType) :: #polyhedral_surface{ point_type :: PointType }.
+-type polyhedral_surface() :: #polyhedral_surface{}.
 
--type surface(PointType) :: polygon(PointType) | curve_polygon(PointType) | polyhedral_surface(PointType).
+-type surface() :: polygon() | curve_polygon() | polyhedral_surface().
 
 -record(multi_surface,{
   point_type :: point_type(),
-  surfaces :: [surface(point_type())]
+  surfaces :: [surface()]
   }).
 
--type multi_surface(PointType) :: #multi_surface{ point_type :: PointType }.
+-type multi_surface() :: #multi_surface{}.
 
 -record(tin,{
   point_type :: point_type(),
-  triangles :: [triangle(point_type())]
+  triangles :: [triangle()]
   }).
 
--type tin(PointType) :: #tin{ point_type :: PointType }.
+-type tin() :: #tin{}.
 
--type geometry(PointType) :: point(PointType) |
-                             line_string(PointType) |
-                             triangle(PointType) |
-                             tin(PointType) |
-                             curve(PointType) |
-                             surface(PointType) |
-                             multi_point(PointType) |
-                             multi_line_string(PointType) |
-                             multi_polygon(PointType) |
-                             multi_curve(PointType) |
-                             multi_surface(PointType) |
-                             geometry_collection(PointType).
+-type geometry() :: point() |
+                    line_string() |
+                    triangle() |
+                    tin() |
+                    curve() |
+                    surface() |
+                    multi_point() |
+                    multi_line_string() |
+                    multi_polygon() |
+                    multi_curve() |
+                    multi_surface() |
+                    geometry_collection().
 
--type geometry() :: geometry(point_type()).
+-type geometry_collection() :: [geometry()].
 
--type geometry_collection(PointType) :: [geometry(PointType)].
