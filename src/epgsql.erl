@@ -53,7 +53,7 @@
         | {calendar:time(), Days::non_neg_integer(), Months::non_neg_integer()}
         | [bind_param()].                       %array (maybe nested)
 
--type squery_row() :: {binary()}.
+-type squery_row() :: tuple().
 -type equery_row() :: {bind_param()}.
 -type ok_reply(RowType) ::
     {ok, Count :: non_neg_integer()} |                                                            % select
