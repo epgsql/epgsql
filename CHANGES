@@ -1,3 +1,7 @@
+In 3.1.0:
+
+* Deal with int4range type.
+
 In 3.0.0:
 
 * Renamed everything to use the epgsql namespace.
