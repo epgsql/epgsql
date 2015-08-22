@@ -1,6 +1,8 @@
 language: erlang
 otp_release:
+  - R15B03
   - R16B03-1
+  - 17.4
 before_script:
   - sudo apt-get update -qq
   - sudo apt-get install postgresql-9.3-postgis-2.1 postgresql-contrib
@@ -9,7 +11,7 @@ addons:
 script:
   - sudo chmod 777 /var/run/postgresql/
   - ./setup_test_db.sh
-  - nohup ./start_test_db.sh &
+  - ./start_test_db.sh &
   - sleep 1
   - make create_testdbs
   - make test

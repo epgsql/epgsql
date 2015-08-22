@@ -152,7 +152,8 @@ encode_hstore_value(Val)       -> encode_hstore_string(Val).
 encode_hstore_string(Str) when is_list(Str) -> encode_hstore_string(list_to_binary(Str));
 encode_hstore_string(Str) when is_atom(Str) -> encode_hstore_string(atom_to_binary(Str, utf8));
 encode_hstore_string(Str) when is_integer(Str) ->
-    encode_hstore_string(erlang:integer_to_binary(Str));
+    %% FIXME - we can use integer_to_binary when we deprecate R15
+    encode_hstore_string(list_to_binary(integer_to_list(Str)));
 encode_hstore_string(Str) when is_float(Str) ->
     encode_hstore_string(iolist_to_binary(io_lib:format("~w", [Str])));
 encode_hstore_string(Str) when is_binary(Str) -> <<(byte_size(Str)):?int32, Str/binary>>.
