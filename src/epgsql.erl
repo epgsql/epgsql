@@ -51,6 +51,7 @@
         | calendar:time()                       %actualy, `Seconds' may be float()
         | calendar:datetime()
         | {calendar:time(), Days::non_neg_integer(), Months::non_neg_integer()}
+        | {list({binary(), binary() | null})}   % hstore
         | [bind_param()].                       %array (maybe nested)
 
 -type squery_row() :: {binary()}.
@@ -241,4 +242,3 @@ sync_on_error(C, Error = {error, _}) ->
 
 sync_on_error(_C, R) ->
     R.
-
