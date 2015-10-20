@@ -52,9 +52,9 @@ see `CHANGES` for full list.
     {ssl_opts, SslOptions :: [ssl:ssl_option()]}   | % @see OTP ssl app, ssl_api.hrl
     {timeout,  TimeoutMs  :: timeout()}            | % default: 5000 ms
     {async,    Receiver   :: pid()}. % process to receive LISTEN/NOTIFY msgs
-    
+
 -spec connect(host(), string(), string(), [connect_option()])
-        -> {ok, Connection :: connection()} | {error, Reason :: connect_error()}.    
+        -> {ok, Connection :: connection()} | {error, Reason :: connect_error()}.
 %% @doc connects to Postgres
 %% where
 %% `Host'     - host to connect to
@@ -138,7 +138,7 @@ io:format("~p~n", [SelectRes]).
 ```
 
 ```erlang
-InsertReturningRes = epgsql:squery(C, 
+InsertReturningRes = epgsql:squery(C,
     "insert into account(name)"
     "    values ('joe'), (null)"
     "    returning *"),

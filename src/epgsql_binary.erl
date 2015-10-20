@@ -282,6 +282,7 @@ supports(cidr)        -> true;
 supports(inet)        -> true;
 supports(geometry)    -> true;
 supports(point)       -> true;
+supports(int4range)   -> true;
 supports({array, bool})   -> true;
 supports({array, int2})   -> true;
 supports({array, int4})   -> true;
