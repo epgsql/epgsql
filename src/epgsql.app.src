@@ -7,4 +7,8 @@
                   stdlib,
                   ssl]},
   {env, []},
-  {included_applications, []}]}.
+  {included_applications, []},
+  {maintainers, ["David N. Welton"]},
+  {licenses, ["BSD"]},
+  {links, [{"Github", "https://github.com/epgsql/epgsql"}]}
+]}.
