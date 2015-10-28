@@ -109,8 +109,15 @@ update_type_cache(C) ->
     Query = "SELECT typname, oid::int4, typarray::int4"
             " FROM pg_type"
             " WHERE typname = ANY($1::varchar[])",
-    {ok, _, TypeInfos} = equery(C, Query, [DynamicTypes]),
-    ok = gen_server:call(C, {update_type_cache, TypeInfos}).
+    case equery(C, Query, [DynamicTypes]) of
+        {ok, _, TypeInfos} ->
+            ok = gen_server:call(C, {update_type_cache, TypeInfos});
+        {error, {error, error, _, _,
+                 <<"column \"typarray\" does not exist in pg_type">>, _}} ->
+            %% Do not fail connect if pg_type table in not in the expected
+            %% format. Known to happen for Redshift which is based on PG v8.0.2
+            ok
+    end.
 
 -spec close(connection()) -> ok.
 close(C) ->
