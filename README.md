@@ -4,6 +4,23 @@ Asynchronous fork of [wg/epgsql](https://github.com/wg/epgsql) originally here:
 [mabrek/epgsql](https://github.com/mabrek/epgsql) and subsequently forked in order to
 provide a common fork for community development.
 
+## pgapp
+
+If you want to get up to speed quickly with code that lets you run
+Postgres queries, you might consider trying
+[epgsql/pgapp](https://github.com/epgsql/pgapp), which adds the
+following, on top of the epgsql driver:
+
+- A 'resource pool' (currently poolboy), which lets you decide how
+  many Postgres workers you want to utilize.
+- Resilience against the database going down or other problems.  The
+  pgapp code will keep trying to reconnect to the database, but will
+  not propagate the crash up the supervisor tree, so that, for
+  instance, your web site will stay up even if the database is down
+  for some reason.  Erlang's "let it crash" is a good idea, but
+  external resources going away might not be a good reason to crash
+  your entire system.
+
 ## Motivation
 
 When you need to execute several queries, it involves a number network
@@ -365,6 +382,7 @@ PG type       | Representation
   record      | `{int2, time, text, ...}` (decode only)
   point       |  `{10.2, 100.12}`
   int4range   | `[1,5)`
+  json        | `<<"{ \"key\": [ 1, 1.0, true, \"string\" ] }">>`
 
   `timestamp` and `timestamptz` parameters can take `erlang:now()` format: `{MegaSeconds, Seconds, MicroSeconds}`
 
