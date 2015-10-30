@@ -1,3 +1,7 @@
+In 3.1.1:
+
+* It dialyzes happily now
+
 In 3.1.0:
 
 * Deal with int4range type.

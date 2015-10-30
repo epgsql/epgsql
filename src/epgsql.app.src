@@ -7,4 +7,7 @@
                   stdlib,
                   ssl]},
   {env, []},
-  {included_applications, []}]}.
+  {included_applications, []},
+  {licenses, ["BSD"]},
+  {links, [{"Github", "https://github.com/epgsql/epgsql"}]}
+]}.
