@@ -213,15 +213,21 @@ command({squery, Sql}, State) ->
 %% TODO add fast_equery command that doesn't need parsed statement,
 %% uses default (text) column format,
 %% sends Describe after Bind to get RowDescription
-command({equery, Statement, Parameters}, #state{codec = Codec} = State) ->
+command({equery, Statement, Parameters}, #state{codec = Codec, queue = Q} = State) ->
     #statement{name = StatementName, columns = Columns} = Statement,
-    Bin1 = epgsql_wire:encode_parameters(Parameters, Codec),
-    Bin2 = epgsql_wire:encode_formats(Columns),
-    send(State, ?BIND, ["", 0, StatementName, 0, Bin1, Bin2]),
-    send(State, ?EXECUTE, ["", 0, <<0:?int32>>]),
-    send(State, ?CLOSE, [?PREPARED_STATEMENT, StatementName, 0]),
-    send(State, ?SYNC, []),
-    {noreply, State};
+    try
+        Bin1 = epgsql_wire:encode_parameters(Parameters, Codec),
+        Bin2 = epgsql_wire:encode_formats(Columns),
+        send(State, ?BIND, ["", 0, StatementName, 0, Bin1, Bin2]),
+        send(State, ?EXECUTE, ["", 0, <<0:?int32>>]),
+        send(State, ?CLOSE, [?PREPARED_STATEMENT, StatementName, 0]),
+        send(State, ?SYNC, []),
+        {noreply, State}
+    catch X:Y ->
+        {{cast, From, Ref}, _} = queue:get(Q),
+        From ! { parse_error, Ref, {X, Y, erlang:get_stacktrace()} },
+        {noreply, State#state{queue = queue:drop(Q)}}
+    end;
 
 command({parse, Name, Sql, Types}, State) ->
     Bin = epgsql_wire:encode_types(Types, State#state.codec),
