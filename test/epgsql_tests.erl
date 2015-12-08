@@ -631,6 +631,21 @@ array_type_test(Module) ->
           Select(inet, [{127,0,0,1}, {0,0,0,0,0,0,0,1}])
       end).
 
+custom_types_test(Module) ->
+    with_connection(
+      Module,
+      fun(C) ->
+              Module:squery(C, "drop table if exists t_foo;"),
+              Module:squery(C, "drop type foo;"),
+              {ok, [], []} = Module:squery(C, "create type foo as enum('foo', 'bar');"),
+              ok = epgsql:update_type_cache(C, [<<"foo">>]),
+              {ok, [], []} = Module:squery(C, "create table t_foo (col foo);"),
+              {ok, S} = Module:parse(C, "insert_foo", "insert into t_foo values ($1)", [foo]),
+              ok = Module:bind(C, S, ["bar"]),
+              {ok, 1} = Module:execute(C, S)
+
+      end).
+
 text_format_test(Module) ->
     with_connection(
       Module,
