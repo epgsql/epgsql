@@ -152,11 +152,15 @@ handle_info({inet_reply, _, Status}, State) ->
 handle_info({_, Sock, Data2}, #state{data = Data, sock = Sock} = State) ->
     loop(State#state{data = <<Data/binary, Data2/binary>>}).
 
-terminate(_Reason, #state{sock = Sock}) when is_port(Sock) ->
-    gen_tcp:close(Sock),
-    ok;
-terminate(_Reason, _State) ->
-    ok.
+terminate(_Reason, #state{mod = Mod, sock = Sock}) ->
+    case {Mod, Sock} of
+      {_, undefined} ->
+        ok;
+      {gen_tcp, _} ->
+        gen_tcp:close(Sock);
+      {ssl, _} ->
+        ssl:close(Sock)
+    end.
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
