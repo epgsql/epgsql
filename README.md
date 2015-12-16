@@ -124,9 +124,9 @@ Asynchronous connect example (applies to **epgsqli** too):
 }).
 
 -type ok_reply(RowType) ::
-    {ok, Count :: non_neg_integer()} |                                                            % select
-    {ok, ColumnsDescription :: [#column{}], RowsValues :: [RowType]} |                            % update/insert
-    {ok, Count :: non_neg_integer(), ColumnsDescription :: [#column{}], RowsValues :: [RowType]}. % update/insert + returning
+    {ok, ColumnsDescription :: [#column{}], RowsValues :: [RowType]} |                            % select
+    {ok, Count :: non_neg_integer()} |                                                            % update/insert/delete
+    {ok, Count :: non_neg_integer(), ColumnsDescription :: [#column{}], RowsValues :: [RowType]}. % update/insert/delete + returning
 -type error_reply() :: {error, query_error()}.
 -type reply(RowType) :: ok_reply() | error_reply().
 
