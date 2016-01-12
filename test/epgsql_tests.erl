@@ -599,6 +599,8 @@ array_type_test(Module) ->
       Module,
       fun(C) ->
           {ok, _, [{[1, 2]}]} = Module:equery(C, "select ($1::int[])[1:2]", [[1, 2, 3]]),
+          {ok, _, [{[{1, <<"one">>}, {2, <<"two">>}]}]} =
+              Module:equery(C, "select Array(select (id, value) from test_table1)", []),
           Select = fun(Type, A) ->
                        Query = "select $1::" ++ atom_to_list(Type) ++ "[]",
                        {ok, _Cols, [{A2}]} = Module:equery(C, Query, [A]),
