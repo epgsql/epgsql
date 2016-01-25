@@ -687,6 +687,30 @@ connection_closed_test(Module) ->
     end,
     flush().
 
+connection_closed_by_server_test(Module) ->
+    with_connection(Module,
+        fun(C1) ->
+            P = self(),
+            spawn_link(fun() ->
+                process_flag(trap_exit, true),
+                with_connection(Module,
+                    fun(C2) ->
+                        {ok, _, [{Pid}]} = Module:equery(C2, "select pg_backend_pid()"),
+                        % emulate of disconnection
+                        {ok, _, [{true}]} = Module:equery(C1,
+                            "select pg_terminate_backend($1)", [Pid]),
+                        receive
+                            {'EXIT', C2, {shutdown, #error{code = <<"57P01">>}}} ->
+                                P ! ok;
+                            Other ->
+                                ?debugFmt("Unexpected msg: ~p~n", [Other]),
+                                P ! error
+                        end
+                    end)
+            end),
+            receive ok -> ok end
+        end).
+
 active_connection_closed_test(Module) ->
     P = self(),
     F = fun() ->
