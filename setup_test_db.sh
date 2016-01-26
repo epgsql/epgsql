@@ -12,6 +12,7 @@ initdb --locale en_US.UTF-8 datadir
 cat > datadir/postgresql.conf <<EOF
 ssl = on
 ssl_ca_file = 'root.crt'
+lc_messages = 'en_US.UTF-8'
 EOF
 
 cp test_data/epgsql.crt datadir/server.crt
