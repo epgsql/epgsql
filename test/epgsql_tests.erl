@@ -102,6 +102,18 @@ connect_with_client_cert_test(Module) ->
       "epgsql_test_cert",
       [{ssl, true}, {keyfile, File("epgsql.key")}, {certfile, File("epgsql.crt")}]).
 
+prepared_query_test(Module) ->
+  with_connection(
+    Module,
+    fun(C) ->
+      {ok, _} = epgsql:parse(C, "inc", "select $1+1", []),
+      {ok,[{5}]} = epgsql:prepared_query(C, "inc", [4]),
+      {ok,[{2}]} = epgsql:prepared_query(C, "inc", [1]),
+      {ok,[{23}]} = epgsql:prepared_query(C, "inc", [22]),
+      {error, _} = epgsql:prepared_query(C, "non_existent_query", [4])
+    end).
+
+
 select_test(Module) ->
     with_connection(
       Module,
