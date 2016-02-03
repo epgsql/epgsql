@@ -8,6 +8,7 @@
          get_parameter/2,
          squery/2,
          equery/2, equery/3, equery/4,
+         prepared_query/3,
          parse/2, parse/3, parse/4,
          describe/2, describe/3,
          bind/3, bind/4,
@@ -147,6 +148,24 @@ equery(C, Name, Sql, Parameters) ->
             Error
     end.
 
+-spec prepared_query(connection(), string(), [bind_param()]) -> reply(equery_row()).
+prepared_query(C, Name, Parameters) ->
+  case epgsql:describe(C, statement, Name) of
+    {ok, Statement} ->
+      case epgsql:bind(C, Statement, Parameters) of
+        ok ->
+          case epgsql:execute(C, Statement) of
+            {ok, _} = R ->
+              case epgsql:sync(C) of
+                ok -> R;
+                E -> E
+              end;
+            Er -> Er
+          end;
+        Error -> Error
+      end;
+    Err -> Err
+  end.
 %% parse
 
 parse(C, Sql) ->
