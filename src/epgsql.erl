@@ -150,22 +150,15 @@ equery(C, Name, Sql, Parameters) ->
 
 -spec prepared_query(connection(), string(), [bind_param()]) -> reply(equery_row()).
 prepared_query(C, Name, Parameters) ->
-  case epgsql:describe(C, statement, Name) of
-    {ok, Statement} ->
-      case epgsql:bind(C, Statement, Parameters) of
-        ok ->
-          case epgsql:execute(C, Statement) of
-            {ok, _} = R ->
-              case epgsql:sync(C) of
-                ok -> R;
-                E -> E
-              end;
-            Er -> Er
-          end;
-        Error -> Error
-      end;
-    Err -> Err
-  end.
+    case describe(C, statement, Name) of
+        {ok, #statement{types = Types} = S} ->
+            Typed_Parameters = lists:zip(Types, Parameters),
+            gen_server:call(C, {prepared_query, S, Typed_Parameters}, infinity);
+        Error ->
+            Error
+    end.
+
+
 %% parse
 
 parse(C, Sql) ->

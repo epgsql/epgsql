@@ -107,9 +107,9 @@ prepared_query_test(Module) ->
     Module,
     fun(C) ->
       {ok, _} = epgsql:parse(C, "inc", "select $1+1", []),
-      {ok,[{5}]} = epgsql:prepared_query(C, "inc", [4]),
-      {ok,[{2}]} = epgsql:prepared_query(C, "inc", [1]),
-      {ok,[{23}]} = epgsql:prepared_query(C, "inc", [22]),
+      {ok, Cols, [{5}]} = epgsql:prepared_query(C, "inc", [4]),
+      {ok, Cols, [{2}]} = epgsql:prepared_query(C, "inc", [1]),
+      {ok, Cols, [{23}]} = epgsql:prepared_query(C, "inc", [22]),
       {error, _} = epgsql:prepared_query(C, "non_existent_query", [4])
     end).
 

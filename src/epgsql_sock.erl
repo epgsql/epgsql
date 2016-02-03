@@ -223,6 +223,15 @@ command({equery, Statement, Parameters}, #state{codec = Codec} = State) ->
     send(State, ?SYNC, []),
     {noreply, State};
 
+command({prepared_query, Statement, Parameters}, #state{codec = Codec} = State) ->
+    #statement{name = StatementName, columns = Columns} = Statement,
+    Bin1 = epgsql_wire:encode_parameters(Parameters, Codec),
+    Bin2 = epgsql_wire:encode_formats(Columns),
+    send(State, ?BIND, ["", 0, StatementName, 0, Bin1, Bin2]),
+    send(State, ?EXECUTE, ["", 0, <<0:?int32>>]),
+    send(State, ?SYNC, []),
+    {noreply, State};
+
 command({parse, Name, Sql, Types}, State) ->
     Bin = epgsql_wire:encode_types(Types, State#state.codec),
     send(State, ?PARSE, [Name, 0, Sql, 0, Bin]),
@@ -416,7 +425,7 @@ command_tag(#state{queue = Q}) ->
 get_columns(State) ->
     #state{queue = Q, columns = Columns, batch = Batch} = State,
     case queue:get(Q) of
-        {_, {equery, #statement{columns = C}, _}} ->
+        {_, {Command, #statement{columns = C}, _}}  when Command == equery; Command == prepared_query ->
             C;
         {_, {execute, #statement{columns = C}, _, _}} ->
             C;
@@ -578,7 +587,7 @@ on_message({?NO_DATA, <<>>}, State) ->
 %% BindComplete
 on_message({?BIND_COMPLETE, <<>>}, State) ->
     State2 = case command_tag(State) of
-                 equery ->
+                 Command when Command == equery; Command == prepared_query ->
                      %% TODO send Describe as a part of equery, needs text format support
                      notify(State, {columns, get_columns(State)});
                  bind ->
@@ -598,7 +607,7 @@ on_message({?BIND_COMPLETE, <<>>}, State) ->
 %% CloseComplete
 on_message({?CLOSE_COMPLETE, <<>>}, State) ->
     State2 = case command_tag(State) of
-                 equery ->
+                 Command when Command == equery; Command == prepared_query ->
                      State;
                  close ->
                      finish(State, ok)
@@ -636,11 +645,11 @@ on_message({?COMMAND_COMPLETE, Bin}, State) ->
                      add_result(State, Notice, {ok, Count, Rows});
                  {execute_batch, _, _} ->
                      add_result(State, Notice, {ok, Rows});
-                 {C, {_, Count}, []} when C == squery; C == equery ->
+                 {C, {_, Count}, []} when C == squery; C == equery; C == prepared_query ->
                      add_result(State, Notice, {ok, Count});
-                 {C, {_, Count}, _} when C == squery; C == equery ->
+                 {C, {_, Count}, _} when C == squery; C == equery; C == prepared_query ->
                      add_result(State, Notice, {ok, Count, get_columns(State), Rows});
-                 {C, _, _} when C == squery; C == equery ->
+                 {C, _, _} when C == squery; C == equery; C == prepared_query ->
                      add_result(State, Notice, {ok, get_columns(State), Rows})
              end,
     {noreply, State2};
@@ -651,7 +660,7 @@ on_message({?EMPTY_QUERY, _Bin}, State) ->
     State2 = case command_tag(State) of
                  execute ->
                      finish(State, Notice, {ok, [], []});
-                 C when C == squery; C == equery ->
+                 C when C == squery; C == equery; C == prepared_query ->
                      add_result(State, Notice, {ok, [], []})
              end,
     {noreply, State2};
@@ -668,7 +677,7 @@ on_message({?READY_FOR_QUERY, <<Status:8>>}, State) ->
                      end;
                  execute_batch ->
                      finish(State, done, lists:reverse(State#state.results));
-                 equery ->
+                 Command when Command == equery; Command == prepared_query ->
                      case State#state.results of
                          [Result] ->
                              finish(State, done, Result);
@@ -682,7 +691,7 @@ on_message({?READY_FOR_QUERY, <<Status:8>>}, State) ->
 
 on_message(Error = {error, _}, State) ->
     State2 = case command_tag(State) of
-                 C when C == squery; C == equery; C == execute_batch ->
+                 C when C == squery; C == equery; C == execute_batch; C == prepared_query ->
                      add_result(State, Error, Error);
                  _ ->
                      sync_required(finish(State, Error))
