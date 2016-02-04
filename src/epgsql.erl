@@ -148,7 +148,7 @@ equery(C, Name, Sql, Parameters) ->
             Error
     end.
 
--spec prepared_query(connection(), string(), [bind_param()]) -> reply(equery_row()).
+-spec prepared_query(C::connection(), Name::string(), Parameters::[bind_param()]) -> reply(equery_row()).
 prepared_query(C, Name, Parameters) ->
     case describe(C, statement, Name) of
         {ok, #statement{types = Types} = S} ->
