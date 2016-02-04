@@ -18,6 +18,7 @@
          sync/1,
          cancel/1,
          update_type_cache/1,
+         update_type_cache/2,
          with_transaction/2,
          sync_on_error/2]).
 
@@ -52,14 +53,15 @@
         | calendar:time()                       %actualy, `Seconds' may be float()
         | calendar:datetime()
         | {calendar:time(), Days::non_neg_integer(), Months::non_neg_integer()}
+        | {list({binary(), binary() | null})}   % hstore
         | [bind_param()].                       %array (maybe nested)
 
 -type squery_row() :: {binary()}.
 -type equery_row() :: {bind_param()}.
 -type ok_reply(RowType) ::
-    {ok, Count :: non_neg_integer()} |                                                            % select
-    {ok, ColumnsDescription :: [#column{}], RowsValues :: [RowType]} |                            % update/insert
-    {ok, Count :: non_neg_integer(), ColumnsDescription :: [#column{}], RowsValues :: [RowType]}. % update/insert + returning
+    {ok, ColumnsDescription :: [#column{}], RowsValues :: [RowType]} |                            % select
+    {ok, Count :: non_neg_integer()} |                                                            % update/insert/delete
+    {ok, Count :: non_neg_integer(), ColumnsDescription :: [#column{}], RowsValues :: [RowType]}. % update/insert/delete + returning
 -type error_reply() :: {error, query_error()}.
 -type reply(RowType) :: ok_reply(RowType) | error_reply().
 
@@ -105,12 +107,22 @@ connect(C, Host, Username, Password, Opts) ->
 
 -spec update_type_cache(connection()) -> ok.
 update_type_cache(C) ->
-    DynamicTypes = [<<"hstore">>,<<"geometry">>],
+    update_type_cache(C, [<<"hstore">>,<<"geometry">>]).
+
+-spec update_type_cache(connection(), [binary()]) -> ok.
+update_type_cache(C, DynamicTypes) ->
     Query = "SELECT typname, oid::int4, typarray::int4"
             " FROM pg_type"
             " WHERE typname = ANY($1::varchar[])",
-    {ok, _, TypeInfos} = equery(C, Query, [DynamicTypes]),
-    ok = gen_server:call(C, {update_type_cache, TypeInfos}).
+    case equery(C, Query, [DynamicTypes]) of
+        {ok, _, TypeInfos} ->
+            ok = gen_server:call(C, {update_type_cache, TypeInfos});
+        {error, {error, error, _, _,
+                 <<"column \"typarray\" does not exist in pg_type">>, _}} ->
+            %% Do not fail connect if pg_type table in not in the expected
+            %% format. Known to happen for Redshift which is based on PG v8.0.2
+            ok
+    end.
 
 -spec close(connection()) -> ok.
 close(C) ->
@@ -253,4 +265,3 @@ sync_on_error(C, Error = {error, _}) ->
 
 sync_on_error(_C, R) ->
     R.
-

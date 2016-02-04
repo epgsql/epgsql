@@ -301,4 +301,5 @@ supports({array, varchar}) -> true;
 supports({array, uuid})   -> true;
 supports({array, cidr})   -> true;
 supports({array, inet})   -> true;
+supports({array, record}) -> true;
 supports(_Type)       -> false.
