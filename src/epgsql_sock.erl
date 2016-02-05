@@ -229,9 +229,11 @@ command({prepared_query, Statement, Parameters}, #state{codec = Codec} = State) 
     #statement{name = StatementName, columns = Columns} = Statement,
     Bin1 = epgsql_wire:encode_parameters(Parameters, Codec),
     Bin2 = epgsql_wire:encode_formats(Columns),
-    send(State, ?BIND, ["", 0, StatementName, 0, Bin1, Bin2]),
-    send(State, ?EXECUTE, ["", 0, <<0:?int32>>]),
-    send(State, ?SYNC, []),
+    send_multi(State, [
+        {?BIND, ["", 0, StatementName, 0, Bin1, Bin2]},
+        {?EXECUTE, ["", 0, <<0:?int32>>]},
+        {?SYNC, []}
+    ]),
     {noreply, State};
 
 command({parse, Name, Sql, Types}, State) ->
