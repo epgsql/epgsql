@@ -273,6 +273,23 @@ end.
 `epgsqli:equery(C, Statement, [Parameters])` sends same set of messages as
 squery including final `{C, Ref, done}`.
 
+## Prepared Query
+```erlang
+{ok, Columns, Rows}        = epgsql:prepared_query(C, StatementName, [Parameters]).
+{ok, Count}                = epgsql:prepared_query(C, StatementName, [Parameters]).
+{ok, Count, Columns, Rows} = epgsql:prepared_query(C, StatementName, [Parameters]).
+{error, Error}             = epgsql:prepared_equery(C, "non_existent_query", [Parameters]).
+```
+`Parameters` - optional list of values to be bound to `$1`, `$2`, `$3`, etc.
+`StatementName` - name of query given with ```erlang epgsql:parse(C, StatementName, "select ...", []).```
+
+With prepared query one can parse a query giving it a name with `epgsql:parse` on start and reuse the name 
+for all further queries with different parameters.
+```erlang
+epgsql:parse(C, "inc", "select $1+1", []).
+epgsql:prepared_query(C, "inc", [4]).
+epgsql:prepared_query(C, "inc", [1]).
+```
 
 ## Parse/Bind/Execute
 

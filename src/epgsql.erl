@@ -8,6 +8,7 @@
          get_parameter/2,
          squery/2,
          equery/2, equery/3, equery/4,
+         prepared_query/3,
          parse/2, parse/3, parse/4,
          describe/2, describe/3,
          bind/3, bind/4,
@@ -158,6 +159,17 @@ equery(C, Name, Sql, Parameters) ->
         Error ->
             Error
     end.
+
+-spec prepared_query(C::connection(), Name::string(), Parameters::[bind_param()]) -> reply(equery_row()).
+prepared_query(C, Name, Parameters) ->
+    case describe(C, statement, Name) of
+        {ok, #statement{types = Types} = S} ->
+            Typed_Parameters = lists:zip(Types, Parameters),
+            gen_server:call(C, {prepared_query, S, Typed_Parameters}, infinity);
+        Error ->
+            Error
+    end.
+
 
 %% parse
 
