@@ -8,6 +8,7 @@
          get_parameter/2,
          squery/2,
          equery/2, equery/3,
+         prepared_query/3,
          parse/2, parse/3, parse/4,
          describe/2, describe/3,
          bind/3, bind/4,
@@ -54,9 +55,13 @@ squery(C, Sql) ->
 equery(C, Sql) ->
     equery(C, Sql, []).
 
--spec equery(epgsql:connection(), #statement{}, [epgsql:bind_param()]) -> reference().
-equery(C, Statement, Parameters) ->
-    incremental(C, {equery, Statement, Parameters}).
+-spec equery(epgsql:connection(), #statement{}, [epgsql:typed_param()]) -> reference().
+equery(C, Statement, TypedParameters) ->
+    incremental(C, {equery, Statement, TypedParameters}).
+
+-spec prepared_query(epgsql:connection(), #statement{}, [epgsql:typed_param()]) -> reference().
+prepared_query(C, Statement, TypedParameters) ->
+    incremental(C, {prepared_query, Statement, TypedParameters}).
 
 parse(C, Sql) ->
     parse(C, "", Sql, []).
