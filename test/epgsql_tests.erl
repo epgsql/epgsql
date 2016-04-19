@@ -576,6 +576,17 @@ date_time_type_test(Module) ->
                          [{{0,0,0.0},0,-178000000 * 12}, {{0,0,0.0},0,178000000 * 12}])
       end).
 
+json_type_test(Module) ->
+    with_connection(
+      Module,
+      fun(C) ->
+              check_type(Module, json, "'{}'", <<"{}">>,
+                         [<<"{}">>, <<"[]">>, <<"1">>, <<"1.0">>, <<"true">>, <<"\"string\"">>, <<"{\"key\": []}">>]),
+              check_type(Module, jsonb, "'{}'", <<"{}">>,
+                         [<<"{}">>, <<"[]">>, <<"1">>, <<"1.0">>, <<"true">>, <<"\"string\"">>, <<"{\"key\": []}">>])
+      end
+    ).
+
 misc_type_test(Module) ->
     check_type(Module, bool, "true", true, [true, false]),
     check_type(Module, bytea, "E'\001\002'", <<1,2>>, [<<>>, <<0,128,255>>]).
@@ -642,7 +653,9 @@ array_type_test(Module) ->
           Select(hstore, [{[{null, null}, {a, 1}, {1, 2}, {b, undefined}]}]),
           Select(hstore, [[{[{null, null}, {a, 1}, {1, 2}, {b, undefined}]}, {[]}], [{[{a, 1}]}, {[{null, 2}]}]]),
           Select(cidr, [{{127,0,0,1}, 32}, {{0,0,0,0,0,0,0,1}, 128}]),
-          Select(inet, [{127,0,0,1}, {0,0,0,0,0,0,0,1}])
+          Select(inet, [{127,0,0,1}, {0,0,0,0,0,0,0,1}]),
+          Select(json, [<<"{}">>, <<"[]">>, <<"1">>, <<"1.0">>, <<"true">>, <<"\"string\"">>, <<"{\"key\": []}">>]),
+          Select(jsonb, [<<"{}">>, <<"[]">>, <<"1">>, <<"1.0">>, <<"true">>, <<"\"string\"">>, <<"{\"key\": []}">>])
       end).
 
 custom_types_test(Module) ->
