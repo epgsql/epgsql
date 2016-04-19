@@ -22,6 +22,7 @@
 -define(IP6_SIZE, 16).
 -define(MAX_IP_MASK, 32).
 -define(MAX_IP6_MASK, 128).
+-define(JSONB_VERSION_1, 1).
 
 new_codec([]) -> #codec{}.
 
@@ -70,7 +71,7 @@ encode(bytea, B, _) when is_binary(B)       -> <<(byte_size(B)):?int32, B/binary
 encode(text, B, _) when is_binary(B)        -> <<(byte_size(B)):?int32, B/binary>>;
 encode(varchar, B, _) when is_binary(B)     -> <<(byte_size(B)):?int32, B/binary>>;
 encode(json, B, _) when is_binary(B)        -> <<(byte_size(B)):?int32, B/binary>>;
-encode(jsonb, B, _) when is_binary(B)       -> <<(byte_size(B)):?int32, B/binary>>;
+encode(jsonb, B, _) when is_binary(B)       -> <<(byte_size(B) + 1):?int32, ?JSONB_VERSION_1:8, B/binary>>;
 encode(uuid, B, _) when is_binary(B)        -> encode_uuid(B);
 encode({array, char}, L, Codec) when is_list(L) -> encode_array(bpchar, type2oid(bpchar, Codec), L, Codec);
 encode({array, Type}, L, Codec) when is_list(L) -> encode_array(Type, type2oid(Type, Codec), L, Codec);
@@ -92,6 +93,7 @@ decode(int8, <<N:1/big-signed-unit:64>>, _)    -> N;
 decode(float4, <<N:1/big-float-unit:32>>, _)   -> N;
 decode(float8, <<N:1/big-float-unit:64>>, _)   -> N;
 decode(record, <<_:?int32, Rest/binary>>, Codec) -> list_to_tuple(decode_record(Rest, [], Codec));
+decode(jsonb, <<?JSONB_VERSION_1:8, Value/binary>>, _) -> Value;
 decode(time = Type, B, _)                      -> ?datetime:decode(Type, B);
 decode(timetz = Type, B, _)                    -> ?datetime:decode(Type, B);
 decode(date = Type, B, _)                      -> ?datetime:decode(Type, B);
@@ -285,6 +287,7 @@ supports(inet)        -> true;
 supports(geometry)    -> true;
 supports(point)       -> true;
 supports(json)        -> true;
+supports(jsonb)        -> true;
 supports({array, bool})   -> true;
 supports({array, int2})   -> true;
 supports({array, int4})   -> true;
@@ -306,4 +309,5 @@ supports({array, cidr})   -> true;
 supports({array, inet})   -> true;
 supports({array, record}) -> true;
 supports({array, json})   -> true;
+supports({array, jsonb})   -> true;
 supports(_Type)       -> false.
