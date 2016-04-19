@@ -7,6 +7,7 @@
 
 -export([connect/2, connect/3, connect/4, close/1]).
 -export([get_parameter/2, squery/2, equery/2, equery/3]).
+-export([prepared_query/3]).
 -export([parse/2, parse/3, parse/4, describe/2, describe/3]).
 -export([bind/3, bind/4, execute/2, execute/3, execute/4, execute_batch/2]).
 -export([close/2, close/3, sync/1]).
@@ -55,6 +56,16 @@ equery(C, Sql, Parameters) ->
         {ok, #statement{types = Types} = S} ->
             Typed_Parameters = lists:zip(Types, Parameters),
             Ref = epgsqla:equery(C, S, Typed_Parameters),
+            receive_result(C, Ref);
+        Error ->
+            Error
+    end.
+
+prepared_query(C, Name, Parameters) ->
+    case describe(C, statement, Name) of
+        {ok, #statement{types = Types} = S} ->
+            Typed_Parameters = lists:zip(Types, Parameters),
+            Ref = epgsqla:prepared_query(C, S, Typed_Parameters),
             receive_result(C, Ref);
         Error ->
             Error

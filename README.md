@@ -261,7 +261,9 @@ Data Representation section below.
 Asynchronous API `epgsqla:equery/3` requires you to parse statement beforehand
 
 ```erlang
-Ref = epgsqla:equery(C, Statement, [Parameters]),
+#statement{types = Types} = Statement,
+TypedParameters = lists:zip(Types, Parameters),
+Ref = epgsqla:equery(C, Statement, [TypedParameters]),
 receive
   {C, Ref, Res} -> Res
 end.
@@ -270,7 +272,7 @@ end.
 - `Statement` - parsed statement (see parse below)
 - `Res` has same format as return value of `epgsql:equery/3`.
 
-`epgsqli:equery(C, Statement, [Parameters])` sends same set of messages as
+`epgsqli:equery(C, Statement, [TypedParameters])` sends same set of messages as
 squery including final `{C, Ref, done}`.
 
 ## Prepared Query
@@ -290,6 +292,23 @@ epgsql:parse(C, "inc", "select $1+1", []).
 epgsql:prepared_query(C, "inc", [4]).
 epgsql:prepared_query(C, "inc", [1]).
 ```
+
+Asynchronous API `epgsqla:prepared_query/3` requires you to parse statement beforehand
+
+```erlang
+#statement{types = Types} = Statement,
+TypedParameters = lists:zip(Types, Parameters),
+Ref = epgsqla:prepared_query(C, Statement, [TypedParameters]),
+receive
+  {C, Ref, Res} -> Res
+end.
+```
+
+- `Statement` - parsed statement (see parse below)
+- `Res` has same format as return value of `epgsql:prepared_query/3`.
+
+`epgsqli:prepared_query(C, Statement, [TypedParameters])` sends same set of messages as
+squery including final `{C, Ref, done}`.
 
 ## Parse/Bind/Execute
 

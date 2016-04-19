@@ -110,11 +110,11 @@ prepared_query_test(Module) ->
   with_connection(
     Module,
     fun(C) ->
-      {ok, _} = epgsql:parse(C, "inc", "select $1+1", []),
-      {ok, Cols, [{5}]} = epgsql:prepared_query(C, "inc", [4]),
-      {ok, Cols, [{2}]} = epgsql:prepared_query(C, "inc", [1]),
-      {ok, Cols, [{23}]} = epgsql:prepared_query(C, "inc", [22]),
-      {error, _} = epgsql:prepared_query(C, "non_existent_query", [4])
+      {ok, _} = Module:parse(C, "inc", "select $1+1", []),
+      {ok, Cols, [{5}]} = Module:prepared_query(C, "inc", [4]),
+      {ok, Cols, [{2}]} = Module:prepared_query(C, "inc", [1]),
+      {ok, Cols, [{23}]} = Module:prepared_query(C, "inc", [22]),
+      {error, _} = Module:prepared_query(C, "non_existent_query", [4])
     end).
 
 
