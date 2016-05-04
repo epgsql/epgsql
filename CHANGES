@@ -1,3 +1,13 @@
+In 3.2.0:
+
+* #error.codename (more readable errors)
+* Redshift support (by allowing dynamic typecache update fail)
+* Aggregate small binary packets to one in epgsql_sock (network performance improvement)
+* Handle situations, when server initiate connection close
+* prepared_query APIs (useful when you need to execute one query many times with different parameters)
+* array of records type support
+* jsonb type support
+
 In 3.1.1:
 
 * It dialyzes happily now
