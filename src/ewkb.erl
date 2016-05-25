@@ -181,10 +181,10 @@ decode_float64(<<Hex:8/binary, Rest/binary>>) ->
   <<Float:1/little-float-unit:64>> = Hex,
   {Float, Rest}.
 
-decode_point('2d_srid', Data) ->
+decode_point(PointType='2d_srid', Data) ->
   {Value, R} = decode_int32(Data),
   {Point, Rest} = decode_point('2d', R),
-  {Point#point{srid=Value}, Rest};
+  {Point#point{ point_type = PointType, srid=Value }, Rest};
 decode_point(PointType, Data) ->
   {Values, Rest} = lists:foldl(
     fun(_, {Values, Rest}) ->
