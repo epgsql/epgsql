@@ -8,6 +8,7 @@
 -export([start_link/0,
          close/1,
          get_parameter/2,
+         set_notice_receiver/2,
          cancel/1]).
 
 -export([handle_call/3, handle_cast/2, handle_info/2]).
@@ -86,6 +87,10 @@ close(C) when is_pid(C) ->
 get_parameter(C, Name) ->
     gen_server:call(C, {get_parameter, to_binary(Name)}, infinity).
 
+set_notice_receiver(C, PidOrName) when is_pid(PidOrName);
+                                       is_atom(PidOrName) ->
+    gen_server:call(C, {set_async_receiver, PidOrName}, infinity).
+
 cancel(S) ->
     gen_server:cast(S, cancel).
 
@@ -104,6 +109,9 @@ handle_call({get_parameter, Name}, _From, State) ->
         false                  -> undefined
     end,
     {reply, {ok, Value1}, State};
+
+handle_call({set_async_receiver, PidOrName}, _From, #state{async = Previous} = State) ->
+    {reply, {ok, Previous}, State#state{async = PidOrName}};
 
 handle_call(Command, From, State) ->
     #state{queue = Q} = State,
@@ -426,12 +434,15 @@ notify(State = #state{queue = Q}, Notice) ->
     end,
     State.
 
-notify_async(State = #state{async = Pid}, Msg) ->
-    case is_pid(Pid) of
-        true  -> Pid ! {epgsql, self(), Msg};
-        false -> false
-    end,
-    State.
+notify_async(#state{async = undefined}, _) ->
+    false;
+notify_async(#state{async = PidOrName}, Msg) ->
+    try PidOrName ! {epgsql, self(), Msg} of
+        _ -> true
+    catch error:badarg ->
+            %% no process registered under this name
+            false
+    end.
 
 command_tag(#state{queue = Q}) ->
     {_, Req} = queue:get(Q),
@@ -724,8 +735,8 @@ on_message(Error = {error, Reason}, State) ->
 
 %% NoticeResponse
 on_message({?NOTICE, Data}, State) ->
-    State2 = notify_async(State, {notice, epgsql_wire:decode_error(Data)}),
-    {noreply, State2};
+    notify_async(State, {notice, epgsql_wire:decode_error(Data)}),
+    {noreply, State};
 
 %% ParameterStatus
 on_message({?PARAMETER_STATUS, Data}, State) ->
@@ -740,5 +751,5 @@ on_message({?NOTIFICATION, <<Pid:?int32, Strings/binary>>}, State) ->
         [Channel, Payload] -> {Channel, Payload};
         [Channel]          -> {Channel, <<>>}
     end,
-    State2 = notify_async(State, {notification, Channel1, Pid, Payload1}),
-    {noreply, State2}.
+    notify_async(State, {notification, Channel1, Pid, Payload1}),
+    {noreply, State}.
