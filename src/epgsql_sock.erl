@@ -426,11 +426,11 @@ notify(State = #state{queue = Q}, Notice) ->
     end,
     State.
 
-notify_async(State = #state{async = Pid}, Msg) ->
-    case is_pid(Pid) of
-        true  -> Pid ! {epgsql, self(), Msg};
-        false -> false
-    end,
+notify_async(State = #state{async = Pid}, Msg) when is_pid(Pid) or is_atom(Pid) ->
+    Pid ! {epgsql, self(), Msg},
+    State;
+
+notify_async(State, _Msg) ->
     State.
 
 command_tag(#state{queue = Q}) ->
