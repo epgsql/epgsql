@@ -863,7 +863,7 @@ set_notice_receiver_test(Module) ->
                            C, ["DO $$ BEGIN RAISE WARNING 'test notice'; END $$;"]),
           receive
               {epgsql, C, {notice, #error{severity = warning,
-                                          code = <<"00000">>,
+                                          code = <<"01000">>,
                                           message = <<"test notice">>}}} -> ok
           after
               100 -> erlang:error(didnt_receive_notice)
