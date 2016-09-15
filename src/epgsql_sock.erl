@@ -426,11 +426,21 @@ notify(State = #state{queue = Q}, Notice) ->
     end,
     State.
 
-notify_async(State = #state{async = Pid}, Msg) when is_pid(Pid); is_atom(Pid) ->
-    Pid ! {epgsql, self(), Msg},
-    State;
+notify_process(undefined, Msg) ->
+    false;
 
-notify_async(State, _Msg) ->
+notify_process(Pid, Msg) when is_pid(Pid) ->
+    Pid ! {epgsql, self(), Msg},
+    true;
+    
+notify_process(Process, Msg) when is_atom(Process) ->
+    notify_process(whereis(Process), Msg);
+
+notify_process(_, _) ->
+    false.
+    
+notify_async(State = #state{async = Pid}, Msg) ->
+    notify_process(Pid, Msg),
     State.
 
 command_tag(#state{queue = Q}) ->
