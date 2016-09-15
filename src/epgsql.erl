@@ -38,7 +38,7 @@
     {ssl,      IsEnabled  :: boolean() | required} |
     {ssl_opts, SslOptions :: [ssl:ssl_option()]}   | % @see OTP ssl app, ssl_api.hrl
     {timeout,  TimeoutMs  :: timeout()}            | % default: 5000 ms
-    {async,    Receiver   :: pid()}. % process to receive LISTEN/NOTIFY msgs
+    {async,    Receiver   :: pid() | atom()}.        % process to receive LISTEN/NOTIFY msgs; can be a pid or registered process (atom)
 -type connect_error() :: #error{}.
 -type query_error() :: #error{}.
 
