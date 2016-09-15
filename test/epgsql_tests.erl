@@ -858,6 +858,17 @@ set_notice_receiver_test(Module) ->
           {ok, undefined} = Module:set_notice_receiver(C, Self),
           EnsureNotification(<<"test2">>),
 
+          %% test PL/PgSQL NOTICE
+          {ok, [], []} = Module:squery(
+                           C, ["DO $$ BEGIN RAISE WARNING 'test notice'; END $$;"]),
+          receive
+              {epgsql, C, {notice, #error{severity = warning,
+                                          code = <<"00000">>,
+                                          message = <<"test notice">>}}} -> ok
+          after
+              100 -> erlang:error(didnt_receive_notice)
+          end,
+
           % set registered pid
           Receiver = pg_notification_receiver,
           register(Receiver, Self),

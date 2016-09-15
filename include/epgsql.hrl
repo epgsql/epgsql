@@ -15,7 +15,8 @@
 }).
 
 -record(error, {
-    severity :: fatal | error | atom(), %TODO: concretize
+    % see client_min_messages config option
+    severity :: debug | log | info | notice | warning | error | fatal | panic,
     code :: binary(),
     codename :: atom(),
     message :: binary(),
