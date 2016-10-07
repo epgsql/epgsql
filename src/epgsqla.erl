@@ -6,6 +6,7 @@
          connect/2, connect/3, connect/4, connect/5,
          close/1,
          get_parameter/2,
+         set_notice_receiver/2,
          squery/2,
          equery/2, equery/3,
          prepared_query/3,
@@ -48,6 +49,11 @@ close(C) ->
 -spec get_parameter(epgsql:connection(), binary()) -> binary() | undefined.
 get_parameter(C, Name) ->
     epgsql_sock:get_parameter(C, Name).
+
+-spec set_notice_receiver(epgsql:connection(), undefined | pid() | atom()) ->
+                                 {ok, Previous :: pid() | atom()}.
+set_notice_receiver(C, PidOrName) ->
+    epgsql_sock:set_notice_receiver(C, PidOrName).
 
 -spec squery(epgsql:connection(), string()) -> reference().
 squery(C, Sql) ->

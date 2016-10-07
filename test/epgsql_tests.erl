@@ -826,6 +826,65 @@ listen_notify_payload_test(Module) ->
       end,
       [{async, self()}]).
 
+set_notice_receiver_test(Module) ->
+    with_min_version(
+      Module,
+      9.0,
+      fun(C) ->
+          {ok, [], []}     = Module:squery(C, "listen epgsql_test"),
+          {ok, _, [{Pid}]} = Module:equery(C, "select pg_backend_pid()"),
+
+          EnsureNoNotification = fun(Payload) ->
+              {ok, [], []}     = Module:squery(C, ["notify epgsql_test, '", Payload, "'"]),
+              receive
+                  {epgsql, _, _} -> erlang:error(got_unexpected_notification)
+              after
+                  10 -> ok
+              end
+          end,
+          EnsureNotification = fun(Payload) ->
+              {ok, [], []}     = Module:squery(C, ["notify epgsql_test, '", Payload, "'"]),
+              receive
+                  {epgsql, C, {notification, <<"epgsql_test">>, Pid, Payload}} -> ok
+              after
+                  100 -> erlang:error(didnt_receive_notification)
+              end
+          end,
+          Self = self(),
+
+          EnsureNoNotification(<<"test1">>),
+
+          % Set pid()
+          {ok, undefined} = Module:set_notice_receiver(C, Self),
+          EnsureNotification(<<"test2">>),
+
+          %% test PL/PgSQL NOTICE
+          {ok, [], []} = Module:squery(
+                           C, ["DO $$ BEGIN RAISE WARNING 'test notice'; END $$;"]),
+          receive
+              {epgsql, C, {notice, #error{severity = warning,
+                                          code = <<"01000">>,
+                                          message = <<"test notice">>}}} -> ok
+          after
+              100 -> erlang:error(didnt_receive_notice)
+          end,
+
+          % set registered pid
+          Receiver = pg_notification_receiver,
+          register(Receiver, Self),
+          {ok, Self} = Module:set_notice_receiver(C, Receiver),
+          EnsureNotification(<<"test3">>),
+
+          % make registered name invalid
+          unregister(Receiver),
+          EnsureNoNotification(<<"test4">>),
+
+          % disable
+          {ok, Receiver} = Module:set_notice_receiver(C, undefined),
+          EnsureNoNotification(<<"test5">>)
+      end,
+      []).
+
 application_test(_Module) ->
     lists:foreach(fun application:start/1, ?ssl_apps),
     ok = application:start(epgsql),

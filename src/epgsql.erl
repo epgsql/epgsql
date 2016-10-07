@@ -6,6 +6,7 @@
 -export([connect/1, connect/2, connect/3, connect/4, connect/5,
          close/1,
          get_parameter/2,
+         set_notice_receiver/2,
          squery/2,
          equery/2, equery/3, equery/4,
          prepared_query/3,
@@ -134,6 +135,11 @@ close(C) ->
 -spec get_parameter(connection(), binary()) -> binary() | undefined.
 get_parameter(C, Name) ->
     epgsql_sock:get_parameter(C, Name).
+
+-spec set_notice_receiver(connection(), undefined | pid() | atom()) ->
+                                 {ok, Previous :: pid() | atom()}.
+set_notice_receiver(C, PidOrName) ->
+    epgsql_sock:set_notice_receiver(C, PidOrName).
 
 -spec squery(connection(), sql_query()) -> reply(squery_row()) | [reply(squery_row())].
 %% @doc runs simple `SqlQuery' via given `Connection'
