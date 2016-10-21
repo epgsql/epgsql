@@ -21,7 +21,10 @@
          update_type_cache/1,
          update_type_cache/2,
          with_transaction/2,
-         sync_on_error/2]).
+         sync_on_error/2,
+         standby_status_update/3,
+         start_replication/5,
+         start_replication/6]).
 
 -export_type([connection/0, connect_option/0,
               connect_error/0, query_error/0,
@@ -39,7 +42,9 @@
     {ssl,      IsEnabled  :: boolean() | required} |
     {ssl_opts, SslOptions :: [ssl:ssl_option()]}   | % @see OTP ssl app, ssl_api.hrl
     {timeout,  TimeoutMs  :: timeout()}            | % default: 5000 ms
-    {async,    Receiver   :: pid()}. % process to receive LISTEN/NOTIFY msgs
+    {async,    Receiver   :: pid()}                | % process to receive LISTEN/NOTIFY msgs
+    {replication, Replication :: string()}. % Pass "database" to connect in replication mode
+
 -type connect_error() :: #error{}.
 -type query_error() :: #error{}.
 
@@ -68,6 +73,15 @@
     {ok, Count :: non_neg_integer(), ColumnsDescription :: [#column{}], RowsValues :: [RowType]}. % update/insert/delete + returning
 -type error_reply() :: {error, query_error()}.
 -type reply(RowType) :: ok_reply(RowType) | error_reply().
+-type lsn() :: integer().
+-type cb_state() :: term().
+
+%% -- behaviour callbacks --
+
+%% Handles a XLogData Message (StartLSN, EndLSN, WALRecord, CbState).
+%% Return: {ok, LastFlushedLSN, LastAppliedLSN, NewCbState}
+-callback handle_x_log_data(lsn(), lsn(), binary(), cb_state()) -> {ok, lsn(), lsn(), cb_state()}.
+%% -------------
 
 %% -- client interface --
 connect(Settings) ->
@@ -103,8 +117,12 @@ connect(C, Host, Username, Password, Opts) ->
                          {connect, Host, Username, Password, Opts},
                          infinity) of
         connected ->
-            update_type_cache(C),
-            {ok, C};
+            case proplists:get_value(replication, Opts, undefined) of
+                undefined ->
+                    update_type_cache(C),
+                    {ok, C};
+                _ -> {ok, C} %% do not update update_type_cache if connection is in replication mode
+            end;
         Error = {error, _} ->
             Error
     end.
@@ -274,3 +292,27 @@ sync_on_error(C, Error = {error, _}) ->
 
 sync_on_error(_C, R) ->
     R.
+
+-spec standby_status_update(connection(), lsn(), lsn()) -> ok | error_reply().
+%% @doc sends last flushed and applied WAL positions to the server in a standby status update message via given `Connection'
+standby_status_update(Connection, FlushedLSN, AppliedLSN) ->
+    gen_server:call(Connection, {standby_status_update, FlushedLSN, AppliedLSN}).
+
+-spec start_replication(connection(), string(), Callback, cb_state(), string(), string()) -> ok | error_reply() when
+    Callback :: module() | pid().
+%% @doc instructs Postgres server to start streaming WAL for logical replication
+%% where
+%% `Connection'      - connection in replication mode
+%% `ReplicationSlot' - the name of the replication slot to stream changes from
+%% `Callback'        - Callback module which should have the callback functions implemented for message processing.
+%%                      or a process which should be able to receive replication messages.
+%% `CbInitState'     - Callback Module's initial state
+%% `WALPosition'     - the WAL position XXX/XXX to begin streaming at.
+%%                      "0/0" to let the server determine the start point.
+%% `PluginOpts'      - optional options passed to the slot's logical decoding plugin.
+%%                      For example: "option_name1 'value1', option_name2 'value2'"
+%% returns `ok' otherwise `{error, Reason}'
+start_replication(Connection, ReplicationSlot, Callback, CbInitState, WALPosition, PluginOpts) ->
+    gen_server:call(Connection, {start_replication, ReplicationSlot, Callback, CbInitState, WALPosition, PluginOpts}).
+start_replication(Connection, ReplicationSlot, Callback, CbInitState, WALPosition) ->
+    start_replication(Connection, ReplicationSlot, Callback, CbInitState, WALPosition, []).

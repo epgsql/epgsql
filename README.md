@@ -68,8 +68,9 @@ see `CHANGES` for full list.
     {ssl,      IsEnabled  :: boolean() | required} |
     {ssl_opts, SslOptions :: [ssl:ssl_option()]}   | % @see OTP ssl app, ssl_api.hrl
     {timeout,  TimeoutMs  :: timeout()}            | % default: 5000 ms
-    {async,    Receiver   :: pid() | atom()}. % process to receive LISTEN/NOTIFY msgs
-
+    {async,    Receiver   :: pid() | atom()}       | % process to receive LISTEN/NOTIFY msgs
+    {replication, Replication :: string()}. % Pass "database" to connect in replication mode
+    
 -spec connect(host(), string(), string(), [connect_option()])
         -> {ok, Connection :: connection()} | {error, Reason :: connect_error()}.    
 %% @doc connects to Postgres
@@ -395,6 +396,81 @@ example:
 - `{C, Ref, {complete, {_Type, Count}}}`
 - `{C, Ref, {complete, _Type}}`
 - `{C, Ref, done}` - execution of all queries from Batch has finished
+
+
+## Streaming replication protocol
+**Use-case** 
+
+Erlang app uses in read-only mode some data (e.g. some configuration, rate/price plans, subscriber’s profiles) from PostgreSql DB. 
+Erlang app stores this data in some internal structure (e.g. ETS table).
+Some third party app modifies such data in PostgreSql DB. 
+Erlang app needs to know about modifications in a near real-time mode. 
+Using Streaming Replication Protocol (https://www.postgresql.org/docs/current/static/protocol-replication.html) 
+we can subscriber to receive changes from PostgreSql DB.
+During startup Erlang app connects in replication mode, 
+creates replication slot and selects initial data from tables 
+and start replication with our callback method. 
+In case of any changes in PostgreSql DB it will receive this change and update internal ETS table accordingly. 
+
+**Usage**
+
+To initiate streaming replication connection, `replication` parameter with 
+the value "database" should be set in the `connect`.
+Only simple queries `squery` can be used in replication mode and 
+only special commands accepted in this mode 
+(e.g DROP_REPLICATION_SLOT, CREATE_REPLICATION_SLOT, IDENTIFY_SYSTEM).
+
+Replication commands as well as replication connection mode available only in epgsql and not in epgsqla, epgsqli.
+
+Use `start_replication` in order to start streaming. 
+
+```erlang
+ok = epgsql:start_replication(Connection, ReplicationSlot, Callback, CbInitState, 
+        WALPosition, PluginOpts).
+```
+- `Connection`           - connection in replication mode
+- `ReplicationSlot`      - the name of the replication slot to stream changes from
+- `Callback`             - callback module which should have the callback functions
+                            or a process which should be able to receive replication messages.
+- `CbInitState`          - initial state of callback module. 
+- `WALPosition`          - the WAL position XXX/XXX to begin streaming at.
+                           "0/0" to let the server determine the start point.
+- `PluginOpts`           - optional options passed to the slot's logical decoding plugin. 
+For example: "option_name1 'value1', option_name2 'value2'"
+
+
+On success, PostgreSQL server responds with a CopyBothResponse message, and then starts to stream WAL records.
+PostgreSQL sends CopyData messages which contain:
+- Keepalive message. *epgsql* answers with standby status update message, to avoid a timeout disconnect.
+- XLogData message. *epgsql* calls `CallbackModule:handle_x_log_data` for each XLogData 
+or sends async messages `{epgsql, self(), {x_log_data, StartLSN, EndLSN, WALRecord}}`. 
+In case of async mode, the receiving process should report last processed LSN by calling 
+`standby_status_update(Connection, FlushedLSN, AppliedLSN)`.
+
+```erlang
+%% Handles a XLogData Message (StartLSN, EndLSN, WALRecord, CbState).
+%% Return: {ok, LastFlushedLSN, LastAppliedLSN, NewCbState}
+-callback handle_x_log_data(lsn(), lsn(), binary(), cb_state()) -> {ok, lsn(), lsn(), cb_state()}.
+ ```
+ 
+Example:
+
+```erlang
+start_replication() -> 
+    {ok, C} = epgsql:connect("localhost", "username", "psss", [
+                {database, "test_db"},
+                {replication, "database"}
+            ]),
+    
+    Res = epgsql:squery(C, "CREATE_REPLICATION_SLOT ""epgsql_test"" LOGICAL ""test_decoding"""),
+    io:format("~p~n", [Res]),
+    
+    ok = epgsql:start_replication(C, "epgsql_test", ?MODULE, [], "0/0").
+
+handle_x_log_data(StartLSN, EndLSN, Data, CbState) ->
+    io:format("~p~n", [{StartLSN, EndLSN, Data}]),
+    {ok, EndLSN, EndLSN, CbState}.
+```
 
 
 ## Data Representation

@@ -14,7 +14,8 @@
          encode_types/2,
          encode_formats/1,
          format/1,
-         encode_parameters/2]).
+         encode_parameters/2,
+         encode_standby_status_update/3]).
 
 -include("epgsql.hrl").
 -include("epgsql_binary.hrl").
@@ -206,3 +207,8 @@ encode_parameter(L) when is_list(L)    -> {0, encode_list(L)}.
 encode_list(L) ->
     Bin = list_to_binary(L),
     <<(byte_size(Bin)):?int32, Bin/binary>>.
+
+encode_standby_status_update(ReceivedLSN, FlushedLSN, AppliedLSN) ->
+    {MegaSecs, Secs, MicroSecs} = erlang:now(),
+    Timestamp = ((MegaSecs * 1000000 + Secs) * 1000000 + MicroSecs) - 946684800*1000000, %% microseconds since midnight on 2000-01-01
+    <<$r:8, ReceivedLSN:?int64, FlushedLSN:?int64, AppliedLSN:?int64, Timestamp:?int64, 0:8>>.
