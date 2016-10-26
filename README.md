@@ -68,8 +68,9 @@ see `CHANGES` for full list.
     {ssl,      IsEnabled  :: boolean() | required} |
     {ssl_opts, SslOptions :: [ssl:ssl_option()]}   | % @see OTP ssl app, ssl_api.hrl
     {timeout,  TimeoutMs  :: timeout()}            | % default: 5000 ms
-    {async,    Receiver   :: pid() | atom()}. % process to receive LISTEN/NOTIFY msgs
-
+    {async,    Receiver   :: pid() | atom()}       | % process to receive LISTEN/NOTIFY msgs
+    {replication, Replication :: string()}. % Pass "database" to connect in replication mode
+    
 -spec connect(host(), string(), string(), [connect_option()])
         -> {ok, Connection :: connection()} | {error, Reason :: connect_error()}.    
 %% @doc connects to Postgres
@@ -395,7 +396,6 @@ example:
 - `{C, Ref, {complete, {_Type, Count}}}`
 - `{C, Ref, {complete, _Type}}`
 - `{C, Ref, done}` - execution of all queries from Batch has finished
-
 
 ## Data Representation
 PG type       | Representation

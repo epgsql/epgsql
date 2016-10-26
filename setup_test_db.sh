@@ -13,6 +13,9 @@ cat > datadir/postgresql.conf <<EOF
 ssl = on
 ssl_ca_file = 'root.crt'
 lc_messages = 'en_US.UTF-8'
+wal_level = 'logical'
+max_replication_slots = 15
+max_wal_senders = 15
 EOF
 
 cp test_data/epgsql.crt datadir/server.crt
@@ -30,5 +33,6 @@ host    epgsql_test_db1 epgsql_test             127.0.0.1/32    trust
 host    epgsql_test_db1 epgsql_test_md5         127.0.0.1/32    md5
 host    epgsql_test_db1 epgsql_test_cleartext   127.0.0.1/32    password
 hostssl epgsql_test_db1 epgsql_test_cert        127.0.0.1/32    cert clientcert=1
+host    replication     epgsql_test_replication 127.0.0.1/32    trust
 EOF
 

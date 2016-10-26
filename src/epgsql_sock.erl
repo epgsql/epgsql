@@ -57,6 +57,13 @@
 -define(PARAMETER_DESCRIPTION, $t).
 -define(ROW_DESCRIPTION, $T).
 -define(READY_FOR_QUERY, $Z).
+-define(COPY_BOTH_RESPONSE, $W).
+-define(COPY_DATA, $d).
+
+% CopyData replication messages
+-define(X_LOG_DATA, $w).
+-define(PRIMARY_KEEPALIVE_MESSAGE, $k).
+-define(STANDBY_STATUS_UPDATE, $r).
 
 -record(state, {mod,
                 sock,
@@ -73,7 +80,14 @@
                 results = [],
                 batch = [],
                 sync_required,
-                txstatus}).
+                txstatus,
+                repl_last_received_lsn,
+                repl_last_flushed_lsn,
+                repl_last_applied_lsn,
+                repl_feedback_required,
+                repl_cbmodule,
+                repl_cbstate,
+                repl_receiver}).
 
 %% -- client interface --
 
@@ -112,6 +126,11 @@ handle_call({get_parameter, Name}, _From, State) ->
 
 handle_call({set_async_receiver, PidOrName}, _From, #state{async = Previous} = State) ->
     {reply, {ok, Previous}, State#state{async = PidOrName}};
+
+handle_call({standby_status_update, FlushedLSN, AppliedLSN}, _From,
+    #state{repl_last_received_lsn = ReceivedLSN} = State) ->
+    send(State, ?COPY_DATA, epgsql_wire:encode_standby_status_update(ReceivedLSN, FlushedLSN, AppliedLSN)),
+    {reply, ok, State#state{repl_last_flushed_lsn = FlushedLSN, repl_last_applied_lsn = AppliedLSN}};
 
 handle_call(Command, From, State) ->
     #state{queue = Q} = State,
@@ -201,7 +220,13 @@ command({connect, Host, Username, Password, Opts}, State) ->
                 undefined -> Opts2;
                 Database  -> [Opts2 | ["database", 0, Database, 0]]
             end,
-            send(State2, [<<196608:?int32>>, Opts3, 0]),
+
+            Opts4 = case proplists:get_value(replication, Opts, undefined) of
+                        undefined -> Opts3;
+                        Replication  -> [Opts3 | ["replication", 0, Replication, 0]]
+                    end,
+
+            send(State2, [<<196608:?int32>>, Opts4, 0]),
             Async   = proplists:get_value(async, Opts, undefined),
             setopts(State2, [{active, true}]),
             put(username, Username),
@@ -316,7 +341,29 @@ command({close, Type, Name}, State) ->
 
 command(sync, State) ->
     send(State, ?SYNC, []),
-    {noreply, State#state{sync_required = false}}.
+    {noreply, State#state{sync_required = false}};
+
+command({start_replication, ReplicationSlot, Callback, CbInitState, WALPosition, PluginOpts}, State) ->
+    Sql1 = ["START_REPLICATION SLOT """, ReplicationSlot, """ LOGICAL ", WALPosition],
+    Sql2 =
+        case PluginOpts of
+            [] -> Sql1;
+            PluginOpts -> [Sql1 , " (", PluginOpts, ")"]
+        end,
+
+    State2 =
+        case Callback of
+            Pid when is_pid(Pid) -> State#state{repl_receiver = Pid};
+            Module -> State#state{repl_cbmodule = Module, repl_cbstate = CbInitState}
+        end,
+
+    Hex = [H || H <- WALPosition, H =/= $/],
+    {ok, [LSN], _} = io_lib:fread("~16u", Hex),
+
+    State3 = State2#state{repl_last_flushed_lsn = LSN, repl_last_applied_lsn = LSN},
+
+    send(State3, ?SIMPLEQUERY, [Sql2, 0]),
+    {noreply, State3}.
 
 start_ssl(S, Flag, Opts, State) ->
     ok = gen_tcp:send(S, <<8:?int32, 80877103:?int32>>),
@@ -364,7 +411,9 @@ do_send(gen_tcp, Sock, Bin) ->
 do_send(Mod, Sock, Bin) ->
     Mod:send(Sock, Bin).
 
-loop(#state{data = Data, handler = Handler} = State) ->
+loop(#state{data = Data, handler = Handler, repl_last_received_lsn = LastReceivedLSN,
+    repl_last_flushed_lsn = LastFlushedLSN, repl_last_applied_lsn = LastAppliedLSN,
+    repl_feedback_required = ReplFeedbackRequired} = State) ->
     case epgsql_wire:decode_message(Data) of
         {Message, Tail} ->
             case ?MODULE:Handler(Message, State#state{data = Tail}) of
@@ -374,7 +423,15 @@ loop(#state{data = Data, handler = Handler} = State) ->
                     R
             end;
         _ ->
-            {noreply, State}
+            %% in replication mode send feedback after each batch of messages
+            case ReplFeedbackRequired of
+                true ->
+                    send(State, ?COPY_DATA, epgsql_wire:encode_standby_status_update(
+                        LastReceivedLSN, LastFlushedLSN, LastAppliedLSN)),
+                    {noreply, State#state{repl_feedback_required = false}};
+                _ ->
+                    {noreply, State}
+            end
     end.
 
 finish(State, Result) ->
@@ -752,4 +809,40 @@ on_message({?NOTIFICATION, <<Pid:?int32, Strings/binary>>}, State) ->
         [Channel]          -> {Channel, <<>>}
     end,
     notify_async(State, {notification, Channel1, Pid, Payload1}),
-    {noreply, State}.
+    {noreply, State};
+
+%% CopyBothResponse
+on_message({?COPY_BOTH_RESPONSE, _Data}, State) ->
+    State2 = finish(State, ok),
+    {noreply, State2};
+
+%% CopyData for COPY command. COPY command not supported yet.
+on_message({?COPY_DATA, _Data}, #state{repl_cbmodule = undefined, repl_receiver = undefined} = State) ->
+    {stop, {error, copy_command_not_supported}, State};
+
+%% CopyData for Replication mode
+on_message({?COPY_DATA, <<?PRIMARY_KEEPALIVE_MESSAGE:8, LSN:?int64, _Timestamp:?int64, ReplyRequired:8>>},
+    #state{repl_last_flushed_lsn = LastFlushedLSN, repl_last_applied_lsn = LastAppliedLSN} = State) ->
+    case ReplyRequired of
+        1 ->
+            send(State, ?COPY_DATA,
+                epgsql_wire:encode_standby_status_update(LSN, LastFlushedLSN, LastAppliedLSN)),
+            {noreply, State#state{repl_feedback_required = false, repl_last_received_lsn = LSN}};
+        _ ->
+            {noreply, State#state{repl_feedback_required = true, repl_last_received_lsn = LSN}}
+    end;
+
+%% CopyData for Replication mode. with async messages
+on_message({?COPY_DATA, <<?X_LOG_DATA, StartLSN:?int64, EndLSN:?int64, _Timestamp:?int64, WALRecord/binary>>},
+    #state{repl_cbmodule = undefined, repl_receiver = Receiver} = State) ->
+    Receiver ! {epgsql, self(), {x_log_data, StartLSN, EndLSN, WALRecord}},
+    {noreply, State#state{repl_feedback_required = true, repl_last_received_lsn = EndLSN}};
+
+%% CopyData for Replication mode. with callback method
+on_message({?COPY_DATA, <<?X_LOG_DATA, StartLSN:?int64, EndLSN:?int64, _Timestamp:?int64, WALRecord/binary>>},
+    #state{repl_cbmodule = CbModule, repl_cbstate = CbState, repl_receiver = undefined} = State) ->
+    {ok, LastFlushedLSN, LastAppliedLSN, NewCbState} =
+        CbModule:handle_x_log_data(StartLSN, EndLSN, WALRecord, CbState),
+    {noreply, State#state{repl_feedback_required = true, repl_last_received_lsn = EndLSN,
+        repl_last_flushed_lsn = LastFlushedLSN, repl_last_applied_lsn = LastAppliedLSN,
+        repl_cbstate = NewCbState}}.

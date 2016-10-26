@@ -11,6 +11,7 @@ CREATE USER epgsql_test;
 CREATE USER epgsql_test_md5 WITH PASSWORD 'epgsql_test_md5';
 CREATE USER epgsql_test_cleartext WITH PASSWORD 'epgsql_test_cleartext';
 CREATE USER epgsql_test_cert;
+CREATE USER epgsql_test_replication WITH REPLICATION PASSWORD 'epgsql_test_replication';
 
 DROP DATABASE epgsql_test_db1;
 DROP DATABASE epgsql_test_db2;
