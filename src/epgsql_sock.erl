@@ -163,7 +163,7 @@ handle_cast(cancel, State = #state{backend = {Pid, Key},
 
 handle_info({Closed, Sock}, #state{sock = Sock} = State)
   when Closed == tcp_closed; Closed == ssl_closed ->
-    {stop, sock_closed, flush_queue(State, {error, sock_closed})};
+    {stop, sock_closed, flush_queue(State#state{sock = undefined}, {error, sock_closed})};
 
 handle_info({Error, Sock, Reason}, #state{sock = Sock} = State)
   when Error == tcp_error; Error == ssl_error ->
@@ -179,9 +179,9 @@ handle_info({inet_reply, _, Status}, State) ->
 handle_info({_, Sock, Data2}, #state{data = Data, sock = Sock} = State) ->
     loop(State#state{data = <<Data/binary, Data2/binary>>}).
 
-terminate(_Reason, _State) ->
-    %% TODO send termination msg, close socket ??
-    ok.
+terminate(_Reason, #state{sock = undefined}) -> ok;
+terminate(_Reason, #state{mod = gen_tcp, sock = Sock}) -> gen_tcp:close(Sock);
+terminate(_Reason, #state{mod = ssl, sock = Sock}) -> ssl:close(Sock).
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
