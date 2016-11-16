@@ -209,6 +209,6 @@ encode_list(L) ->
     <<(byte_size(Bin)):?int32, Bin/binary>>.
 
 encode_standby_status_update(ReceivedLSN, FlushedLSN, AppliedLSN) ->
-    {MegaSecs, Secs, MicroSecs} = erlang:now(),
+    {MegaSecs, Secs, MicroSecs} = os:timestamp(),
     Timestamp = ((MegaSecs * 1000000 + Secs) * 1000000 + MicroSecs) - 946684800*1000000, %% microseconds since midnight on 2000-01-01
     <<$r:8, ReceivedLSN:?int64, FlushedLSN:?int64, AppliedLSN:?int64, Timestamp:?int64, 0:8>>.

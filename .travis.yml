@@ -4,6 +4,7 @@ otp_release:
   - R16B03-1
   - 17.4
   - 18.2
+  - 19.1
 before_script:
   - sudo apt-get update -qq
   - sudo apt-get install postgresql-9.4-postgis-2.1 postgresql-contrib-9.4
