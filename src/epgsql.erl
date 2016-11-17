@@ -29,7 +29,8 @@
 -export_type([connection/0, connect_option/0,
               connect_error/0, query_error/0,
               sql_query/0, bind_param/0, typed_param/0,
-              squery_row/0, equery_row/0, reply/1]).
+              squery_row/0, equery_row/0, reply/1,
+              pg_time/0, pg_date/0, pg_datetime/0, pg_interval/0]).
 
 -include("epgsql.hrl").
 
@@ -48,6 +49,18 @@
 -type connect_error() :: #error{}.
 -type query_error() :: #error{}.
 
+%% Ranges are from https://www.postgresql.org/docs/current/static/datatype-datetime.html
+-type pg_date() ::
+        {Year :: -4712..294276,
+         Month :: 1..12,
+         Day :: 1..31}.
+-type pg_time() ::
+        {Hour :: 0..24,  % Max value is 24:00:00
+         Minute :: 0..59,
+         Second :: 0..59 | float()}.
+-type pg_datetime() :: {pg_date(), pg_time()}.
+-type pg_interval() :: {pg_time(), Days :: integer(), Months :: integer()}.
+
 -type bind_param() ::
         null
         | boolean()
@@ -55,10 +68,10 @@
         | binary()
         | integer()
         | float()
-        | calendar:date()
-        | calendar:time()                       %actualy, `Seconds' may be float()
-        | calendar:datetime()
-        | {calendar:time(), Days::non_neg_integer(), Months::non_neg_integer()}
+        | pg_date()
+        | pg_time()
+        | pg_datetime()
+        | pg_interval()
         | {list({binary(), binary() | null})}   % hstore
         | [bind_param()].                       %array (maybe nested)
 
