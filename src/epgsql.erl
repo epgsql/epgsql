@@ -65,8 +65,8 @@
 -type typed_param() ::
     {epgsql_type(), bind_param()}.
 
--type squery_row() :: {binary()}.
--type equery_row() :: {bind_param()}.
+-type squery_row() :: tuple(). % tuple of binary().
+-type equery_row() :: tuple(). % tuple of bind_param().
 -type ok_reply(RowType) ::
     {ok, ColumnsDescription :: [#column{}], RowsValues :: [RowType]} |                            % select
     {ok, Count :: non_neg_integer()} |                                                            % update/insert/delete
