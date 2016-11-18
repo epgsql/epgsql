@@ -5,7 +5,7 @@
 
 -module(epgsql_incremental).
 
--export([connect/2, connect/3, connect/4, close/1]).
+-export([connect/1, connect/2, connect/3, connect/4, close/1]).
 -export([get_parameter/2, set_notice_receiver/2, squery/2, equery/2, equery/3]).
 -export([prepared_query/3]).
 -export([parse/2, parse/3, parse/4, describe/2, describe/3]).
@@ -17,21 +17,29 @@
 
 %% -- client interface --
 
+connect(Opts) ->
+    Ref = epgsqli:connect(Opts),
+    await_connect(Ref).
+
 connect(Host, Opts) ->
-    connect(Host, os:getenv("USER"), "", Opts).
+    Ref = epgsqli:connect(Host, Opts),
+    await_connect(Ref).
 
 connect(Host, Username, Opts) ->
-    connect(Host, Username, "", Opts).
+    Ref = epgsqli:connect(Host, Username, Opts),
+    await_connect(Ref).
 
 connect(Host, Username, Password, Opts) ->
-    {ok, C} = epgsql_sock:start_link(),
-    Ref = epgsqli:connect(C, Host, Username, Password, Opts),
+    Ref = epgsqli:connect(Host, Username, Password, Opts),
+    await_connect(Ref).
+
+await_connect(Ref) ->
     receive
         {C, Ref, connected} ->
             {ok, C};
-        {C, Ref, Error = {error, _}} ->
+        {_C, Ref, Error = {error, _}} ->
             Error;
-        {'EXIT', C, _Reason} ->
+        {'EXIT', _C, _Reason} ->
             {error, closed}
     end.
 

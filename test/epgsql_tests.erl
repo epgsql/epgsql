@@ -106,6 +106,20 @@ connect_with_client_cert_test(Module) ->
       "epgsql_test_cert",
       [{ssl, true}, {keyfile, File("epgsql.key")}, {certfile, File("epgsql.crt")}]).
 
+-ifdef(have_maps).
+connect_map_test(Module) ->
+    Opts = #{host => ?host,
+             port => ?port,
+             database => "epgsql_test_db1",
+             username => "epgsql_test_md5",
+             password => "epgsql_test_md5"
+            },
+    {ok, C} = Module:connect(Opts),
+    Module:close(C),
+    flush(),
+    ok.
+-endif.
+
 prepared_query_test(Module) ->
   with_connection(
     Module,

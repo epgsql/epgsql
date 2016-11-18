@@ -71,7 +71,7 @@ see `CHANGES` for full list.
     {async,    Receiver   :: pid() | atom()}       | % process to receive LISTEN/NOTIFY msgs
     {replication, Replication :: string()}. % Pass "database" to connect in replication mode
     
--spec connect(host(), string(), string(), [connect_option()])
+-spec connect(host(), string(), string(), [connect_option()] | map())
         -> {ok, Connection :: connection()} | {error, Reason :: connect_error()}.    
 %% @doc connects to Postgres
 %% where
@@ -94,6 +94,8 @@ ok = epgsql:close(C).
 
 The `{timeout, TimeoutMs}` parameter will trigger an `{error, timeout}` result when the
 socket fails to connect within `TimeoutMs` milliseconds.
+
+Options may be passed as map with the same key names, if your VM version supports maps.
 
 Asynchronous connect example (applies to **epgsqli** too):
 
