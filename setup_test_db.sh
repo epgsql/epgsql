@@ -18,10 +18,10 @@ max_replication_slots = 15
 max_wal_senders = 15
 EOF
 
-cp test_data/epgsql.crt datadir/server.crt
-cp test_data/epgsql.key datadir/server.key
-cp test_data/root.crt datadir/root.crt
-cp test_data/root.key datadir/root.key
+cp test/data/epgsql.crt datadir/server.crt
+cp test/data/epgsql.key datadir/server.key
+cp test/data/root.crt datadir/root.crt
+cp test/data/root.key datadir/root.key
 chmod 0600 datadir/server.key
 
 cat > datadir/pg_hba.conf <<EOF
