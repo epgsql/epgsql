@@ -24,9 +24,10 @@
          sync_on_error/2,
          standby_status_update/3,
          start_replication/5,
-         start_replication/6]).
+         start_replication/6,
+         to_proplist/1]).
 
--export_type([connection/0, connect_option/0,
+-export_type([connection/0, connect_option/0, connect_opts/0,
               connect_error/0, query_error/0,
               sql_query/0, bind_param/0, typed_param/0,
               squery_row/0, equery_row/0, reply/1]).
@@ -37,15 +38,39 @@
 -type host() :: inet:ip_address() | inet:hostname().
 -type connection() :: pid().
 -type connect_option() ::
+    {host, host()}                                 |
+    {username, string()}                           |
+    {password, string()}                           |
     {database, DBName     :: string()}             |
     {port,     PortNum    :: inet:port_number()}   |
     {ssl,      IsEnabled  :: boolean() | required} |
     {ssl_opts, SslOptions :: [ssl:ssl_option()]}   | % @see OTP ssl app, ssl_api.hrl
     {timeout,  TimeoutMs  :: timeout()}            | % default: 5000 ms
-    {async,    Receiver   :: pid()}                | % process to receive LISTEN/NOTIFY msgs
+    {async,    Receiver   :: pid() | atom()}       | % process to receive LISTEN/NOTIFY msgs
     {replication, Replication :: string()}. % Pass "database" to connect in replication mode
 
--type connect_error() :: #error{}.
+-ifdef(have_maps).
+-type connect_opts() ::
+        [connect_option()]
+      | #{host => host(),
+          username => string(),
+          password => string(),
+          database => string(),
+          port => inet:port_number(),
+          ssl => boolean() | required,
+          ssl_opts => [ssl:ssl_option()],
+          timeout => timeout(),
+          async => pid(),
+          replication => string()}.
+-else.
+-type connect_opts() :: [connect_option()].
+-endif.
+
+-type connect_error() ::
+        #error{}
+      | {unsupported_auth_method, atom()}
+      | invalid_authorization_specification
+      | invalid_password.
 -type query_error() :: #error{}.
 
 -type bind_param() ::
@@ -84,7 +109,10 @@
 %% -------------
 
 %% -- client interface --
-connect(Settings) ->
+-spec connect(connect_opts())
+        -> {ok, Connection :: connection()} | {error, Reason :: connect_error()}.
+connect(Settings0) ->
+    Settings = to_proplist(Settings0),
 	Host = proplists:get_value(host, Settings, "localhost"),
 	Username = proplists:get_value(username, Settings, os:getenv("USER")),
 	Password = proplists:get_value(password, Settings, ""),
@@ -96,7 +124,7 @@ connect(Host, Opts) ->
 connect(Host, Username, Opts) ->
     connect(Host, Username, "", Opts).
 
--spec connect(host(), string(), string(), [connect_option()])
+-spec connect(host(), string(), string(), connect_opts())
         -> {ok, Connection :: connection()} | {error, Reason :: connect_error()}.
 %% @doc connects to Postgres
 %% where
@@ -109,9 +137,10 @@ connect(Host, Username, Password, Opts) ->
     {ok, C} = epgsql_sock:start_link(),
     connect(C, Host, Username, Password, Opts).
 
--spec connect(connection(), host(), string(), string(), [connect_option()])
+-spec connect(connection(), host(), string(), string(), connect_opts())
         -> {ok, Connection :: connection()} | {error, Reason :: connect_error()}.
-connect(C, Host, Username, Password, Opts) ->
+connect(C, Host, Username, Password, Opts0) ->
+    Opts = to_proplist(Opts0),
     %% TODO connect timeout
     case gen_server:call(C,
                          {connect, Host, Username, Password, Opts},
@@ -316,3 +345,9 @@ start_replication(Connection, ReplicationSlot, Callback, CbInitState, WALPositio
     gen_server:call(Connection, {start_replication, ReplicationSlot, Callback, CbInitState, WALPosition, PluginOpts}).
 start_replication(Connection, ReplicationSlot, Callback, CbInitState, WALPosition) ->
     start_replication(Connection, ReplicationSlot, Callback, CbInitState, WALPosition, []).
+
+%% @private
+to_proplist(List) when is_list(List) ->
+    List;
+to_proplist(Map) ->
+    maps:to_list(Map).

@@ -3,7 +3,7 @@
 -module(epgsqli).
 
 -export([start_link/0,
-         connect/2, connect/3, connect/4, connect/5,
+         connect/1, connect/2, connect/3, connect/4, connect/5,
          close/1,
          get_parameter/2,
          set_notice_receiver/2,
@@ -26,6 +26,13 @@
 start_link() ->
     epgsql_sock:start_link().
 
+connect(Opts) ->
+    Settings = epgsql:to_proplist(Opts),
+    Host = proplists:get_value(host, Settings, "localhost"),
+    Username = proplists:get_value(username, Settings, os:getenv("USER")),
+    Password = proplists:get_value(password, Settings, ""),
+    connect(Host, Username, Password, Settings).
+
 connect(Host, Opts) ->
     connect(Host, os:getenv("USER"), "", Opts).
 
@@ -39,7 +46,7 @@ connect(Host, Username, Password, Opts) ->
 -spec connect(epgsql:connection(), inet:ip_address() | inet:hostname(),
               string(), string(), [epgsql:connect_option()]) -> reference().
 connect(C, Host, Username, Password, Opts) ->
-    epgsqla:complete_connect(C, incremental(C, {connect, Host, Username, Password, Opts})).
+    epgsqla:complete_connect(C, incremental(C, {connect, Host, Username, Password, epgsql:to_proplist(Opts)})).
 
 -spec close(epgsql:connection()) -> ok.
 close(C) ->
