@@ -303,34 +303,34 @@ cancel(C) ->
                           Reply | {rollback, Reply}
                             when Reply :: any().
 with_transaction(C, F) ->
-  {ok, [], []} = squery(C, "BEGIN"),
-  %% Result is always the result returned by the
-  %% function F. The code within the catch
-  %% will never return since it raises an exception.
-  Result = 
-    try
-      F(C)
-    catch
-      throw:Exception ->
-        {ok, [], []} = squery(C, "ROLLBACK"),
-        erlang:raise(throw, Exception, erlang:get_stacktrace());
-      error:Exception ->
-        {ok, [], []} = squery(C, "ROLLBACK"),
-        erlang:raise(error, Exception, erlang:get_stacktrace());
-      exit:Exception ->
-        {ok, [], []} = squery(C, "ROLLBACK"),
-        erlang:raise(exit, Exception, erlang:get_stacktrace())
-    end,
-  %% Only way to handle a rollback when executing commit.
-  Ref = epgsqli:squery(C, "COMMIT"),
-  CompleteCmd = receive {C, Ref, {complete, CompleteCommand}} -> CompleteCommand end,
-  receive {C, Ref, done} -> ok end,
-  case CompleteCmd of
-    commit -> 
-      Result;
-    rollback -> 
-      {rollback, Result}
-  end.
+    {ok, [], []} = squery(C, "BEGIN"),
+    %% Result is always the result returned by the
+    %% function F. The code within the catch
+    %% will never return since it raises an exception.
+    Result = 
+      try
+        F(C)
+      catch
+        throw:Exception ->
+          {ok, [], []} = squery(C, "ROLLBACK"),
+          erlang:raise(throw, Exception, erlang:get_stacktrace());
+        error:Exception ->
+          {ok, [], []} = squery(C, "ROLLBACK"),
+          erlang:raise(error, Exception, erlang:get_stacktrace());
+        exit:Exception ->
+          {ok, [], []} = squery(C, "ROLLBACK"),
+          erlang:raise(exit, Exception, erlang:get_stacktrace())
+      end,
+    %% Only way to handle a rollback when executing commit.
+    Ref = epgsqli:squery(C, "COMMIT"),
+    CompleteCmd = receive {C, Ref, {complete, CompleteCommand}} -> CompleteCommand end,
+    receive {C, Ref, done} -> ok end,
+    case CompleteCmd of
+      commit -> 
+        Result;
+      rollback -> 
+        {rollback, Result}
+    end.
 
 sync_on_error(C, Error = {error, _}) ->
     ok = sync(C),
