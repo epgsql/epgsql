@@ -57,7 +57,7 @@ decode_fields(<<Type:8, Rest/binary>>, Acc) ->
     decode_fields(Rest2, [{Type, Str} | Acc]).
 
 %% decode ErrorResponse
-%% TODO add fields from http://www.postgresql.org/docs/9.0/interactive/protocol-error-fields.html
+%% See http://www.postgresql.org/docs/current/interactive/protocol-error-fields.html
 decode_error(Bin) ->
     Fields = decode_fields(Bin),
     ErrCode = proplists:get_value($C, Fields),
@@ -67,20 +67,42 @@ decode_error(Bin) ->
       code     = ErrCode,
       codename = ErrName,
       message  = proplists:get_value($M, Fields),
-      extra    = decode_error_extra(Fields)},
+      extra    = lists:sort(lists:foldl(fun decode_error_extra/2, [], Fields))},
     Error.
 
-decode_error_extra(Fields) ->
-    Types = [{$D, detail}, {$H, hint}, {$P, position}],
-    decode_error_extra(Types, Fields, []).
-
-decode_error_extra([], _Fields, Extra) ->
-    Extra;
-decode_error_extra([{Type, Name} | T], Fields, Extra) ->
-    case proplists:get_value(Type, Fields) of
-        undefined -> decode_error_extra(T, Fields, Extra);
-        Value     -> decode_error_extra(T, Fields, [{Name, Value} | Extra])
-    end.
+%% consider updating #error.extra typespec when changing/adding extras
+decode_error_extra({$V, Val}, Acc) ->
+    [{severity_en, Val} | Acc];
+decode_error_extra({$D, Val}, Acc) ->
+    [{detail, Val} | Acc];
+decode_error_extra({$H, Val}, Acc) ->
+    [{hint, Val} | Acc];
+decode_error_extra({$P, Val}, Acc) ->
+    [{position, Val} | Acc];
+decode_error_extra({$p, Val}, Acc) ->
+    [{internal_position, Val} | Acc];
+decode_error_extra({$q, Val}, Acc) ->
+    [{internal_query, Val} | Acc];
+decode_error_extra({$W, Val}, Acc) ->
+    [{where, Val} | Acc];
+decode_error_extra({$s, Val}, Acc) ->
+    [{schema_name, Val} | Acc];
+decode_error_extra({$t, Val}, Acc) ->
+    [{table_name, Val} | Acc];
+decode_error_extra({$c, Val}, Acc) ->
+    [{column_name, Val} | Acc];
+decode_error_extra({$d, Val}, Acc) ->
+    [{data_type_name, Val} | Acc];
+decode_error_extra({$n, Val}, Acc) ->
+    [{constraint_name, Val} | Acc];
+decode_error_extra({$F, Val}, Acc) ->
+    [{file, Val} | Acc];
+decode_error_extra({$L, Val}, Acc) ->
+    [{line, Val} | Acc];
+decode_error_extra({$R, Val}, Acc) ->
+    [{routine, Val} | Acc];
+decode_error_extra({_, _}, Acc) ->
+    Acc.
 
 lower_atom(Str) when is_binary(Str) ->
     lower_atom(binary_to_list(Str));
