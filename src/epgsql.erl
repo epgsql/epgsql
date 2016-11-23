@@ -311,15 +311,9 @@ with_transaction(C, F) ->
       try
         F(C)
       catch
-        throw:Exception ->
+        Type:Reason ->
           {ok, [], []} = squery(C, "ROLLBACK"),
-          erlang:raise(throw, Exception, erlang:get_stacktrace());
-        error:Exception ->
-          {ok, [], []} = squery(C, "ROLLBACK"),
-          erlang:raise(error, Exception, erlang:get_stacktrace());
-        exit:Exception ->
-          {ok, [], []} = squery(C, "ROLLBACK"),
-          erlang:raise(exit, Exception, erlang:get_stacktrace())
+          erlang:raise(Type, Reason, erlang:get_stacktrace())
       end,
     %% Only way to handle a rollback when executing commit.
     Ref = epgsqli:squery(C, "COMMIT"),
