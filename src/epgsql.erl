@@ -7,6 +7,7 @@
          close/1,
          get_parameter/2,
          set_notice_receiver/2,
+         get_cmd_status/1,
          squery/2,
          equery/2, equery/3, equery/4,
          prepared_query/3,
@@ -187,6 +188,16 @@ get_parameter(C, Name) ->
                                  {ok, Previous :: pid() | atom()}.
 set_notice_receiver(C, PidOrName) ->
     epgsql_sock:set_notice_receiver(C, PidOrName).
+
+%% @doc Returns last command status message
+%% If multiple queries was executed using `squery/2', separated by semicolon,
+%% only last query's status will be available.
+%% See https://www.postgresql.org/docs/current/static/libpq-exec.html#LIBPQ-PQCMDSTATUS
+-spec get_cmd_status(connection()) -> {ok, Status}
+                                          when
+      Status :: undefined | atom() | {atom(), integer()}.
+get_cmd_status(C) ->
+    epgsql_sock:get_cmd_status(C).
 
 -spec squery(connection(), sql_query()) -> reply(squery_row()) | [reply(squery_row())].
 %% @doc runs simple `SqlQuery' via given `Connection'

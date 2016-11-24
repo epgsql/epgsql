@@ -899,6 +899,30 @@ set_notice_receiver_test(Module) ->
       end,
       []).
 
+get_cmd_status_test(Module) ->
+    with_connection(
+      Module,
+      fun(C) ->
+              {ok, [], []} = Module:squery(C, "BEGIN"),
+              ?assertEqual({ok, 'begin'}, Module:get_cmd_status(C)),
+              {ok, [], []} = epgsql:equery(C, "CREATE TEMPORARY TABLE cmd_status_t(col INTEGER)"),
+              ?assertEqual({ok, 'create'}, Module:get_cmd_status(C)),
+              %% Some commands have number of affected rows in status
+              {ok, N} = Module:squery(C, "INSERT INTO cmd_status_t (col) VALUES (1), (2)"),
+              ?assertEqual({ok, {'insert', N}}, Module:get_cmd_status(C)),
+              {ok, 1} = Module:squery(C, "UPDATE cmd_status_t SET col=3 WHERE col=1"),
+              ?assertEqual({ok, {'update', 1}}, Module:get_cmd_status(C)),
+              %% Failed queries have no status
+              {error, _} = Module:squery(C, "UPDATE cmd_status_t SET col='text' WHERE col=2"),
+              ?assertEqual({ok, undefined}, Module:get_cmd_status(C)),
+              %% if COMMIT failed, status will be 'rollback'
+              {ok, [], []} = Module:squery(C, "COMMIT"),
+              ?assertEqual({ok, 'rollback'}, Module:get_cmd_status(C)),
+              %% Only last command's status returned
+              [_, _, _] = Module:squery(C, "BEGIN; SELECT 1; COMMIT"),
+              ?assertEqual({ok, 'commit'}, Module:get_cmd_status(C))
+      end).
+
 application_test(_Module) ->
     lists:foreach(fun application:start/1, ?ssl_apps),
     ok = application:start(epgsql),
