@@ -20,5 +20,8 @@
     code :: binary(),
     codename :: atom(),
     message :: binary(),
-    extra :: [{detail, binary()} | {hint, binary()} | {position, binary()}]
+    extra :: [{severity_en | detail | hint | position | internal_position | internal_query
+               | where | schema_name | table_name | column_name | data_type_name
+               | constraint_name | file | line | routine,
+               binary()}]
 }).

@@ -26,7 +26,9 @@
         code = <<"57014">>,
         codename = query_canceled,
         message = <<"canceling statement due to statement timeout">>,
-        extra = []
+        extra = [{file, <<"postgres.c">>},
+                 {line, _},
+                 {routine, _}]
         }}).
 
 %% From uuid.erl in http://gitorious.org/avtobiff/erlang-uuid
@@ -305,7 +307,10 @@ parse_error_test(Module) ->
     with_connection(
       Module,
       fun(C) ->
-              {error, #error{}} = Module:parse(C, "select _ from test_table1"),
+              {error, #error{extra = [{file, _},
+                                      {line, _},
+                                      {position, <<"8">>},
+                                      {routine, _}]}} = Module:parse(C, "select _ from test_table1"),
               {ok, S} = Module:parse(C, "select * from test_table1"),
               [#column{name = <<"id">>}, #column{name = <<"value">>}] = S#statement.columns,
               ok = Module:close(C, S),
@@ -375,7 +380,14 @@ execute_error_test(Module) ->
       fun(C) ->
           {ok, S} = Module:parse(C, "insert into test_table1 (id, value) values ($1, $2)"),
           ok = Module:bind(C, S, [1, <<"foo">>]),
-          {error, #error{code = <<"23505">>, codename = unique_violation}} = Module:execute(C, S, 0),
+          {error, #error{code = <<"23505">>, codename = unique_violation,
+                         extra = [{constraint_name, <<"test_table1_pkey">>},
+                                  {detail, _},
+                                  {file, _},
+                                  {line, _},
+                                  {routine, _},
+                                  {schema_name, <<"public">>},
+                                  {table_name, <<"test_table1">>}]}} = Module:execute(C, S, 0),
           {error, sync_required} = Module:bind(C, S, [3, <<"quux">>]),
           ok = Module:sync(C),
           ok = Module:bind(C, S, [3, <<"quux">>]),
@@ -802,7 +814,11 @@ warning_notice_test(Module) ->
                select pg_temp.raise()",
           [{ok, _, _}, _] = Module:squery(C, Q),
           receive
-              {epgsql, C, {notice, #error{message = <<"oops">>}}} -> ok
+              {epgsql, C, {notice, #error{message = <<"oops">>, extra = Extra}}} ->
+                  ?assertMatch([{file, _},
+                                {line, _},
+                                {routine, _}], Extra),
+                  ok
           after
               100 -> erlang:error(didnt_receive_notice)
           end
@@ -878,7 +894,8 @@ set_notice_receiver_test(Module) ->
           receive
               {epgsql, C, {notice, #error{severity = warning,
                                           code = <<"01000">>,
-                                          message = <<"test notice">>}}} -> ok
+                                          message = <<"test notice">>,
+                                          extra = _}}} -> ok
           after
               100 -> erlang:error(didnt_receive_notice)
           end,
