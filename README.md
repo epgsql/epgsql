@@ -483,6 +483,35 @@ Message formats:
 - `Error`       - an `#error{}` record, see `epgsql.hrl`
 
 
+## Utility functions
+
+### Command status
+
+`epgsql{a,i}:get_cmd_status(C) -> undefined | atom() | {atom(), integer()}`
+
+This function returns the last executed command's status information. It's usualy
+the name of SQL command and, for some of them (like UPDATE or INSERT) the
+number of affected rows. See [libpq PQcmdStatus](https://www.postgresql.org/docs/current/static/libpq-exec.html#LIBPQ-PQCMDSTATUS).
+But there is one interesting case: if you execute `COMMIT` on a failed transaction,
+status will be `rollback`, not `commit`.
+This is how you can detect failed transactions:
+
+```erlang
+{ok, _, _} = epgsql:squery(C, "BEGIN").
+{error, _} = epgsql:equery(C, "SELECT 1 / $1::integer", [0]).
+{ok, _, _} = epgsql:squery(C, "COMMIT").
+{ok, rollback} = epgsql:get_cmd_status(C).
+```
+
+### Server parameters
+
+`epgsql{a,i}:get_parameter(C, Name) -> binary() | undefined`
+
+Retrieve actual value of server-side parameters, such as character endoding,
+date/time format and timezone, server version and so on. See [libpq PQparameterStatus](https://www.postgresql.org/docs/current/static/libpq-status.html#LIBPQ-PQPARAMETERSTATUS).
+Parameter's value may change during connection's lifetime.
+
+
 ## Mailing list
 
   [Google groups](https://groups.google.com/forum/#!forum/epgsql)
