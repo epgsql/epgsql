@@ -489,10 +489,10 @@ Message formats:
 
 `epgsql{a,i}:get_cmd_status(C) -> undefined | atom() | {atom(), integer()}`
 
-This function returns last executed command's status information. It's usualy
+This function returns the last executed command's status information. It's usualy
 the name of SQL command and, for some of them (like UPDATE or INSERT) the
 number of affected rows. See [libpq PQcmdStatus](https://www.postgresql.org/docs/current/static/libpq-exec.html#LIBPQ-PQCMDSTATUS).
-But there is one interesting case: if you execute `COMMIT` on failed transaction,
+But there is one interesting case: if you execute `COMMIT` on a failed transaction,
 status will be `rollback`, not `commit`.
 This is how you can detect failed transactions:
 
