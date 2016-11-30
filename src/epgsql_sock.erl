@@ -730,7 +730,8 @@ on_message({?COMMAND_COMPLETE, Bin}, State0) ->
     Command = command_tag(State),
     Notice = {complete, Complete},
     Rows = lists:reverse(State#state.rows),
-    State2 = case {Command, Complete, Rows} of
+    Columns = get_columns(State),
+    State2 = case {Command, Complete, Columns} of
                  {execute, {_, Count}, []} ->
                      finish(State, Notice, {ok, Count});
                  {execute, {_, Count}, _} ->
@@ -746,9 +747,9 @@ on_message({?COMMAND_COMPLETE, Bin}, State0) ->
                  {C, {_, Count}, []} when C == squery; C == equery; C == prepared_query ->
                      add_result(State, Notice, {ok, Count});
                  {C, {_, Count}, _} when C == squery; C == equery; C == prepared_query ->
-                     add_result(State, Notice, {ok, Count, get_columns(State), Rows});
+                     add_result(State, Notice, {ok, Count, Columns, Rows});
                  {C, _, _} when C == squery; C == equery; C == prepared_query ->
-                     add_result(State, Notice, {ok, get_columns(State), Rows})
+                     add_result(State, Notice, {ok, Columns, Rows})
              end,
     {noreply, State2};
 
