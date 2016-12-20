@@ -269,14 +269,23 @@ returning_from_update_test(Module) ->
     with_rollback(
       Module,
       fun(C) ->
-              {ok, 2, _Cols, [{1}, {2}]} = Module:equery(C, "update test_table1 set value = 'hi' returning id")
+              {ok, 2, _Cols, [{1}, {2}]} = Module:equery(C, "update test_table1 set value = 'hi' returning id"),
+              ?assertMatch({ok, 0, [#column{}], []},
+                           Module:equery(C, "update test_table1 set value = 'hi' where false returning id")),
+              ?assertMatch([{ok, 2, [#column{}], [{<<"1">>}, {<<"2">>}]},
+                            {ok, 0, [#column{}], []}],
+                           Module:squery(C,
+                                         "update test_table1 set value = 'hi2' returning id; "
+                                         "update test_table1 set value = 'hi' where false returning id"))
       end).
 
 returning_from_delete_test(Module) ->
     with_rollback(
       Module,
       fun(C) ->
-              {ok, 2, _Cols, [{1}, {2}]} = Module:equery(C, "delete from test_table1 returning id")
+              {ok, 2, _Cols, [{1}, {2}]} = Module:equery(C, "delete from test_table1 returning id"),
+              ?assertMatch({ok, 0, [#column{}], []},
+                           Module:equery(C, "delete from test_table1 returning id"))
       end).
 
 parse_test(Module) ->

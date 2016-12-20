@@ -187,7 +187,7 @@ receive_result(C, Ref, Cols, Rows) ->
         {C, Ref, {error, _E} = Error} ->
             Error;
         {C, Ref, {complete, {_Type, Count}}} ->
-            case Rows of
+            case Cols of
                 [] -> {ok, Count};
                 _L -> {ok, Count, Cols, lists:reverse(Rows)}
             end;
