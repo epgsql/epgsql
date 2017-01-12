@@ -62,17 +62,21 @@ decode_error(Bin) ->
     Fields = decode_fields(Bin),
     ErrCode = proplists:get_value($C, Fields),
     ErrName = epgsql_errcodes:to_name(ErrCode),
+    {ErrSeverity, Extra} = case proplists:get_value($V, Fields) of
+        undefined ->
+            {proplists:get_value($S, Fields), []};
+        Severity ->
+            {Severity, [{severity, proplists:get_value($S, Fields)}]}
+    end,
     Error = #error{
-      severity = lower_atom(proplists:get_value($S, Fields)),
+      severity = lower_atom(ErrSeverity),
       code     = ErrCode,
       codename = ErrName,
       message  = proplists:get_value($M, Fields),
-      extra    = lists:sort(lists:foldl(fun decode_error_extra/2, [], Fields))},
+      extra    = lists:sort(Extra ++ lists:foldl(fun decode_error_extra/2, [], Fields))},
     Error.
 
 %% consider updating #error.extra typespec when changing/adding extras
-decode_error_extra({$V, Val}, Acc) ->
-    [{severity_en, Val} | Acc];
 decode_error_extra({$D, Val}, Acc) ->
     [{detail, Val} | Acc];
 decode_error_extra({$H, Val}, Acc) ->
