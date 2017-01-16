@@ -1,3 +1,19 @@
+In 3.3.0
+
+* Streaming replication protocol support (epgsql may act like PostgreSQL slave)
+  https://github.com/epgsql/epgsql/blob/devel/streaming.md
+* Connection options now may be passed as map()
+* More error extra data fields returned in #error{extra}
+  http://www.postgresql.org/docs/current/interactive/protocol-error-fields.html
+* Prefer non-localized severity in #error{severity} when available
+* Added `set_notice_receiver/2` function to dynamically change receiver for asynchronous notifications
+* Asynchronous notifications receiver may be set to registered process name (atom)
+* `get_cmd_status/1` function added
+* Fixed return value of `DELETE ... RETURNING ..` in case when 0 rows were deleted
+  (now returns `{ok, 0, Columns, []}` instead of `{ok, 0}`)
+* TCP socket implicitly closed when epgsql connection process terminates
+* Some typespecs fixed
+
 In 3.2.0:
 
 * #error.codename (more readable errors)
