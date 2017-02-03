@@ -65,6 +65,7 @@ CREATE TABLE test_table2 (
   c_cidr cidr,
   c_inet inet,
   c_int4range int4range,
+  c_int8range int8range,
   c_json json,
   c_jsonb jsonb);
 

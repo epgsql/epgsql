@@ -332,4 +332,6 @@ supports({array, inet})   -> true;
 supports({array, record}) -> true;
 supports({array, json})   -> true;
 supports({array, jsonb})   -> true;
+supports(int4range)       -> true;
+supports(int8range)       -> true;
 supports(_Type)       -> false.
