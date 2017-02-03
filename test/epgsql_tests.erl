@@ -965,6 +965,17 @@ range_type_test(Module) ->
       end,
       []).
 
+range8_type_test(Module) ->
+    with_min_version(
+      Module,
+      9.2,
+      fun(_C) ->
+          check_type(Module, int8range, "int8range(10, 20)", <<"[10,20)">>,
+                     [{1, 58}, {-1, 12}, {-985521, 5412687}, {minus_infinity, 0},
+                      {984655, plus_infinity}, {minus_infinity, plus_infinity}])
+      end,
+      []).
+
 %% -- run all tests --
 
 run_tests() ->
@@ -1110,6 +1121,8 @@ compare(Type, V1 = {_, _, MS}, {D2, {H2, M2, S2}}) when Type == timestamp;
     {D1, {H1, M1, S1}} = calendar:now_to_universal_time(V1),
     ({D1, H1, M1} =:= {D2, H2, M2}) and (abs(S1 + MS/1000000 - S2) < 0.000000000000001);
 compare(int4range, {Lower, Upper}, Result) ->
+  translate_infinities(Lower, Upper) =:= Result;
+compare(int8range, {Lower, Upper}, Result) ->
   translate_infinities(Lower, Upper) =:= Result;
 compare(_Type, V1, V2)     -> V1 =:= V2.
 
