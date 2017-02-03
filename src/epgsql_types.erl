@@ -101,6 +101,7 @@ oid2type(3500)  -> anyenum;
 oid2type(3802)  -> jsonb;
 oid2type(3807)  -> {array, jsonb};
 oid2type(3904)  -> int4range;
+oid2type(3926)  -> int8range;
 oid2type(Oid)   -> {unknown_oid, Oid}.
 
 type2oid(bool)                  -> 16;
@@ -202,4 +203,5 @@ type2oid(anyenum)               -> 3500;
 type2oid(jsonb)                 -> 3802;
 type2oid({array, jsonb})        -> 3807;
 type2oid(int4range)             -> 3904;
+type2oid(int8range)             -> 3926;
 type2oid(Type)                  -> {unknown_type, Type}.
