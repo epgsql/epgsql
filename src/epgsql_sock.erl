@@ -381,7 +381,8 @@ start_ssl(S, Flag, Opts, State) ->
     {ok, <<Code>>} = gen_tcp:recv(S, 1, Timeout),
     case Code of
         $S  ->
-            case ssl:connect(S, Opts, Timeout) of
+            SslOpts = proplists:get_value(ssl_opts, Opts, []),
+            case ssl:connect(S, SslOpts, Timeout) of
                 {ok, S2}        -> State#state{mod = ssl, sock = S2};
                 {error, Reason} -> exit({ssl_negotiation_failed, Reason})
             end;
