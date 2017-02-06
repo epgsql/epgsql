@@ -33,6 +33,11 @@ encode_geometry(Geometry) ->
   Data = encode_geometry_data(Geometry),
   <<1, Type/binary, PointType/binary, Data/binary>>.
 
+encode_geometry_data(#point{ point_type = '2d_srid', x = X, y = Y, srid = SRID }) ->
+  Xbin = encode_float64(X),
+  Ybin = encode_float64(Y),
+  SRIDbin = encode_int32(SRID),
+  <<SRIDbin/binary, Xbin/binary, Ybin/binary>>;
 encode_geometry_data(#point{ point_type = '2d', x = X, y = Y }) ->
   Xbin = encode_float64(X),
   Ybin = encode_float64(Y),
@@ -176,6 +181,10 @@ decode_float64(<<Hex:8/binary, Rest/binary>>) ->
   <<Float:1/little-float-unit:64>> = Hex,
   {Float, Rest}.
 
+decode_point('2d_srid', Data) ->
+  {Value, R} = decode_int32(Data),
+  {Point, Rest} = decode_point('2d', R),
+  {Point#point{srid=Value}, Rest};
 decode_point(PointType, Data) ->
   {Values, Rest} = lists:foldl(
     fun(_, {Values, Rest}) ->
@@ -247,6 +256,7 @@ encode_type(triangle)            -> <<17, 0>>.
 
 -spec decode_point_type(binary()) -> point_type().
 decode_point_type(<<0,0>>) -> '2d';
+decode_point_type(<<0, 32>>) -> '2d_srid';
 decode_point_type(<<0, 64>>) -> '2dm';
 decode_point_type(<<0, 128>>) -> '3d';
 decode_point_type(<<0, 192>>) -> '3dm'.
@@ -255,6 +265,7 @@ decode_point_type(<<0, 192>>) -> '3dm'.
 encode_point_type(Geometry) when is_tuple(Geometry) ->
   encode_point_type(element(2, Geometry));
 encode_point_type('2d') -> <<0,0>>;
+encode_point_type('2d_srid') -> <<0,32>>;
 encode_point_type('2dm') -> <<0,64>>;
 encode_point_type('3d') -> <<0,128>>;
 encode_point_type('3dm') -> <<0,192>>.

@@ -1,7 +1,8 @@
--type point_type() :: '2d' | '3d' | '2dm' | '3dm'.
+-type point_type() :: '2d' | '3d' | '2dm' | '3dm' | '2d_srid'.
 
 -record(point,{
   point_type :: any(),
+  srid :: integer(),
   x :: float(),
   y :: float(),
   z :: float(),
