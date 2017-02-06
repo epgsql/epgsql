@@ -971,7 +971,8 @@ range8_type_test(Module) ->
       9.2,
       fun(_C) ->
           check_type(Module, int8range, "int8range(10, 20)", {10, 20},
-                     [{1, 58}, {-1, 12}, {-985521, 5412687}, {minus_infinity, 0},
+                     [{1, 58}, {-1, 12}, {-9223372036854775808, 5412687},
+                      {minus_infinity, 9223372036854775807},
                       {984655, plus_infinity}, {minus_infinity, plus_infinity}])
       end,
       []).
