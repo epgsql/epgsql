@@ -5,6 +5,8 @@
   {registered, []},
   {applications, [kernel,
                   stdlib,
+                  asn1,
+                  public_key,
                   ssl]},
   {env, []},
   {included_applications, []},
