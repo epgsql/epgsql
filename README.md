@@ -264,7 +264,7 @@ Data Representation section below.
 Asynchronous API `epgsqla:equery/3` requires you to parse statement beforehand
 
 ```erlang
-#statement{types = Types} = Statement,
+# statement{types = Types} = Statement,
 TypedParameters = lists:zip(Types, Parameters),
 Ref = epgsqla:equery(C, Statement, [TypedParameters]),
 receive
@@ -299,7 +299,7 @@ epgsql:prepared_query(C, "inc", [1]).
 Asynchronous API `epgsqla:prepared_query/3` requires you to parse statement beforehand
 
 ```erlang
-#statement{types = Types} = Statement,
+# statement{types = Types} = Statement,
 TypedParameters = lists:zip(Types, Parameters),
 Ref = epgsqla:prepared_query(C, Statement, [TypedParameters]),
 receive
