@@ -107,7 +107,7 @@ now2f({MegaSecs, Secs, MicroSecs}) ->
 tmodulo(T, U) ->
     Q = case T < 0 of
         true  -> ceiling(T / U);
-        false -> floor(T / U)
+        false -> flooring(T / U)
     end,
     case Q of
         0 -> {T, Q};
@@ -118,7 +118,7 @@ rint(N)      -> round(N) * 1.0.
 timeround(J) -> rint(J * 10000000000.0) / 10000000000.0.
 tsround(J)   -> rint(J * 1000000.0) / 1000000.0.
 
-floor(X) ->
+flooring(X) ->
     T = erlang:trunc(X),
     case (X - T) of
         N when N < 0 -> T - 1;
