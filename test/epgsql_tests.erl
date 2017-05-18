@@ -556,12 +556,12 @@ geometry_type_test(Module) ->
     check_type(Module, geometry, "'COMPOUNDCURVE(CIRCULARSTRING(0 0,1 1,1 0),(1 0,0 1))'",
       {compound_curve,'2d',
           [{circular_string,'2d',
-              [{point,'2d',0.0,0.0,undefined,undefined},
-               {point,'2d',1.0,1.0,undefined,undefined},
-               {point,'2d',1.0,0.0,undefined,undefined}]},
+              [{point,'2d',undefined,0.0,0.0,undefined,undefined},
+               {point,'2d',undefined,1.0,1.0,undefined,undefined},
+               {point,'2d',undefined,1.0,0.0,undefined,undefined}]},
          {line_string,'2d',
-              [{point,'2d',1.0,0.0,undefined,undefined},
-                 {point,'2d',0.0,1.0,undefined,undefined}]}]},
+              [{point,'2d',undefined,1.0,0.0,undefined,undefined},
+                 {point,'2d',undefined,0.0,1.0,undefined,undefined}]}]},
       []).
 
 uuid_select_test(Module) ->
