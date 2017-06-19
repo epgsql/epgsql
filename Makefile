@@ -22,6 +22,13 @@ create_testdbs:
 
 test: compile
 	@$(REBAR) eunit
+	@$(REBAR) ct
+
+eunit: compile
+	@$(REBAR) eunit
+
+ct: compile
+	@$(REBAR) ct
 
 performance_test: compile
 	erlc ./test/epgsql_perf_tests.erl
@@ -33,4 +40,4 @@ dialyzer: build.plt compile
 build.plt:
 	dialyzer -q --build_plt --apps erts kernel stdlib ssl --output_plt $@
 
-.PHONY: all compile release clean create_testdbs performance_test test dialyzer
+.PHONY: all compile release clean create_testdbs performance_test test dialyzer ct
