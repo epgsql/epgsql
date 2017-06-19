@@ -94,11 +94,11 @@ squery_timeout(Config) ->
 -spec connect() -> {ok, epgsql:connection()}.
 connect() ->
   Host     = "localhost",
-  User     = "epgsql_test",
-  Password = "epgsql_test",
+  Port     = 10432,
   Database = "epgsql_test_db1",
-  Opts     = [{database, Database}],
-  {ok, _C} = epgsql:connect(Host, User, Password, Opts).
+  Username = "epgsql_test",
+  Opts     = [{database, Database}, {port, Port}],
+  {ok, _C} = epgsql:connect(Host, Username, Opts).
 
 -spec disconnect(epgsql:connection()) -> ok.
 disconnect(C) ->
