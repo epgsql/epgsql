@@ -62,7 +62,9 @@ equery_timeout(Config) ->
   C     = ?config(connection, Config),
   Error = timeout_error(),
   ?assertMatch( Error
-              , epgsql:equery_with_timeout(C, "SELECT pg_sleep(2)", 1000)).
+              , epgsql:equery_with_timeout(C, "SELECT pg_sleep(2)", 1000)),
+  ?assertMatch( {ok, _Cols, [{1}]}
+              , epgsql:equery(C, "SELECT 1")).
 
 -spec execute_timeout([any()]) -> ok.
 execute_timeout(Config) ->
@@ -71,22 +73,32 @@ execute_timeout(Config) ->
   {ok, S} = epgsql:parse(C, "select pg_sleep($1)"),
   ok      = epgsql:bind(C, S, [2]),
   ?assertMatch( Error
-              , epgsql:execute_with_timeout(C, S, 1000)).
+              , epgsql:execute_with_timeout(C, S, 1000)),
+  ok      = epgsql:sync(C),
+  ok      = epgsql:bind(C, S, [0]),
+  ?assertEqual( {ok, [{<<>>}]}
+              , epgsql:execute_with_timeout(C, S, 1000)),
+  ok      = epgsql:sync(C).
 
 -spec prepared_query_timeout([any()]) -> ok.
 prepared_query_timeout(Config) ->
   C       = ?config(connection, Config),
-  {ok, S} = epgsql:parse(C, "sleep", "select pg_sleep(2)", []),
+  {ok, _} = epgsql:parse(C, "sleep", "select pg_sleep(2)", []),
   Error   = timeout_error(),
   ?assertMatch( Error
-              , epgsql:prepared_query_with_timeout(C, "sleep", [], 1000)).
+              , epgsql:prepared_query_with_timeout(C, "sleep", [], 1000)),
+  {ok, _}= epgsql:parse(C, "no_sleep", "select pg_sleep(0)", []),
+  ?assertMatch( {ok, _, [{<<>>}]}
+              , epgsql:prepared_query_with_timeout(C, "no_sleep", [], 1000)).
 
 -spec squery_timeout([any()]) -> ok.
 squery_timeout(Config) ->
   C     = ?config(connection, Config),
   Error = timeout_error(),
   ?assertMatch( Error
-              , epgsql:squery_with_timeout(C, "SELECT pg_sleep(2)", 1000)).
+              , epgsql:squery_with_timeout(C, "SELECT pg_sleep(2)", 1000)),
+  ?assertMatch( {ok, _, [{<<>>}]}
+              , epgsql:squery_with_timeout(C, "SELECT pg_sleep(0)", 1000)).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Helpers
