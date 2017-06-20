@@ -9,12 +9,16 @@
          set_notice_receiver/2,
          get_cmd_status/1,
          squery/2,
+         timed_squery/3,
          equery/2, equery/3, equery/4,
+         timed_equery/3, timed_equery/4, timed_equery/5,
          prepared_query/3,
+         timed_prepared_query/4,
          parse/2, parse/3, parse/4,
          describe/2, describe/3,
          bind/3, bind/4,
          execute/2, execute/3, execute/4,
+         timed_execute/3, timed_execute/4, timed_execute/5,
          execute_batch/2,
          close/2, close/3,
          sync/1,
@@ -212,44 +216,88 @@ set_notice_receiver(C, PidOrName) ->
 get_cmd_status(C) ->
     epgsql_sock:get_cmd_status(C).
 
--spec squery(connection(), sql_query()) -> reply(squery_row()) | [reply(squery_row())].
-%% @doc runs simple `SqlQuery' via given `Connection'
+-spec squery(connection(), sql_query()) ->
+                reply(squery_row()) | [reply(squery_row())].
 squery(Connection, SqlQuery) ->
-    gen_server:call(Connection, {squery, SqlQuery}, infinity).
+  epgsql_sock:command(Connection, {squery, SqlQuery}).
 
+-spec timed_squery(connection(), sql_query(), timeout()) ->
+                      reply(squery_row()) | [reply(squery_row())].
+timed_squery(Connection, SqlQuery, Timeout) ->
+  epgsql_sock:timed_command(Connection, {squery, SqlQuery}, Timeout).
+
+-spec equery(connection(), sql_query()) ->
+                reply(equery_row()).
 equery(C, Sql) ->
     equery(C, Sql, []).
 
 %% TODO add fast_equery command that doesn't need parsed statement
+-spec equery(connection(), sql_query(), [bind_param()]) ->
+                reply(equery_row()).
 equery(C, Sql, Parameters) ->
-    case parse(C, "", Sql, []) of
-        {ok, #statement{types = Types} = S} ->
-            Typed_Parameters = lists:zip(Types, Parameters),
-            gen_server:call(C, {equery, S, Typed_Parameters}, infinity);
-        Error ->
-            Error
-    end.
+    equery(C, "", Sql, Parameters).
 
--spec equery(connection(), string(), sql_query(), [bind_param()]) -> reply(equery_row()).
+-spec equery(connection(), string(), sql_query(), [bind_param()]) ->
+                reply(equery_row()).
 equery(C, Name, Sql, Parameters) ->
-    case parse(C, Name, Sql, []) of
+  case parse(C, Name, Sql, []) of
         {ok, #statement{types = Types} = S} ->
             Typed_Parameters = lists:zip(Types, Parameters),
-            gen_server:call(C, {equery, S, Typed_Parameters}, infinity);
+            Command = {equery, S, Typed_Parameters},
+            epgsql_sock:command(C, Command);
         Error ->
             Error
     end.
 
--spec prepared_query(C::connection(), Name::string(), Parameters::[bind_param()]) -> reply(equery_row()).
+-spec timed_equery(connection(), sql_query(), timeout()) ->
+                             reply(equery_row()).
+timed_equery(C, Sql, Timeout) ->
+  timed_equery(C, Sql, [], Timeout).
+
+-spec timed_equery(
+        connection(), sql_query(), [bind_param()], timeout()) ->
+                             reply(equery_row()).
+timed_equery(C, Sql, Parameters, Timeout) ->
+  timed_equery(C, "", Sql, Parameters, Timeout).
+
+-spec timed_equery(
+        connection(), string(), sql_query(), [bind_param()], timeout()) ->
+                reply(equery_row()).
+timed_equery(C, Name, Sql, Parameters, Timeout) ->
+  case parse(C, Name, Sql, []) of
+        {ok, #statement{types = Types} = S} ->
+            Typed_Parameters = lists:zip(Types, Parameters),
+            Command = {equery, S, Typed_Parameters},
+            epgsql_sock:timed_command(C, Command, Timeout);
+        Error ->
+            Error
+    end.
+
+-spec prepared_query(
+        C::connection(), Name::string(), Parameters::[bind_param()]) ->
+                        reply(equery_row()).
 prepared_query(C, Name, Parameters) ->
     case describe(C, statement, Name) of
         {ok, #statement{types = Types} = S} ->
             Typed_Parameters = lists:zip(Types, Parameters),
-            gen_server:call(C, {prepared_query, S, Typed_Parameters}, infinity);
+            Command = {prepared_query, S, Typed_Parameters},
+            epgsql_sock:command(C, Command);
         Error ->
             Error
     end.
 
+-spec timed_prepared_query(
+        connection(), string(), [bind_param()], timeout()) ->
+                                     reply(equery_row()).
+timed_prepared_query(C, Name, Parameters, Timeout) ->
+    case describe(C, statement, Name) of
+        {ok, #statement{types = Types} = S} ->
+            Typed_Parameters = lists:zip(Types, Parameters),
+            Command = {prepared_query, S, Typed_Parameters},
+            epgsql_sock:timed_command(C, Command, Timeout);
+        Error ->
+            Error
+    end.
 
 %% parse
 
@@ -279,7 +327,7 @@ bind(C, Statement, PortalName, Parameters) ->
 %% execute
 
 execute(C, S) ->
-    execute(C, S, "", 0).
+    execute(C, S, 0).
 
 execute(C, S, N) ->
     execute(C, S, "", N).
@@ -291,7 +339,18 @@ execute(C, S, N) ->
              | {ok, non_neg_integer(), [equery_row()]}
              | {error, query_error()}.
 execute(C, S, PortalName, N) ->
-    gen_server:call(C, {execute, S, PortalName, N}, infinity).
+  Command = {execute, S, PortalName, N},
+  epgsql_sock:command(C, Command).
+
+timed_execute(C, S, Timeout) ->
+    timed_execute(C, S, 0, Timeout).
+
+timed_execute(C, S, N, Timeout) ->
+    timed_execute(C, S, "", N, Timeout).
+
+timed_execute(C, S, PortalName, N, Timeout) ->
+  Command = {execute, S, PortalName, N},
+  epgsql_sock:timed_command(C, Command, Timeout).
 
 -spec execute_batch(connection(), [{#statement{}, [bind_param()]}]) -> [reply(equery_row())].
 execute_batch(C, Batch) ->

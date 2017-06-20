@@ -6,6 +6,8 @@
 -behavior(gen_server).
 
 -export([start_link/0,
+         command/2,
+         timed_command/3,
          close/1,
          get_parameter/2,
          set_notice_receiver/2,
@@ -89,12 +91,19 @@
                 repl_feedback_required,
                 repl_cbmodule,
                 repl_cbstate,
-                repl_receiver}).
+                repl_receiver,
+                timer}).
 
 %% -- client interface --
 
 start_link() ->
     gen_server:start_link(?MODULE, [], []).
+
+command(C, Command) ->
+  gen_server:call(C, Command).
+
+timed_command(C, Command, Timeout) ->
+  gen_server:call(C, {timed, Command, Timeout}).
 
 close(C) when is_pid(C) ->
     catch gen_server:cast(C, stop),
@@ -140,25 +149,37 @@ handle_call({standby_status_update, FlushedLSN, AppliedLSN}, _From,
     send(State, ?COPY_DATA, epgsql_wire:encode_standby_status_update(ReceivedLSN, FlushedLSN, AppliedLSN)),
     {reply, ok, State#state{repl_last_flushed_lsn = FlushedLSN, repl_last_applied_lsn = AppliedLSN}};
 
+handle_call({timed, Command, Timeout}, From, State) ->
+  Timer = erlang:start_timer(Timeout, self(), timed_command),
+  #state{queue = Q} = State,
+  Req = {{call, From}, Command},
+  do_command(Command, State#state{queue = queue:in(Req, Q),
+                                  complete_status = undefined,
+                                  timer = Timer});
 handle_call(Command, From, State) ->
-    #state{queue = Q} = State,
-    Req = {{call, From}, Command},
-    command(Command, State#state{queue = queue:in(Req, Q),
-                                 complete_status = undefined}).
+  #state{queue = Q} = State,
+  Req = {{call, From}, Command},
+  do_command(Command, State#state{queue = queue:in(Req, Q),
+                               complete_status = undefined}).
 
 handle_cast({{Method, From, Ref}, Command} = Req, State)
   when ((Method == cast) or (Method == incremental)),
        is_pid(From),
        is_reference(Ref)  ->
     #state{queue = Q} = State,
-    command(Command, State#state{queue = queue:in(Req, Q),
+    do_command(Command, State#state{queue = queue:in(Req, Q),
                                  complete_status = undefined});
 
 handle_cast(stop, State) ->
     {stop, normal, flush_queue(State, {error, closed})};
 
-handle_cast(cancel, State = #state{backend = {Pid, Key},
-                                   sock = TimedOutSock}) ->
+handle_cast(cancel, State) ->
+  do_cancel(State),
+  {noreply, State}.
+
+do_cancel(State) ->
+    #state{backend = {Pid, Key},
+           sock = TimedOutSock} = State,
     {ok, {Addr, Port}} = case State#state.mod of
                              gen_tcp -> inet:peername(TimedOutSock);
                              ssl -> ssl:peername(TimedOutSock)
@@ -168,8 +189,11 @@ handle_cast(cancel, State = #state{backend = {Pid, Key},
     {ok, Sock} = gen_tcp:connect(Addr, Port, SockOpts),
     Msg = <<16:?int32, 80877102:?int32, Pid:?int32, Key:?int32>>,
     ok = gen_tcp:send(Sock, Msg),
-    gen_tcp:close(Sock),
-    {noreply, State}.
+    gen_tcp:close(Sock).
+
+handle_info({timeout, _Ref, timed_command}, State) ->
+  do_cancel(State),
+  {noreply, State};
 
 handle_info({Closed, Sock}, #state{sock = Sock} = State)
   when Closed == tcp_closed; Closed == ssl_closed ->
@@ -198,11 +222,11 @@ code_change(_OldVsn, State, _Extra) ->
 
 %% -- internal functions --
 
-command(Command, State = #state{sync_required = true})
+do_command(Command, State = #state{sync_required = true})
   when Command /= sync ->
     {noreply, finish(State, {error, sync_required})};
 
-command({connect, Host, Username, Password, Opts}, State) ->
+do_command({connect, Host, Username, Password, Opts}, State) ->
     Timeout = proplists:get_value(timeout, Opts, 5000),
     Port = proplists:get_value(port, Opts, 5432),
     SockOpts = [{active, false}, {packet, raw}, binary, {nodelay, true}, {keepalive, true}],
@@ -249,14 +273,14 @@ command({connect, Host, Username, Password, Opts}, State) ->
             {stop, Reason, finish(State, Error)}
     end;
 
-command({squery, Sql}, State) ->
-    send(State, ?SIMPLEQUERY, [Sql, 0]),
-    {noreply, State};
+do_command({squery, Sql}, State) ->
+  send(State, ?SIMPLEQUERY, [Sql, 0]),
+  {noreply, State};
 
 %% TODO add fast_equery command that doesn't need parsed statement,
 %% uses default (text) column format,
 %% sends Describe after Bind to get RowDescription
-command({equery, Statement, Parameters}, #state{codec = Codec} = State) ->
+do_command({equery, Statement, Parameters}, #state{codec = Codec} = State) ->
     #statement{name = StatementName, columns = Columns} = Statement,
     Bin1 = epgsql_wire:encode_parameters(Parameters, Codec),
     Bin2 = epgsql_wire:encode_formats(Columns),
@@ -268,7 +292,7 @@ command({equery, Statement, Parameters}, #state{codec = Codec} = State) ->
     ]),
     {noreply, State};
 
-command({prepared_query, Statement, Parameters}, #state{codec = Codec} = State) ->
+do_command({prepared_query, Statement, Parameters}, #state{codec = Codec} = State) ->
     #statement{name = StatementName, columns = Columns} = Statement,
     Bin1 = epgsql_wire:encode_parameters(Parameters, Codec),
     Bin2 = epgsql_wire:encode_formats(Columns),
@@ -279,7 +303,7 @@ command({prepared_query, Statement, Parameters}, #state{codec = Codec} = State) 
     ]),
     {noreply, State};
 
-command({parse, Name, Sql, Types}, State) ->
+do_command({parse, Name, Sql, Types}, State) ->
     Bin = epgsql_wire:encode_types(Types, State#state.codec),
     send_multi(State, [
         {?PARSE, [Name, 0, Sql, 0, Bin]},
@@ -288,7 +312,7 @@ command({parse, Name, Sql, Types}, State) ->
     ]),
     {noreply, State};
 
-command({bind, Statement, PortalName, Parameters}, #state{codec = Codec} = State) ->
+do_command({bind, Statement, PortalName, Parameters}, #state{codec = Codec} = State) ->
     #statement{name = StatementName, columns = Columns, types = Types} = Statement,
     Typed_Parameters = lists:zip(Types, Parameters),
     Bin1 = epgsql_wire:encode_parameters(Typed_Parameters, Codec),
@@ -299,14 +323,14 @@ command({bind, Statement, PortalName, Parameters}, #state{codec = Codec} = State
     ]),
     {noreply, State};
 
-command({execute, _Statement, PortalName, MaxRows}, State) ->
+do_command({execute, _Statement, PortalName, MaxRows}, State) ->
     send_multi(State, [
         {?EXECUTE, [PortalName, 0, <<MaxRows:?int32>>]},
         {?FLUSH, []}
     ]),
     {noreply, State};
 
-command({execute_batch, Batch}, #state{codec = Codec} = State) ->
+do_command({execute_batch, Batch}, #state{codec = Codec} = State) ->
     Commands =
         lists:foldr(
           fun({Statement, Parameters}, Acc) ->
@@ -324,21 +348,21 @@ command({execute_batch, Batch}, #state{codec = Codec} = State) ->
     send_multi(State, Commands),
     {noreply, State};
 
-command({describe_statement, Name}, State) ->
+do_command({describe_statement, Name}, State) ->
     send_multi(State, [
         {?DESCRIBE, [?PREPARED_STATEMENT, Name, 0]},
         {?FLUSH, []}
     ]),
     {noreply, State};
 
-command({describe_portal, Name}, State) ->
+do_command({describe_portal, Name}, State) ->
     send_multi(State, [
         {?DESCRIBE, [?PORTAL, Name, 0]},
         {?FLUSH, []}
     ]),
     {noreply, State};
 
-command({close, Type, Name}, State) ->
+do_command({close, Type, Name}, State) ->
     Type2 = case Type of
         statement -> ?PREPARED_STATEMENT;
         portal    -> ?PORTAL
@@ -349,11 +373,11 @@ command({close, Type, Name}, State) ->
     ]),
     {noreply, State};
 
-command(sync, State) ->
+do_command(sync, State) ->
     send(State, ?SYNC, []),
     {noreply, State#state{sync_required = false}};
 
-command({start_replication, ReplicationSlot, Callback, CbInitState, WALPosition, PluginOpts}, State) ->
+do_command({start_replication, ReplicationSlot, Callback, CbInitState, WALPosition, PluginOpts}, State) ->
     Sql1 = ["START_REPLICATION SLOT """, ReplicationSlot, """ LOGICAL ", WALPosition],
     Sql2 =
         case PluginOpts of
@@ -447,7 +471,7 @@ loop(#state{data = Data, handler = Handler, repl_last_received_lsn = LastReceive
 finish(State, Result) ->
     finish(State, Result, Result).
 
-finish(State = #state{queue = Q}, Notice, Result) ->
+finish(State = #state{queue = Q, timer = Timer}, Notice, Result) ->
     case queue:get(Q) of
         {{cast, From, Ref}, _} ->
             From ! {self(), Ref, Result};
@@ -456,12 +480,17 @@ finish(State = #state{queue = Q}, Notice, Result) ->
         {{call, From}, _} ->
             gen_server:reply(From, Result)
     end,
+    case is_reference(Timer) of
+      true  -> erlang:cancel_timer(Timer);
+      false -> ok
+    end,
     State#state{queue = queue:drop(Q),
                 types = [],
                 columns = [],
                 rows = [],
                 results = [],
-                batch = []}.
+                batch = [],
+                timer = undefined}.
 
 add_result(State, Notice, Result) ->
     #state{queue = Q, results = Results, batch = Batch} = State,
