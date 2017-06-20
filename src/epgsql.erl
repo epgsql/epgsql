@@ -9,16 +9,16 @@
          set_notice_receiver/2,
          get_cmd_status/1,
          squery/2,
-         squery_with_timeout/3,
+         timed_squery/3,
          equery/2, equery/3, equery/4,
-         equery_with_timeout/3, equery_with_timeout/4, equery_with_timeout/5,
+         timed_equery/3, timed_equery/4, timed_equery/5,
          prepared_query/3,
-         prepared_query_with_timeout/4,
+         timed_prepared_query/4,
          parse/2, parse/3, parse/4,
          describe/2, describe/3,
          bind/3, bind/4,
          execute/2, execute/3, execute/4,
-         execute_with_timeout/3, execute_with_timeout/4, execute_with_timeout/5,
+         timed_execute/3, timed_execute/4, timed_execute/5,
          execute_batch/2,
          close/2, close/3,
          sync/1,
@@ -219,12 +219,12 @@ get_cmd_status(C) ->
 -spec squery(connection(), sql_query()) ->
                 reply(squery_row()) | [reply(squery_row())].
 squery(Connection, SqlQuery) ->
-    squery_with_timeout(Connection, SqlQuery, infinity).
+  epgsql_sock:command(Connection, {squery, SqlQuery}).
 
--spec squery_with_timeout(connection(), sql_query(), timeout()) ->
-                             reply(squery_row()) | [reply(squery_row())].
-squery_with_timeout(Connection, SqlQuery, Timeout) ->
-    call_with_timeout(Connection, {squery, SqlQuery}, Timeout).
+-spec timed_squery(connection(), sql_query(), timeout()) ->
+                      reply(squery_row()) | [reply(squery_row())].
+timed_squery(Connection, SqlQuery, Timeout) ->
+  epgsql_sock:timed_command(Connection, {squery, SqlQuery}, Timeout).
 
 -spec equery(connection(), sql_query()) ->
                 reply(equery_row()).
@@ -240,28 +240,35 @@ equery(C, Sql, Parameters) ->
 -spec equery(connection(), string(), sql_query(), [bind_param()]) ->
                 reply(equery_row()).
 equery(C, Name, Sql, Parameters) ->
-  equery_with_timeout(C, Name, Sql, Parameters, infinity).
-
--spec equery_with_timeout(connection(), sql_query(), timeout()) ->
-                             reply(equery_row()).
-equery_with_timeout(C, Sql, Timeout) ->
-  equery_with_timeout(C, Sql, [], Timeout).
-
--spec equery_with_timeout(
-        connection(), sql_query(), [bind_param()], timeout()) ->
-                             reply(equery_row()).
-equery_with_timeout(C, Sql, Parameters, Timeout) ->
-  equery_with_timeout(C, "", Sql, Parameters, Timeout).
-
--spec equery_with_timeout(
-        connection(), string(), sql_query(), [bind_param()], timeout()) ->
-                reply(equery_row()).
-equery_with_timeout(C, Name, Sql, Parameters, Timeout) ->
   case parse(C, Name, Sql, []) of
         {ok, #statement{types = Types} = S} ->
             Typed_Parameters = lists:zip(Types, Parameters),
             Command = {equery, S, Typed_Parameters},
-            call_with_timeout(C, Command, Timeout);
+            epgsql_sock:command(C, Command);
+        Error ->
+            Error
+    end.
+
+-spec timed_equery(connection(), sql_query(), timeout()) ->
+                             reply(equery_row()).
+timed_equery(C, Sql, Timeout) ->
+  timed_equery(C, Sql, [], Timeout).
+
+-spec timed_equery(
+        connection(), sql_query(), [bind_param()], timeout()) ->
+                             reply(equery_row()).
+timed_equery(C, Sql, Parameters, Timeout) ->
+  timed_equery(C, "", Sql, Parameters, Timeout).
+
+-spec timed_equery(
+        connection(), string(), sql_query(), [bind_param()], timeout()) ->
+                reply(equery_row()).
+timed_equery(C, Name, Sql, Parameters, Timeout) ->
+  case parse(C, Name, Sql, []) of
+        {ok, #statement{types = Types} = S} ->
+            Typed_Parameters = lists:zip(Types, Parameters),
+            Command = {equery, S, Typed_Parameters},
+            epgsql_sock:timed_command(C, Command, Timeout);
         Error ->
             Error
     end.
@@ -270,37 +277,27 @@ equery_with_timeout(C, Name, Sql, Parameters, Timeout) ->
         C::connection(), Name::string(), Parameters::[bind_param()]) ->
                         reply(equery_row()).
 prepared_query(C, Name, Parameters) ->
-    prepared_query_with_timeout(C, Name, Parameters, infinity).
-
--spec prepared_query_with_timeout(
-        connection(), string(), [bind_param()], timeout()) ->
-                                     reply(equery_row()).
-prepared_query_with_timeout(C, Name, Parameters, Timeout) ->
     case describe(C, statement, Name) of
         {ok, #statement{types = Types} = S} ->
             Typed_Parameters = lists:zip(Types, Parameters),
             Command = {prepared_query, S, Typed_Parameters},
-            call_with_timeout(C, Command, Timeout);
+            epgsql_sock:command(C, Command);
         Error ->
             Error
     end.
 
--spec call_with_timeout(
-        connection(), {squery, sql_query()}, integer() | infinity) ->
-                           reply(squery_row()) | [reply(squery_row())].
-call_with_timeout(Connection, Command, Timeout) ->
-  try gen_server:call(Connection, Command, Timeout)
-  catch
-    exit:{timeout, {gen_server, call, _}} ->
-      ok = epgsql:cancel(Connection),
-      Error = #error{ severity = error
-                    , code     = <<"57014">>
-                    , codename = query_canceled
-                    , message  = <<"canceling statement due to timeout">>
-                    , extra    = []
-                    },
-      {error, Error}
-  end.
+-spec timed_prepared_query(
+        connection(), string(), [bind_param()], timeout()) ->
+                                     reply(equery_row()).
+timed_prepared_query(C, Name, Parameters, Timeout) ->
+    case describe(C, statement, Name) of
+        {ok, #statement{types = Types} = S} ->
+            Typed_Parameters = lists:zip(Types, Parameters),
+            Command = {prepared_query, S, Typed_Parameters},
+            epgsql_sock:timed_command(C, Command, Timeout);
+        Error ->
+            Error
+    end.
 
 %% parse
 
@@ -342,16 +339,18 @@ execute(C, S, N) ->
              | {ok, non_neg_integer(), [equery_row()]}
              | {error, query_error()}.
 execute(C, S, PortalName, N) ->
-    execute_with_timeout(C, S, PortalName, N, infinity).
+  Command = {execute, S, PortalName, N},
+  epgsql_sock:command(C, Command).
 
-execute_with_timeout(C, S, Timeout) ->
-    execute_with_timeout(C, S, 0, Timeout).
+timed_execute(C, S, Timeout) ->
+    timed_execute(C, S, 0, Timeout).
 
-execute_with_timeout(C, S, N, Timeout) ->
-    execute_with_timeout(C, S, "", N, Timeout).
+timed_execute(C, S, N, Timeout) ->
+    timed_execute(C, S, "", N, Timeout).
 
-execute_with_timeout(C, S, PortalName, N, Timeout) ->
-    call_with_timeout(C, {execute, S, PortalName, N}, Timeout).
+timed_execute(C, S, PortalName, N, Timeout) ->
+  Command = {execute, S, PortalName, N},
+  epgsql_sock:timed_command(C, Command, Timeout).
 
 -spec execute_batch(connection(), [{#statement{}, [bind_param()]}]) -> [reply(equery_row())].
 execute_batch(C, Batch) ->

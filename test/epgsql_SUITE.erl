@@ -10,10 +10,10 @@
         , end_per_testcase/2
         ]).
 
--export([ equery_timeout/1
-        , execute_timeout/1
-        , prepared_query_timeout/1
-        , squery_timeout/1
+-export([ timed_equery/1
+        , timed_execute/1
+        , timed_prepared_query/1
+        , timed_squery/1
         ]).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -57,48 +57,56 @@ end_per_testcase(_TestCase, Config) ->
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Test Cases
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
--spec equery_timeout([any()]) -> ok.
-equery_timeout(Config) ->
+-spec timed_equery([any()]) -> ok.
+timed_equery(Config) ->
   C     = ?config(connection, Config),
-  Error = timeout_error(),
-  ?assertMatch( Error
-              , epgsql:equery_with_timeout(C, "SELECT pg_sleep(2)", 1000)),
+  ?assertMatch( {error, #error{ severity = error
+                              , code     = <<"57014">>
+                              , codename = query_canceled
+                              }}
+              , epgsql:timed_equery(C, "SELECT pg_sleep(2)", 1000)),
   ?assertMatch( {ok, _Cols, [{1}]}
               , epgsql:equery(C, "SELECT 1")).
 
--spec execute_timeout([any()]) -> ok.
-execute_timeout(Config) ->
+-spec timed_execute([any()]) -> ok.
+timed_execute(Config) ->
   C       = ?config(connection, Config),
-  Error   = timeout_error(),
   {ok, S} = epgsql:parse(C, "select pg_sleep($1)"),
   ok      = epgsql:bind(C, S, [2]),
-  ?assertMatch( Error
-              , epgsql:execute_with_timeout(C, S, 1000)),
+  ?assertMatch( {error, #error{ severity = error
+                              , code     = <<"57014">>
+                              , codename = query_canceled
+                              }}
+              , epgsql:timed_execute(C, S, 1000)),
   ok      = epgsql:sync(C),
   ok      = epgsql:bind(C, S, [0]),
   ?assertEqual( {ok, [{<<>>}]}
-              , epgsql:execute_with_timeout(C, S, 1000)),
+              , epgsql:timed_execute(C, S, 1000)),
   ok      = epgsql:sync(C).
 
--spec prepared_query_timeout([any()]) -> ok.
-prepared_query_timeout(Config) ->
+-spec timed_prepared_query([any()]) -> ok.
+timed_prepared_query(Config) ->
   C       = ?config(connection, Config),
   {ok, _} = epgsql:parse(C, "sleep", "select pg_sleep(2)", []),
-  Error   = timeout_error(),
-  ?assertMatch( Error
-              , epgsql:prepared_query_with_timeout(C, "sleep", [], 1000)),
+  ?assertMatch( {error, #error{ severity = error
+                              , code     = <<"57014">>
+                              , codename = query_canceled
+                              }}
+              , epgsql:timed_prepared_query(C, "sleep", [], 1000)),
   {ok, _}= epgsql:parse(C, "no_sleep", "select pg_sleep(0)", []),
   ?assertMatch( {ok, _, [{<<>>}]}
-              , epgsql:prepared_query_with_timeout(C, "no_sleep", [], 1000)).
+              , epgsql:timed_prepared_query(C, "no_sleep", [], 1000)).
 
--spec squery_timeout([any()]) -> ok.
-squery_timeout(Config) ->
+-spec timed_squery([any()]) -> ok.
+timed_squery(Config) ->
   C     = ?config(connection, Config),
-  Error = timeout_error(),
-  ?assertMatch( Error
-              , epgsql:squery_with_timeout(C, "SELECT pg_sleep(2)", 1000)),
+  ?assertMatch( {error, #error{ severity = error
+                              , code     = <<"57014">>
+                              , codename = query_canceled
+                              }}
+              , epgsql:timed_squery(C, "SELECT pg_sleep(2)", 1000)),
   ?assertMatch( {ok, _, [{<<>>}]}
-              , epgsql:squery_with_timeout(C, "SELECT pg_sleep(0)", 1000)).
+              , epgsql:timed_squery(C, "SELECT pg_sleep(0)", 1000)).
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% Helpers
@@ -115,13 +123,3 @@ connect() ->
 -spec disconnect(epgsql:connection()) -> ok.
 disconnect(C) ->
   ok = epgsql:close(C).
-
--spec timeout_error() -> {error, #error{}}.
-timeout_error() ->
-  Error = #error{ severity = error
-                , code     = <<"57014">>
-                , codename = query_canceled
-                , message  = <<"canceling statement due to timeout">>
-                , extra    = []
-                },
-  {error, Error}.
