@@ -1,19 +1,45 @@
--module(epgsql_replication_tests).
-
--export([run_tests/0]).
--compile([export_all]).
-
+-module(epgsql_replication_SUITE).
 -include_lib("eunit/include/eunit.hrl").
+-include_lib("common_test/include/ct.hrl").
 -include("epgsql.hrl").
 
-connect_in_repl_mode_test(Module) ->
-    epgsql_tests:connect_only(Module, ["epgsql_test_replication",
+-export([
+    init_per_suite/1,
+    all/0,
+    end_per_suite/1,
+
+    connect_in_repl_mode/1,
+    create_drop_replication_slot/1,
+    replication_sync/1,
+    replication_async/1,
+
+    %% Callbacks
+    handle_x_log_data/4
+]).
+
+init_per_suite(Config) ->
+    [{module, epgsql}|Config].
+
+end_per_suite(_Config) ->
+    ok.
+
+all() ->
+    [
+     connect_in_repl_mode,
+     create_drop_replication_slot,
+     replication_async,
+     replication_sync
+    ].
+
+connect_in_repl_mode(Config) ->
+    epgsql_ct:connect_only(Config, ["epgsql_test_replication",
         "epgsql_test_replication",
         [{database, "epgsql_test_db1"}, {replication, "database"}]]).
 
-create_drop_replication_slot_test(Module) ->
-    epgsql_tests:with_connection(
-        Module,
+create_drop_replication_slot(Config) ->
+    Module = ?config(module, Config),
+    epgsql_ct:with_connection(
+        Config,
         fun(C) ->
             {ok, Cols, Rows} = Module:squery(C, "CREATE_REPLICATION_SLOT ""epgsql_test"" LOGICAL ""test_decoding"""),
             [#column{name = <<"slot_name">>}, #column{name = <<"consistent_point">>},
@@ -24,58 +50,22 @@ create_drop_replication_slot_test(Module) ->
         "epgsql_test_replication",
         [{replication, "database"}]).
 
-replication_async_test(Module) ->
-    replication_test_run(Module, self()).
+replication_async(Config) ->
+    replication_test_run(Config, self()).
 
-replication_sync_test(Module) ->
-    replication_test_run(Module, ?MODULE).
+replication_sync(Config) ->
+    replication_test_run(Config, ?MODULE).
 
-%% -- run all tests --
-
-run_tests() ->
-    Files = filelib:wildcard(filename:dirname(code:which(epgsql_replication_tests))
-                             ++ "/*tests.beam"),
-    Mods = [list_to_atom(filename:basename(F, ".beam")) || F <- Files],
-    eunit:test(Mods, []).
-
-all_test_() ->
-    Tests =
-        lists:map(
-          fun({Name, _}) ->
-                  {Name, fun(X) -> ?MODULE:Name(X) end}
-          end,
-          lists:filter(
-            fun({Name, Arity}) ->
-                    case {lists:suffix("_test", atom_to_list(Name)), Arity} of
-                        {true, 1} -> true;
-                        _ -> false
-                    end
-            end,
-            ?MODULE:module_info(functions))),
-    WithModule =
-        fun(Module) ->
-                lists:map(
-                  fun({Name, Test}) ->
-                          {lists:flatten(
-                             io_lib:format("~s(~s)", [Name, Module])),
-                           fun() -> Test(Module) end}
-                  end,
-                  Tests)
-        end,
-    [WithModule(epgsql)
-    ].
-
-%% -- internal functions --
-
-replication_test_run(Module, Callback) ->
-    epgsql_tests:with_connection(
-        Module,
+replication_test_run(Config, Callback) ->
+    Module = ?config(module, Config),
+    epgsql_ct:with_connection(
+        Config,
         fun(C) ->
             {ok, _, _} = Module:squery(C, "CREATE_REPLICATION_SLOT ""epgsql_test"" LOGICAL ""test_decoding"""),
 
             %% new connection because main id in a replication mode
-            epgsql_tests:with_connection(
-                Module,
+            epgsql_ct:with_connection(
+                Config,
                 fun(C2) ->
                     [{ok, 1},{ok, 1}] = Module:squery(C2,
                         "insert into test_table1 (id, value) values (5, 'five');delete from test_table1 where id = 5;")
@@ -90,8 +80,8 @@ replication_test_run(Module, Callback) ->
         "epgsql_test_replication",
         [{replication, "database"}]),
     %% cleanup
-    epgsql_tests:with_connection(
-        Module,
+    epgsql_ct:with_connection(
+        Config,
         fun(C) ->
             [{ok, _, _}, {ok, _, _}] = Module:squery(C, "DROP_REPLICATION_SLOT ""epgsql_test""")
         end,

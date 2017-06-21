@@ -1,7 +1,3 @@
-*.beam
-*.app
-*.plt
-/ebin/
-/.eunit/
-rebar
+_build
+rebar3
 datadir/

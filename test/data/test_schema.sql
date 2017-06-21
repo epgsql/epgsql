@@ -13,9 +13,6 @@ CREATE USER epgsql_test_cleartext WITH PASSWORD 'epgsql_test_cleartext';
 CREATE USER epgsql_test_cert;
 CREATE USER epgsql_test_replication WITH REPLICATION PASSWORD 'epgsql_test_replication';
 
-DROP DATABASE epgsql_test_db1;
-DROP DATABASE epgsql_test_db2;
-
 CREATE DATABASE epgsql_test_db1 WITH ENCODING 'UTF8';
 CREATE DATABASE epgsql_test_db2 WITH ENCODING 'UTF8';
 
@@ -26,7 +23,6 @@ GRANT ALL ON DATABASE epgsql_test_db2 to epgsql_test;
 
 \c epgsql_test_db1;
 
-DROP TABLE schema_version;
 CREATE TABLE schema_version (version varchar);
 
 -- This requires Postgres to be compiled with SSL:
@@ -69,7 +65,7 @@ CREATE TABLE test_table2 (
   c_json json,
   c_jsonb jsonb);
 
-CREATE LANGUAGE plpgsql;
+-- CREATE LANGUAGE plpgsql;
 
 CREATE OR REPLACE FUNCTION insert_test1(_id integer, _value text)
 returns integer
@@ -87,7 +83,6 @@ begin
 end
 $$ language plpgsql;
 
-GRANT ALL ON TABLE schema_version TO epgsql_test;
 GRANT ALL ON TABLE test_table1 TO epgsql_test;
 GRANT ALL ON TABLE test_table2 TO epgsql_test;
 GRANT ALL ON FUNCTION insert_test1(integer, text) TO epgsql_test;

@@ -528,22 +528,15 @@ Here's how to create a patch that's easy to integrate:
 
 ## Test Setup
 
-In order to run the epgsql tests, you will need to set up a local
-Postgres database that runs within its own, self-contained directory,
-in order to avoid modifying the system installation of Postgres.
+In order to run the epgsql tests, you will need to install local
+Postgres database.
 
 NOTE: you will need the postgis and hstore extensions to run these
 tests!  On Ubuntu, you can install them with a command like this:
 
-    apt-get install postgresql-9.3-postgis-2.1 postgresql-contrib
+1.  apt-get install postgresql-9.3-postgis-2.1 postgresql-contrib
 
-1. `./setup_test_db.sh` # This sets up an installation of Postgres in datadir/
-
-2. `./start_test_db.sh` # Starts a Postgres instance on its own port (10432).
-
-3. `make create_testdbs` # Creates the test database environment.
-
-4. `make test` # Runs the tests
+2. `make test` # Runs the tests
 
 [![Build Status Master](https://travis-ci.org/epgsql/epgsql.svg?branch=master)](https://travis-ci.org/epgsql/epgsql)
 [![Build Status Devel](https://travis-ci.org/epgsql/epgsql.svg?branch=devel)](https://travis-ci.org/epgsql/epgsql)
