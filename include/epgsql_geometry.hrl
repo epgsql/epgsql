@@ -4,8 +4,8 @@
   point_type :: any(),
   x :: float(),
   y :: float(),
-  z :: float(),
-  m :: float()
+  z :: float() | undefined,
+  m :: float() | undefined
   }).
 
 -type point(PointType) :: #point{ point_type :: PointType }.
