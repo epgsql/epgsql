@@ -64,7 +64,8 @@ with_connection(Config, F) ->
     with_connection(Config, F, "epgsql_test", []).
 
 with_connection(Config, F, Username, Args) ->
-    #{pg_host := Host, pg_port := Port} = ?config(pg_config, Config),
+    {Host, Port} = epgsql_ct:connection_data(Config),
+
     Args2 = [{port, Port}, {database, "epgsql_test_db1"} | Args],
     fun () ->
         {ok, C} = epgsql:connect(Host, Username, Args2),

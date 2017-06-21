@@ -3,6 +3,7 @@
 -include_lib("eunit/include/eunit.hrl").
 
 -export([
+    connection_data/1,
     connect_only/2,
     with_connection/2,
     with_connection/3,
@@ -12,8 +13,14 @@
     flush/0
 ]).
 
+connection_data(Config) ->
+    PgConfig = ?config(pg_config, Config),
+    Host = ?config(host, PgConfig),
+    Port = ?config(port, PgConfig),
+    {Host, Port}.
+
 connect_only(Config, Args) ->
-    #{pg_host := Host, pg_port := Port} = ?config(pg_config, Config),
+    {Host, Port} = connection_data(Config),
     Module = ?config(module, Config),
     TestOpts = [{port, Port}],
     case Args of
@@ -32,7 +39,7 @@ with_connection(Config, F, Args) ->
     with_connection(Config, F, "epgsql_test", Args).
 
 with_connection(Config, F, Username, Args) ->
-    #{pg_host := Host, pg_port := Port} = ?config(pg_config, Config),
+    {Host, Port} = connection_data(Config),
     Module = ?config(module, Config),
     Args2 = [{port, Port}, {database, "epgsql_test_db1"} | Args],
     {ok, C} = Module:connect(Host, Username, Args2),

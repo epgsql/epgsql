@@ -6,7 +6,6 @@
 -include("epgsql_tests.hrl").
 -include("epgsql.hrl").
 
-
 -export([
     init_per_suite/1,
     init_per_group/2,
@@ -31,6 +30,14 @@ init_per_suite(Config) ->
 all() ->
     [{group, M} || M <- modules()].
 
+-ifdef(have_maps).
+-define(MAPS_TESTS, [
+    connect_map
+]).
+-else.
+-define(MAPS_TESTS, []).
+-endif.
+
 groups() ->
     Groups = [
         {connect, [parrallel], [
@@ -43,6 +50,7 @@ groups() ->
             connect_with_invalid_password,
             connect_with_ssl,
             connect_with_client_cert
+            | ?MAPS_TESTS
         ]},
         {types, [parallel], [
             numeric_type,
@@ -179,7 +187,7 @@ connect_with_md5(Config) ->
     ]).
 
 connect_with_invalid_user(Config) ->
-    #{pg_port := Port, pg_host := Host} = ?config(pg_config, Config),
+    {Host, Port} = epgsql_ct:connection_data(Config),
     Module = ?config(module, Config),
     {error, Why} = Module:connect(
         Host,
@@ -192,7 +200,7 @@ connect_with_invalid_user(Config) ->
     end.
 
 connect_with_invalid_password(Config) ->
-    #{pg_port := Port, pg_host := Host} = ?config(pg_config, Config),
+    {Host, Port} = epgsql_ct:connection_data(Config),
     Module = ?config(module, Config),
     {error, Why} = Module:connect(
         Host,
@@ -231,19 +239,23 @@ connect_with_client_cert(Config) ->
          "epgsql_test_cert",
         [{ssl, true}, {keyfile, File("epgsql.key")}, {certfile, File("epgsql.crt")}]).
 
-%% -ifdef(have_maps).
-%% connect_map_test(Module) ->
-%%     Opts = #{host => ?host,
-%%              port => ?port,
-%%              database => "epgsql_test_db1",
-%%              username => "epgsql_test_md5",
-%%              password => "epgsql_test_md5"
-%%             },
-%%     {ok, C} = Module:connect(Opts),
-%%     Module:close(C),
-%%     epgsql_ct:flush(),
-%%     ok.
-%% -endif.
+-ifdef(have_maps).
+connect_map(Config) ->
+    {Host, Port} = epgsql_ct:connection_data(Config),
+    Module = ?config(module, Config),
+
+    Opts = #{
+        host => Host,
+        port => Port,
+        database => "epgsql_test_db1",
+        username => "epgsql_test_md5",
+        password => "epgsql_test_md5"
+    },
+    {ok, C} = Module:connect(Opts),
+    Module:close(C),
+    epgsql_ct:flush(),
+    ok.
+-endif.
 
 prepared_query(Config) ->
     Module = ?config(module, Config),
@@ -821,8 +833,8 @@ execute_timeout(Config) ->
     end, []).
 
 connection_closed(Config) ->
+    {Host, Port} = epgsql_ct:connection_data(Config),
     Module = ?config(module, Config),
-    #{pg_host := Host, pg_port := Port} = ?config(pg_config, Config),
     P = self(),
     spawn_link(fun() ->
         process_flag(trap_exit, true),
@@ -867,8 +879,8 @@ connection_closed_by_server(Config) ->
     end).
 
 active_connection_closed(Config) ->
+    {Host, Port} = epgsql_ct:connection_data(Config),
     Module = ?config(module, Config),
-    #{pg_host := Host, pg_port := Port} = ?config(pg_config, Config),
     P = self(),
     F = fun() ->
           process_flag(trap_exit, true),

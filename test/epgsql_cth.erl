@@ -23,8 +23,14 @@ pre_init_per_suite(_SuiteName, Config, State) ->
 terminate(State) ->
     ok = stop_postgres(?config(pg_config, State)).
 
-create_testdbs(#{pg_host := PgHost, pg_port := PgPort, pg_user := PgUser,
-                 utils := #{psql := Psql, createdb := CreateDB}}) ->
+create_testdbs(Config) ->
+    PgHost = ?config(host, Config),
+    PgPort = ?config(port, Config),
+    PgUser = ?config(user, Config),
+    Utils = ?config(utils, Config),
+    Psql = ?config(psql, Utils),
+    CreateDB = ?config(createdb, Utils),
+
     Opts = lists:concat([" -h ", PgHost, " -p ", PgPort, " "]),
     Cmds = [
         [CreateDB, Opts, PgUser],
@@ -41,7 +47,7 @@ create_testdbs(#{pg_host := PgHost, pg_port := PgPort, pg_user := PgUser,
 -define(PG_TIMEOUT, 30000).
 
 start_postgres() ->
-    {ok, _} = application:ensure_all_started(erlexec),
+    ok = application:start(erlexec),
     pipe([
         fun find_utils/1,
         fun init_database/1,
@@ -49,19 +55,21 @@ start_postgres() ->
         fun copy_certs/1,
         fun write_pg_hba_config/1,
         fun start_postgresql/1
-    ], #{}).
+    ], []).
 
-stop_postgres(#{pg_proc := PgProc}) ->
+stop_postgres(Config) ->
+    PgProc = ?config(proc, Config),
+
     PgProc ! stop,
     ok.
 
 find_utils(State) ->
     Utils = [initdb, createdb, postgres, psql],
-    UtilsMap = lists:foldl(fun(U, Map) ->
+    UtilsConfig = lists:foldl(fun(U, Acc) ->
         UList = atom_to_list(U),
         Path = case os:find_executable(UList) of
             false ->
-                case filelib:wildcard("/usr/lib/postgresql/**/" ++ UList) of
+                case filelib:wildcard("/usr/lib/postgresql/**/bin/" ++ UList) of
                     [] ->
                         error_logger:error_msg("~s not found", [U]),
                         throw({util_no_found, U});
@@ -69,11 +77,15 @@ find_utils(State) ->
                 end;
             P -> P
         end,
-        maps:put(U, Path, Map)
-    end, #{}, Utils),
-    State#{utils => UtilsMap}.
+        [{U, Path}|Acc]
+    end, [], Utils),
+    [{utils, UtilsConfig}|State].
 
-start_postgresql(#{pg_datadir := PgDataDir, utils := #{postgres := Postgres}} = Config) ->
+start_postgresql(Config) ->
+    PgDataDir = ?config(datadir, Config),
+    Utils = ?config(utils, Config),
+    Postgres = ?config(postgres, Utils),
+
     PgHost = "localhost",
     PgPort = get_free_port(),
     SocketDir = "/tmp",
@@ -87,17 +99,25 @@ start_postgresql(#{pg_datadir := PgDataDir, utils := #{postgres := Postgres}} = 
               fun(_, _, Msg) ->
                   error_logger:info_msg("postgres: ~s", [Msg])
               end}]),
-        (fun Loop() ->
-             receive
-                 stop -> exec:kill(I, 0);
-                 _ -> Loop()
-             end
-        end)()
+        loop(I)
     end),
-    ConfigR = Config#{pg_host => PgHost, pg_port => PgPort, pg_proc => Pid},
+    ConfigR = [
+        {host, PgHost},
+        {port, PgPort},
+        {proc, Pid}
+        | Config
+    ],
     wait_postgresql_ready(SocketDir, ConfigR).
 
-wait_postgresql_ready(SocketDir, #{pg_port := PgPort} = Config) ->
+loop(I) ->
+    receive
+        stop -> exec:kill(I, 0);
+        _ -> loop(I)
+    end.
+
+wait_postgresql_ready(SocketDir, Config) ->
+    PgPort = ?config(port, Config),
+
     PgFile = lists:concat([".s.PGSQL.", PgPort]),
     Path = filename:join(SocketDir, PgFile),
     WaitUntil = ts_add(os:timestamp(), ?PG_TIMEOUT),
@@ -119,13 +139,18 @@ wait_(Path, Until) ->
         _ -> true
     end.
 
-init_database(#{utils := #{initdb := Initdb}}=Config) ->
+init_database(Config) ->
+    Utils = ?config(utils, Config),
+    Initdb = ?config(initdb, Utils),
+
     {ok, Cwd} = file:get_cwd(),
     PgDataDir = filename:append(Cwd, "datadir"),
     {ok, _} = exec:run(Initdb ++ " --locale en_US.UTF8 " ++ PgDataDir, [sync,stdout,stderr]),
-    Config#{pg_datadir => PgDataDir}.
+    [{datadir, PgDataDir}|Config].
 
-write_postgresql_config(#{pg_datadir := PgDataDir}=Config) ->
+write_postgresql_config(Config) ->
+    PgDataDir = ?config(datadir, Config),
+
     PGConfig = [
         "ssl = on\n",
         "ssl_ca_file = 'root.crt'\n",
@@ -138,7 +163,9 @@ write_postgresql_config(#{pg_datadir := PgDataDir}=Config) ->
     ok = file:write_file(FilePath, PGConfig),
     Config.
 
-copy_certs(#{pg_datadir := PgDataDir}=Config) ->
+copy_certs(Config) ->
+    PgDataDir = ?config(datadir, Config),
+
     Files = [
         {"epgsql.crt", "server.crt", 8#00660},
         {"epgsql.key", "server.key", 8#00600},
@@ -153,7 +180,9 @@ copy_certs(#{pg_datadir := PgDataDir}=Config) ->
     end, Files),
     Config.
 
-write_pg_hba_config(#{pg_datadir := PgDataDir}=Config) ->
+write_pg_hba_config(Config) ->
+    PgDataDir = ?config(datadir, Config),
+
     User = os:getenv("USER"),
     PGConfig = [
         "local   all             ", User, "                              trust\n",
@@ -169,7 +198,7 @@ write_pg_hba_config(#{pg_datadir := PgDataDir}=Config) ->
     ],
     FilePath = filename:join(PgDataDir, "pg_hba.conf"),
     ok = file:write_file(FilePath, PGConfig),
-    Config#{pg_user => User}.
+    [{user, User}|Config].
 
 %% =============================================================================
 %% Internal functions
