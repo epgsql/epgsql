@@ -538,5 +538,9 @@ tests!  On Ubuntu, you can install them with a command like this:
 
 2. `make test` # Runs the tests
 
+NOTE 2: It's possible to run tests on exact postgres version by changing $PATH like
+
+   `PATH=$PATH:/usr/lib/postgresql/9.5/bin/ make test`
+
 [![Build Status Master](https://travis-ci.org/epgsql/epgsql.svg?branch=master)](https://travis-ci.org/epgsql/epgsql)
 [![Build Status Devel](https://travis-ci.org/epgsql/epgsql.svg?branch=devel)](https://travis-ci.org/epgsql/epgsql)
