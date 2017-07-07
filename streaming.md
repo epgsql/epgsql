@@ -28,7 +28,7 @@ Even if application is down it will not lose any changes from DB
 and will receive all changes when it starts again.
 
 
-##Usage
+## Usage
 1. Initiate connection in replication mode.
 
     To initiate streaming replication connection, `replication` parameter with 
