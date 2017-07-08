@@ -184,7 +184,7 @@ handle_info({inet_reply, _, ok}, State) ->
     {noreply, State};
 
 handle_info({inet_reply, _, Status}, State) ->
-    {stop, Status, flush_queue(State, {error, Status})};
+    {stop, Status, flush_queue(State, {error, {inet_error, Status}})};
 
 handle_info({_, Sock, Data2}, #state{data = Data, sock = Sock} = State) ->
     loop(State#state{data = <<Data/binary, Data2/binary>>}).

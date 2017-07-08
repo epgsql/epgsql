@@ -29,7 +29,7 @@
          to_proplist/1]).
 
 -export_type([connection/0, connect_option/0, connect_opts/0,
-              connect_error/0, query_error/0,
+              connect_error/0, socket_error/0, query_error/0,
               sql_query/0, bind_param/0, typed_param/0,
               squery_row/0, equery_row/0, reply/1,
               pg_time/0, pg_date/0, pg_datetime/0, pg_interval/0]).
@@ -74,6 +74,9 @@
       | invalid_authorization_specification
       | invalid_password.
 -type query_error() :: #error{}.
+-type socket_error() :: {sock_error, term()}
+                      | {inet_error, term()}
+                      | sock_closed.
 
 %% Ranges are from https://www.postgresql.org/docs/current/static/datatype-datetime.html
 -type pg_date() ::
@@ -212,7 +215,8 @@ set_notice_receiver(C, PidOrName) ->
 get_cmd_status(C) ->
     epgsql_sock:get_cmd_status(C).
 
--spec squery(connection(), sql_query()) -> reply(squery_row()) | [reply(squery_row())].
+-spec squery(connection(), sql_query()) ->
+                reply(squery_row()) | [reply(squery_row())] | {error, socket_error()}.
 %% @doc runs simple `SqlQuery' via given `Connection'
 squery(Connection, SqlQuery) ->
     gen_server:call(Connection, {squery, SqlQuery}, infinity).
@@ -230,7 +234,8 @@ equery(C, Sql, Parameters) ->
             Error
     end.
 
--spec equery(connection(), string(), sql_query(), [bind_param()]) -> reply(equery_row()).
+-spec equery(connection(), string(), sql_query(), [bind_param()]) ->
+                reply(equery_row()) | {error, socket_error()}.
 equery(C, Name, Sql, Parameters) ->
     case parse(C, Name, Sql, []) of
         {ok, #statement{types = Types} = S} ->
@@ -240,7 +245,8 @@ equery(C, Name, Sql, Parameters) ->
             Error
     end.
 
--spec prepared_query(C::connection(), Name::string(), Parameters::[bind_param()]) -> reply(equery_row()).
+-spec prepared_query(C::connection(), Name::string(), Parameters::[bind_param()]) ->
+                        reply(equery_row()) | {error, socket_error()}.
 prepared_query(C, Name, Parameters) ->
     case describe(C, statement, Name) of
         {ok, #statement{types = Types} = S} ->
@@ -259,8 +265,11 @@ parse(C, Sql) ->
 parse(C, Sql, Types) ->
     parse(C, "", Sql, Types).
 
--spec parse(connection(), iolist(), sql_query(), [epgsql_type()]) ->
-                   {ok, #statement{}} | {error, query_error()}.
+-spec parse(connection(), iolist(), sql_query(), [epgsql_type()]) -> Reply
+  when
+    Reply :: {ok, #statement{}}
+           | {error, query_error()}
+           | {error, socket_error()}.
 parse(C, Name, Sql, Types) ->
     sync_on_error(C, gen_server:call(C, {parse, Name, Sql, Types}, infinity)).
 
@@ -269,8 +278,11 @@ parse(C, Name, Sql, Types) ->
 bind(C, Statement, Parameters) ->
     bind(C, Statement, "", Parameters).
 
--spec bind(connection(), #statement{}, string(), [bind_param()]) ->
-                  ok | {error, query_error()}.
+-spec bind(connection(), #statement{}, string(), [bind_param()]) -> Reply
+  when
+    Reply :: ok
+           | {error, query_error()}
+           | {error, socket_error()}.
 bind(C, Statement, PortalName, Parameters) ->
     sync_on_error(
       C,
@@ -285,15 +297,19 @@ execute(C, S, N) ->
     execute(C, S, "", N).
 
 -spec execute(connection(), #statement{}, string(), non_neg_integer()) -> Reply
-                                                                              when
+  when
       Reply :: {ok | partial, [equery_row()]}
              | {ok, non_neg_integer()}
              | {ok, non_neg_integer(), [equery_row()]}
-             | {error, query_error()}.
+             | {error, query_error()}
+             | {error, socket_error()}.
 execute(C, S, PortalName, N) ->
     gen_server:call(C, {execute, S, PortalName, N}, infinity).
 
--spec execute_batch(connection(), [{#statement{}, [bind_param()]}]) -> [reply(equery_row())].
+-spec execute_batch(connection(), [{#statement{}, [bind_param()]}]) -> Reply
+  when
+    Reply :: [reply(equery_row())]
+           | {error, socket_error()}.
 execute_batch(C, Batch) ->
     gen_server:call(C, {execute_batch, Batch}, infinity).
 
