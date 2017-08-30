@@ -237,7 +237,8 @@ connect_with_client_cert(Config) ->
              {ok, _, [{Serial2}]} = Module:equery(C, "select ssl_client_serial()")
          end,
          "epgsql_test_cert",
-        [{ssl, true}, {keyfile, File("epgsql.key")}, {certfile, File("epgsql.crt")}]).
+        [{ssl, true}, {ssl_opts, [{keyfile, File("epgsql.key")},
+                                  {certfile, File("epgsql.crt")}]}]).
 
 -ifdef(have_maps).
 connect_map(Config) ->
