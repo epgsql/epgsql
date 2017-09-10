@@ -7,12 +7,16 @@
          type2oid/2, oid2type/2,
          encode/3, decode/3, supports/1]).
 
+-export_type([codec/0]).
+
 -record(codec, {
     type2oid = [],
     oid2type = []
 }).
 
 -include("epgsql_binary.hrl").
+
+-opaque codec() :: #codec{}.
 
 -define(datetime, (get(datetime_mod))).
 
@@ -24,8 +28,10 @@
 -define(MAX_IP6_MASK, 128).
 -define(JSONB_VERSION_1, 1).
 
+-spec new_codec(list()) -> codec().
 new_codec([]) -> #codec{}.
 
+-spec update_type_cache(list(), codec()) -> codec().
 update_type_cache(TypeInfos, Codec) ->
     Type2Oid = lists:flatmap(
         fun({NameBin, ElementOid, ArrayOid}) ->
@@ -36,6 +42,8 @@ update_type_cache(TypeInfos, Codec) ->
     Oid2Type = [{Oid, Type} || {Type, Oid} <- Type2Oid],
     Codec#codec{type2oid = Type2Oid, oid2type = Oid2Type}.
 
+-spec oid2type(integer(), codec()) -> Type | {unknown_oid, integer()} when
+      Type :: atom() | {array, atom()}.
 oid2type(Oid, #codec{oid2type = Oid2Type}) ->
     case epgsql_types:oid2type(Oid) of
         {unknown_oid, _} ->
@@ -43,6 +51,8 @@ oid2type(Oid, #codec{oid2type = Oid2Type}) ->
         Type -> Type
     end.
 
+-spec type2oid(Type, codec()) -> integer() | {unknown_type, Type} when
+      Type :: atom() | {array, atom()}.
 type2oid(Type, #codec{type2oid = Type2Oid}) ->
     case epgsql_types:type2oid(Type) of
         {unknown_type, _} ->

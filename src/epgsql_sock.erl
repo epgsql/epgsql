@@ -7,6 +7,8 @@
 
 -export([start_link/0,
          close/1,
+         sync_command/2,
+         async_command/3,
          get_parameter/2,
          set_notice_receiver/2,
          get_cmd_status/1,
@@ -20,6 +22,21 @@
 
 -include("epgsql.hrl").
 -include("epgsql_binary.hrl").
+
+-type command() ::
+        sync
+      | {connect, any(), any(), any(), list()}
+      | {squery, iodata()}
+      | {equery, #statement{}, list()}
+      | {prepared_query, #statement{}, list()}
+      | {parse, iodata(), iodata(), list()}
+      | {bind, #statement{}, iodata(), list()}
+      | {execute, #statement{}, iodata(), non_neg_integer()}
+      | {execute_batch, [{#statement{}, list()}]}
+      | {describe_statement, iodata()}
+      | {describe_portal, iodata()}
+      | {close, statement | portal, iodata()}
+      | {start_replication, iodata(), module() | pid(), any(), string(), string()}.
 
 %% Commands defined as per this page:
 %% http://www.postgresql.org/docs/9.2/static/protocol-message-formats.html
@@ -77,23 +94,24 @@
           receiver :: pid() | undefined
         }).
 
--record(state, {mod,
-                sock,
+-record(state, {mod :: gen_tcp | ssl | undefined,
+                sock :: gen_tcp:socket() | ssl:sslsocket() | undefined,
                 data = <<>>,
-                backend,
-                handler,
-                codec,
-                queue = queue:new(),
-                async,
-                parameters = [],
-                types = [],
-                columns = [],
-                rows = [],
+                backend :: {Pid :: integer(), Key :: integer()} | undefined,
+                handler :: auth | initializing | on_message | on_replication | undefined,
+                codec :: epgsql_binary:codec() | undefined,
+                queue = queue:new() :: queue:queue(command()),
+                command_state = dict:new() :: dict:dict(reference(), any()) | undefined,
+                async :: undefined | atom() | pid(),
+                parameters = [] :: [{Key :: binary(), Value :: binary()}],
+                types = [] :: [atom()],
+                columns = [] :: [#column{}],
+                rows = [] :: [tuple()],
                 results = [],
                 batch = [],
-                sync_required,
-                txstatus,
-                complete_status :: undefined | atom() | {atom(), integer()},
+                sync_required :: boolean() | undefined,
+                txstatus :: byte() | undefined,  % $I | $T | $E,
+                complete_status :: atom() | {atom(), integer()} | undefined,
                 repl :: #repl{} | undefined}).
 
 %% -- client interface --
@@ -104,6 +122,17 @@ start_link() ->
 close(C) when is_pid(C) ->
     catch gen_server:cast(C, stop),
     ok.
+
+-spec sync_command(epgsql:conection(), command()) -> any().
+sync_command(C, Command) ->
+    gen_server:call(C, Command, infinity).
+
+-spec async_command(epgsql:conection(), cast | incremental, command()) -> reference().
+async_command(C, Method, Command) ->
+    Ref = make_ref(),
+    Pid = self(),
+    ok = gen_server:cast(C, {{Method, Pid, Ref}, Command}),
+    Ref.
 
 get_parameter(C, Name) ->
     gen_server:call(C, {get_parameter, to_binary(Name)}, infinity).
@@ -205,6 +234,7 @@ code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
 %% -- internal functions --
+-spec command(command(), #state{}) -> {noreply, #state{}} | {stop, any(), #state{}}.
 
 command(Command, State = #state{sync_required = true})
   when Command /= sync ->

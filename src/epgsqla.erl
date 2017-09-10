@@ -140,9 +140,7 @@ cancel(C) ->
 %% -- internal functions --
 
 cast(C, Command) ->
-    Ref = make_ref(),
-    gen_server:cast(C, {{cast, self(), Ref}, Command}),
-    Ref.
+    epgsql_sock:async_command(C, cast, Command).
 
 complete_connect(C, Ref) ->
     receive

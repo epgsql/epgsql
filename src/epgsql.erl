@@ -157,9 +157,8 @@ connect(Host, Username, Password, Opts) ->
 connect(C, Host, Username, Password, Opts0) ->
     Opts = to_proplist(Opts0),
     %% TODO connect timeout
-    case gen_server:call(C,
-                         {connect, Host, Username, Password, Opts},
-                         infinity) of
+    case epgsql_sock:sync_command(
+           C, {connect, Host, Username, Password, Opts}) of
         connected ->
             case proplists:get_value(replication, Opts, undefined) of
                 undefined ->
@@ -216,7 +215,7 @@ get_cmd_status(C) ->
 -spec squery(connection(), sql_query()) -> reply(squery_row()) | [reply(squery_row())].
 %% @doc runs simple `SqlQuery' via given `Connection'
 squery(Connection, SqlQuery) ->
-    gen_server:call(Connection, {squery, SqlQuery}, infinity).
+    epgsql_sock:sync_command(Connection, {squery, SqlQuery}).
 
 equery(C, Sql) ->
     equery(C, Sql, []).
@@ -226,7 +225,7 @@ equery(C, Sql, Parameters) ->
     case parse(C, "", Sql, []) of
         {ok, #statement{types = Types} = S} ->
             Typed_Parameters = lists:zip(Types, Parameters),
-            gen_server:call(C, {equery, S, Typed_Parameters}, infinity);
+            epgsql_sock:sync_command(C, {equery, S, Typed_Parameters});
         Error ->
             Error
     end.
@@ -236,7 +235,7 @@ equery(C, Name, Sql, Parameters) ->
     case parse(C, Name, Sql, []) of
         {ok, #statement{types = Types} = S} ->
             Typed_Parameters = lists:zip(Types, Parameters),
-            gen_server:call(C, {equery, S, Typed_Parameters}, infinity);
+            epgsql_sock:sync_command(C, {equery, S, Typed_Parameters});
         Error ->
             Error
     end.
@@ -246,7 +245,7 @@ prepared_query(C, Name, Parameters) ->
     case describe(C, statement, Name) of
         {ok, #statement{types = Types} = S} ->
             Typed_Parameters = lists:zip(Types, Parameters),
-            gen_server:call(C, {prepared_query, S, Typed_Parameters}, infinity);
+            epgsql_sock:sync_command(C, {prepared_query, S, Typed_Parameters});
         Error ->
             Error
     end.
@@ -263,7 +262,7 @@ parse(C, Sql, Types) ->
 -spec parse(connection(), iolist(), sql_query(), [epgsql_type()]) ->
                    {ok, #statement{}} | {error, query_error()}.
 parse(C, Name, Sql, Types) ->
-    sync_on_error(C, gen_server:call(C, {parse, Name, Sql, Types}, infinity)).
+    sync_on_error(C, epgsql_sock:sync_command(C, {parse, Name, Sql, Types})).
 
 %% bind
 
@@ -275,7 +274,7 @@ bind(C, Statement, Parameters) ->
 bind(C, Statement, PortalName, Parameters) ->
     sync_on_error(
       C,
-      gen_server:call(C, {bind, Statement, PortalName, Parameters}, infinity)).
+      epgsql_sock:sync_command(C, {bind, Statement, PortalName, Parameters})).
 
 %% execute
 
@@ -292,11 +291,11 @@ execute(C, S, N) ->
              | {ok, non_neg_integer(), [equery_row()]}
              | {error, query_error()}.
 execute(C, S, PortalName, N) ->
-    gen_server:call(C, {execute, S, PortalName, N}, infinity).
+    epgsql_sock:sync_command(C, {execute, S, PortalName, N}).
 
 -spec execute_batch(connection(), [{#statement{}, [bind_param()]}]) -> [reply(equery_row())].
 execute_batch(C, Batch) ->
-    gen_server:call(C, {execute_batch, Batch}, infinity).
+    epgsql_sock:sync_command(C, {execute_batch, Batch}).
 
 %% statement/portal functions
 
@@ -304,20 +303,20 @@ describe(C, #statement{name = Name}) ->
     describe(C, statement, Name).
 
 describe(C, statement, Name) ->
-    sync_on_error(C, gen_server:call(C, {describe_statement, Name}, infinity));
+    sync_on_error(C, epgsql_sock:sync_command(C, {describe_statement, Name}));
 
 %% TODO unknown result format of Describe portal
 describe(C, portal, Name) ->
-    sync_on_error(C, gen_server:call(C, {describe_portal, Name}, infinity)).
+    sync_on_error(C, epgsql_sock:sync_command(C, {describe_portal, Name})).
 
 close(C, #statement{name = Name}) ->
     close(C, statement, Name).
 
 close(C, Type, Name) ->
-    gen_server:call(C, {close, Type, Name}).
+    epgsql_sock:sync_command(C, {close, Type, Name}).
 
 sync(C) ->
-    gen_server:call(C, sync).
+    epgsql_sock:sync_command(C, sync).
 
 -spec cancel(connection()) -> ok.
 cancel(C) ->
@@ -405,7 +404,9 @@ standby_status_update(Connection, FlushedLSN, AppliedLSN) ->
 %%                      For example: "option_name1 'value1', option_name2 'value2'"
 %% returns `ok' otherwise `{error, Reason}'
 start_replication(Connection, ReplicationSlot, Callback, CbInitState, WALPosition, PluginOpts) ->
-    gen_server:call(Connection, {start_replication, ReplicationSlot, Callback, CbInitState, WALPosition, PluginOpts}).
+    Command = {start_replication, ReplicationSlot, Callback, CbInitState, WALPosition, PluginOpts},
+    epgsql_sock:sync_command(Connection, Command).
+
 start_replication(Connection, ReplicationSlot, Callback, CbInitState, WALPosition) ->
     start_replication(Connection, ReplicationSlot, Callback, CbInitState, WALPosition, []).
 

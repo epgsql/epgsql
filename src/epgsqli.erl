@@ -140,6 +140,4 @@ cancel(C) ->
 %% -- internal functions --
 
 incremental(C, Command) ->
-    Ref = make_ref(),
-    gen_server:cast(C, {{incremental, self(), Ref}, Command}),
-    Ref.
+    epgsql_sock:async_command(C, incremental, Command).
