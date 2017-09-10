@@ -250,6 +250,12 @@ command({connect, Host, Username, Password, Opts}, State) ->
     end;
 
 command({squery, Sql}, State) ->
+    %% Squery may contain many semicolon-separated queries
+    %% > Query
+    %% < (RowDescription?
+    %% <  DataRow*
+    %% <  CommandComplete)+
+    %% < ReadyForQuery
     send(State, ?SIMPLEQUERY, [Sql, 0]),
     {noreply, State};
 
@@ -257,6 +263,15 @@ command({squery, Sql}, State) ->
 %% uses default (text) column format,
 %% sends Describe after Bind to get RowDescription
 command({equery, Statement, Parameters}, #state{codec = Codec} = State) ->
+    %% > Bind
+    %% < BindComplete
+    %% > Execute
+    %% < DataRow*
+    %% < CommandComplete
+    %% > Close
+    %% < CloseComplete
+    %% > Sync
+    %% < ReadyForQuery
     #statement{name = StatementName, columns = Columns} = Statement,
     Bin1 = epgsql_wire:encode_parameters(Parameters, Codec),
     Bin2 = epgsql_wire:encode_formats(Columns),
@@ -269,6 +284,13 @@ command({equery, Statement, Parameters}, #state{codec = Codec} = State) ->
     {noreply, State};
 
 command({prepared_query, Statement, Parameters}, #state{codec = Codec} = State) ->
+    %% > Bind
+    %% < BindComplete
+    %% > Execute
+    %% < DataRow*
+    %% < CommandComplete
+    %% > Sync
+    %% < ReadyForQuery
     #statement{name = StatementName, columns = Columns} = Statement,
     Bin1 = epgsql_wire:encode_parameters(Parameters, Codec),
     Bin2 = epgsql_wire:encode_formats(Columns),
@@ -280,6 +302,11 @@ command({prepared_query, Statement, Parameters}, #state{codec = Codec} = State) 
     {noreply, State};
 
 command({parse, Name, Sql, Types}, State) ->
+    %% > Parse
+    %% < ParseComplete
+    %% > Describe
+    %% < ParameterDescription
+    %% < RowDescription | NoData
     Bin = epgsql_wire:encode_types(Types, State#state.codec),
     send_multi(State, [
         {?PARSE, [Name, 0, Sql, 0, Bin]},
@@ -289,6 +316,8 @@ command({parse, Name, Sql, Types}, State) ->
     {noreply, State};
 
 command({bind, Statement, PortalName, Parameters}, #state{codec = Codec} = State) ->
+    %% > Bind
+    %% < BindComplete
     #statement{name = StatementName, columns = Columns, types = Types} = Statement,
     Typed_Parameters = lists:zip(Types, Parameters),
     Bin1 = epgsql_wire:encode_parameters(Typed_Parameters, Codec),
@@ -300,6 +329,9 @@ command({bind, Statement, PortalName, Parameters}, #state{codec = Codec} = State
     {noreply, State};
 
 command({execute, _Statement, PortalName, MaxRows}, State) ->
+    %% > Execute
+    %% < DataRow*
+    %% < CommandComplete
     send_multi(State, [
         {?EXECUTE, [PortalName, 0, <<MaxRows:?int32>>]},
         {?FLUSH, []}
@@ -307,6 +339,14 @@ command({execute, _Statement, PortalName, MaxRows}, State) ->
     {noreply, State};
 
 command({execute_batch, Batch}, #state{codec = Codec} = State) ->
+    %% > Bind
+    %% < BindComplete
+    %% > Execute
+    %% < DataRow*
+    %% < CommandComplete
+    %% -- Repeated many times --
+    %% > Sync
+    %% < ReadyForQuery
     Commands =
         lists:foldr(
           fun({Statement, Parameters}, Acc) ->
@@ -325,6 +365,9 @@ command({execute_batch, Batch}, #state{codec = Codec} = State) ->
     {noreply, State};
 
 command({describe_statement, Name}, State) ->
+    %% > Describe
+    %% < ParameterDescription
+    %% < RowDescription | NoData
     send_multi(State, [
         {?DESCRIBE, [?PREPARED_STATEMENT, Name, 0]},
         {?FLUSH, []}
@@ -332,6 +375,8 @@ command({describe_statement, Name}, State) ->
     {noreply, State};
 
 command({describe_portal, Name}, State) ->
+    %% > Describe
+    %% < RowDescription | NoData
     send_multi(State, [
         {?DESCRIBE, [?PORTAL, Name, 0]},
         {?FLUSH, []}
@@ -339,6 +384,8 @@ command({describe_portal, Name}, State) ->
     {noreply, State};
 
 command({close, Type, Name}, State) ->
+    %% > Close
+    %% < CloseComplete
     Type2 = case Type of
         statement -> ?PREPARED_STATEMENT;
         portal    -> ?PORTAL
@@ -350,10 +397,16 @@ command({close, Type, Name}, State) ->
     {noreply, State};
 
 command(sync, State) ->
+    %% > Sync
+    %% < ReadyForQuery
     send(State, ?SYNC, []),
     {noreply, State#state{sync_required = false}};
 
 command({start_replication, ReplicationSlot, Callback, CbInitState, WALPosition, PluginOpts}, State) ->
+    %% > SIMPLEQUERY
+    %% < CopyBothResponse
+    %% < COPY_DATA+
+    %% > COPY_DATA?
     Sql1 = ["START_REPLICATION SLOT """, ReplicationSlot, """ LOGICAL ", WALPosition],
     Sql2 =
         case PluginOpts of
