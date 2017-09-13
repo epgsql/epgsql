@@ -8,7 +8,7 @@
 -type response() :: ok | {error, epgsql:query_error()}.
 
 -include("epgsql.hrl").
--include("../epgsql_binary.hrl").
+-include("protocol.hrl").
 -include("../epgsql_replication.hrl").
 
 -record(start_repl,

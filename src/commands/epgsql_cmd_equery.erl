@@ -18,7 +18,7 @@
                   | {error, epgsql:query_error()}.
 
 -include("epgsql.hrl").
--include("../epgsql_binary.hrl").
+-include("protocol.hrl").
 
 -record(equery,
         {stmt :: #statement{},

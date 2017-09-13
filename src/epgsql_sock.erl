@@ -49,7 +49,7 @@
 -export_type([transport/0, pg_sock/0]).
 
 -include("epgsql.hrl").
--include("epgsql_binary.hrl").
+-include("protocol.hrl").
 -include("epgsql_replication.hrl").
 
 -type transport() :: {call, any()}

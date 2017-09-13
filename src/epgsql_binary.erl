@@ -14,7 +14,7 @@
     oid2type = []
 }).
 
--include("epgsql_binary.hrl").
+-include("protocol.hrl").
 
 -opaque codec() :: #codec{}.
 

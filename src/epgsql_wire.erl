@@ -20,7 +20,7 @@
          encode_standby_status_update/3]).
 
 -include("epgsql.hrl").
--include("epgsql_binary.hrl").
+-include("protocol.hrl").
 
 
 decode_message(<<Type:8, Len:?int32, Rest/binary>> = Bin) ->

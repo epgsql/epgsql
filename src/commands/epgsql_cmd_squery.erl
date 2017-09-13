@@ -20,7 +20,7 @@
       | {error, epgsql:query_error()}.
 -type response() :: response_single() | [response_single()].
 
--include("../epgsql_binary.hrl").
+-include("protocol.hrl").
 
 -record(squery,
         {query :: iodata(),

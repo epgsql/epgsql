@@ -9,7 +9,7 @@
 -export_type([response/0]).
 
 -include("epgsql.hrl").
--include("../epgsql_binary.hrl").
+-include("protocol.hrl").
 
 -type response() :: {ok, #statement{}} | {error, epgsql:query_error()}.
 

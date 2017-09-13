@@ -4,7 +4,7 @@
 
 -export([decode/2, encode/2]).
 
--include("epgsql_binary.hrl").
+-include("protocol.hrl").
 
 -define(postgres_epoc_jdate, 2451545).
 -define(postgres_epoc_usecs, 946684800000000).
