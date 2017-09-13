@@ -12,7 +12,7 @@ src/epgsql_errcodes.erl:
 	./generate_errcodes_src.sh > src/epgsql_errcodes.erl
 
 test: compile
-	@$(REBAR) do ct
+	@$(REBAR) do ct -v
 
 dialyzer: compile
 	@$(REBAR) dialyzer

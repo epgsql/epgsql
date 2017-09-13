@@ -154,7 +154,7 @@ end_per_group(_GroupName, _Config) ->
         message = <<"canceling statement due to statement timeout">>,
         extra = [{file, <<"postgres.c">>},
                  {line, _},
-                 {routine, _}]
+                 {routine, _} | _]
         }}).
 
 %% From uuid.erl in http://gitorious.org/avtobiff/erlang-uuid
@@ -434,7 +434,7 @@ parse_error(Config) ->
     Module = ?config(module, Config),
     epgsql_ct:with_connection(Config, fun(C) ->
         {error, #error{
-            extra = [{file, _}, {line, _}, {position, <<"8">>}, {routine, _}]
+            extra = [{file, _}, {line, _}, {position, <<"8">>}, {routine, _} | _]
         }} = Module:parse(C, "select _ from test_table1"),
         {ok, S} = Module:parse(C, "select * from test_table1"),
         [#column{name = <<"id">>}, #column{name = <<"value">>}] = S#statement.columns,
@@ -507,8 +507,8 @@ execute_error(Config) ->
                   {file, _},
                   {line, _},
                   {routine, _},
-                  {schema_name, <<"public">>},
-                  {table_name, <<"test_table1">>}
+                  {schema_name, <<"public">>} | _%,
+                  %{table_name, <<"test_table1">>}
               ]
           }} = Module:execute(C, S, 0),
           {error, sync_required} = Module:bind(C, S, [3, <<"quux">>]),
@@ -914,7 +914,7 @@ warning_notice(Config) ->
         [{ok, _, _}, _] = Module:squery(C, Q),
         receive
             {epgsql, C, {notice, #error{message = <<"oops">>, extra = Extra}}} ->
-                ?assertMatch([{file, _},{line, _},{routine, _}], Extra),
+                ?assertMatch([{file, _},{line, _},{routine, _} | _], Extra),
                 ok
         after
             100 -> erlang:error(didnt_receive_notice)
