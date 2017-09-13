@@ -31,7 +31,7 @@
 
 -export_type([connection/0, connect_option/0, connect_opts/0,
               connect_error/0, query_error/0,
-              sql_query/0, bind_param/0, typed_param/0,
+              sql_query/0, column/0, bind_param/0, typed_param/0,
               squery_row/0, equery_row/0, reply/1,
               pg_time/0, pg_date/0, pg_datetime/0, pg_interval/0]).
 
@@ -105,10 +105,11 @@
 -type typed_param() ::
     {epgsql_type(), bind_param()}.
 
+-type column() :: #column{}.
 -type squery_row() :: tuple(). % tuple of binary().
 -type equery_row() :: tuple(). % tuple of bind_param().
 -type ok_reply(RowType) ::
-    {ok, ColumnsDescription :: [#column{}], RowsValues :: [RowType]} |                            % select
+    {ok, ColumnsDescription :: [column()], RowsValues :: [RowType]} |                            % select
     {ok, Count :: non_neg_integer()} |                                                            % update/insert/delete
     {ok, Count :: non_neg_integer(), ColumnsDescription :: [#column{}], RowsValues :: [RowType]}. % update/insert/delete + returning
 -type error_reply() :: {error, query_error()}.
@@ -158,7 +159,7 @@ connect(C, Host, Username, Password, Opts0) ->
     Opts = to_proplist(Opts0),
     %% TODO connect timeout
     case epgsql_sock:sync_command(
-           C, {connect, Host, Username, Password, Opts}) of
+           C, epgsql_cmd_connect, {Host, Username, Password, Opts}) of
         connected ->
             case proplists:get_value(replication, Opts, undefined) of
                 undefined ->
@@ -215,7 +216,7 @@ get_cmd_status(C) ->
 -spec squery(connection(), sql_query()) -> reply(squery_row()) | [reply(squery_row())].
 %% @doc runs simple `SqlQuery' via given `Connection'
 squery(Connection, SqlQuery) ->
-    epgsql_sock:sync_command(Connection, {squery, SqlQuery}).
+    epgsql_sock:sync_command(Connection, epgsql_cmd_squery, SqlQuery).
 
 equery(C, Sql) ->
     equery(C, Sql, []).
@@ -225,7 +226,7 @@ equery(C, Sql, Parameters) ->
     case parse(C, "", Sql, []) of
         {ok, #statement{types = Types} = S} ->
             Typed_Parameters = lists:zip(Types, Parameters),
-            epgsql_sock:sync_command(C, {equery, S, Typed_Parameters});
+            epgsql_sock:sync_command(C, epgsql_cmd_equery, {S, Typed_Parameters});
         Error ->
             Error
     end.
@@ -235,7 +236,7 @@ equery(C, Name, Sql, Parameters) ->
     case parse(C, Name, Sql, []) of
         {ok, #statement{types = Types} = S} ->
             Typed_Parameters = lists:zip(Types, Parameters),
-            epgsql_sock:sync_command(C, {equery, S, Typed_Parameters});
+            epgsql_sock:sync_command(C, epgsql_cmd_equery, {S, Typed_Parameters});
         Error ->
             Error
     end.
@@ -245,7 +246,7 @@ prepared_query(C, Name, Parameters) ->
     case describe(C, statement, Name) of
         {ok, #statement{types = Types} = S} ->
             Typed_Parameters = lists:zip(Types, Parameters),
-            epgsql_sock:sync_command(C, {prepared_query, S, Typed_Parameters});
+            epgsql_sock:sync_command(C, epgsql_cmd_prepared_query, {S, Typed_Parameters});
         Error ->
             Error
     end.
@@ -262,7 +263,9 @@ parse(C, Sql, Types) ->
 -spec parse(connection(), iolist(), sql_query(), [epgsql_type()]) ->
                    {ok, #statement{}} | {error, query_error()}.
 parse(C, Name, Sql, Types) ->
-    sync_on_error(C, epgsql_sock:sync_command(C, {parse, Name, Sql, Types})).
+    sync_on_error(
+      C, epgsql_sock:sync_command(
+           C, epgsql_cmd_parse, {Name, Sql, Types})).
 
 %% bind
 
@@ -274,7 +277,8 @@ bind(C, Statement, Parameters) ->
 bind(C, Statement, PortalName, Parameters) ->
     sync_on_error(
       C,
-      epgsql_sock:sync_command(C, {bind, Statement, PortalName, Parameters})).
+      epgsql_sock:sync_command(
+        C, epgsql_cmd_bind, {Statement, PortalName, Parameters})).
 
 %% execute
 
@@ -291,11 +295,11 @@ execute(C, S, N) ->
              | {ok, non_neg_integer(), [equery_row()]}
              | {error, query_error()}.
 execute(C, S, PortalName, N) ->
-    epgsql_sock:sync_command(C, {execute, S, PortalName, N}).
+    epgsql_sock:sync_command(C, epgsql_cmd_execute, {S, PortalName, N}).
 
 -spec execute_batch(connection(), [{#statement{}, [bind_param()]}]) -> [reply(equery_row())].
 execute_batch(C, Batch) ->
-    epgsql_sock:sync_command(C, {execute_batch, Batch}).
+    epgsql_sock:sync_command(C, epgsql_cmd_batch, Batch).
 
 %% statement/portal functions
 
@@ -303,20 +307,24 @@ describe(C, #statement{name = Name}) ->
     describe(C, statement, Name).
 
 describe(C, statement, Name) ->
-    sync_on_error(C, epgsql_sock:sync_command(C, {describe_statement, Name}));
+    sync_on_error(
+      C, epgsql_sock:sync_command(
+           C, epgsql_cmd_describe_statement, Name));
 
 %% TODO unknown result format of Describe portal
 describe(C, portal, Name) ->
-    sync_on_error(C, epgsql_sock:sync_command(C, {describe_portal, Name})).
+    sync_on_error(
+      C, epgsql_sock:sync_command(
+           C, epgsql_cmd_describe_portal, Name)).
 
 close(C, #statement{name = Name}) ->
     close(C, statement, Name).
 
 close(C, Type, Name) ->
-    epgsql_sock:sync_command(C, {close, Type, Name}).
+    epgsql_sock:sync_command(C, epgsql_cmd_close, {Type, Name}).
 
 sync(C) ->
-    epgsql_sock:sync_command(C, sync).
+    epgsql_sock:sync_command(C, epgsql_cmd_sync, []).
 
 -spec cancel(connection()) -> ok.
 cancel(C) ->
@@ -404,8 +412,8 @@ standby_status_update(Connection, FlushedLSN, AppliedLSN) ->
 %%                      For example: "option_name1 'value1', option_name2 'value2'"
 %% returns `ok' otherwise `{error, Reason}'
 start_replication(Connection, ReplicationSlot, Callback, CbInitState, WALPosition, PluginOpts) ->
-    Command = {start_replication, ReplicationSlot, Callback, CbInitState, WALPosition, PluginOpts},
-    epgsql_sock:sync_command(Connection, Command).
+    Command = {ReplicationSlot, Callback, CbInitState, WALPosition, PluginOpts},
+    epgsql_sock:sync_command(Connection, epgsql_cmd_start_replication, Command).
 
 start_replication(Connection, ReplicationSlot, Callback, CbInitState, WALPosition) ->
     start_replication(Connection, ReplicationSlot, Callback, CbInitState, WALPosition, []).
