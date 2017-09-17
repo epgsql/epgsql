@@ -13,7 +13,7 @@ init(_Id, State) ->
     Start = os:timestamp(),
     PgConfig = start_postgres(),
     ok = create_testdbs(PgConfig),
-    error_logger:info_msg("postgres started in ~p ms\n",
+    ct:pal(info, "postgres started in ~p ms\n",
         [timer:now_diff(os:timestamp(), Start) / 1000]),
     [{pg_config, PgConfig}|State].
 
@@ -71,7 +71,7 @@ find_utils(State) ->
             false ->
                 case filelib:wildcard("/usr/lib/postgresql/**/bin/" ++ UList) of
                     [] ->
-                        error_logger:error_msg("~s not found", [U]),
+                        ct:pal(error, "~s not found", [U]),
                         throw({util_no_found, U});
                     List -> lists:last(lists:sort(List))
                 end;
@@ -89,15 +89,18 @@ start_postgresql(Config) ->
     PgHost = "localhost",
     PgPort = get_free_port(),
     SocketDir = "/tmp",
+    Command = lists:concat(
+                [Postgres,
+                 " -k ", SocketDir,
+                 " -D ", PgDataDir,
+                 " -h ", PgHost,
+                 " -p ", PgPort]),
+    ct:pal(info, ?HI_IMPORTANCE, "Starting Postgresql: `~s`", [Command]),
     Pid = proc_lib:spawn(fun() ->
-        {ok, _, I} = exec:run_link(lists:concat([Postgres,
-            " -k ", SocketDir,
-            " -D ", PgDataDir,
-            " -h ", PgHost,
-            " -p ", PgPort]),
+        {ok, _, I} = exec:run_link(Command,
             [{stderr,
               fun(_, _, Msg) ->
-                  error_logger:info_msg("postgres: ~s", [Msg])
+                  ct:pal(info, "postgres: ~s", [Msg])
               end}]),
         loop(I)
     end),
