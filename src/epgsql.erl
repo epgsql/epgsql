@@ -322,21 +322,32 @@ sync(C) ->
 cancel(C) ->
     epgsql_sock:cancel(C).
 
-%% misc helper functions
+%% @doc Execute a function within a transaction.
 -spec with_transaction(connection(), fun((connection()) -> Reply)) ->
-                              Reply | {rollback, any()}
-                                  when
-      Reply :: any().
+                          Reply | {rollback, Reply}
+                            when Reply :: any().
 with_transaction(C, F) ->
-    try {ok, [], []} = squery(C, "BEGIN"),
-        R = F(C),
-        {ok, [], []} = squery(C, "COMMIT"),
-        R
-    catch
-        _:Why ->
-            squery(C, "ROLLBACK"),
-            %% TODO hides error stacktrace
-            {rollback, Why}
+    {ok, [], []} = squery(C, "BEGIN"),
+    %% Result is always the result returned by the
+    %% function F. The code within the catch
+    %% will never return since it raises an exception.
+    Result = 
+      try
+        F(C)
+      catch
+        Type:Reason ->
+          {ok, [], []} = squery(C, "ROLLBACK"),
+          erlang:raise(Type, Reason, erlang:get_stacktrace())
+      end,
+    %% Only way to handle a rollback when executing commit.
+    Ref = epgsqli:squery(C, "COMMIT"),
+    CompleteCmd = receive {C, Ref, {complete, CompleteCommand}} -> CompleteCommand end,
+    receive {C, Ref, done} -> ok end,
+    case CompleteCmd of
+      commit -> 
+        Result;
+      rollback -> 
+        {rollback, Result}
     end.
 
 sync_on_error(C, Error = {error, _}) ->
