@@ -512,6 +512,11 @@ date/time format and timezone, server version and so on. See [libpq PQparameterS
 Parameter's value may change during connection's lifetime.
 
 
+## Streaming replication protocol
+
+See [streaming.md](streaming.md).
+
+
 ## Mailing list
 
   [Google groups](https://groups.google.com/forum/#!forum/epgsql)
