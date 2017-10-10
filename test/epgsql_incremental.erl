@@ -38,9 +38,9 @@ await_connect(Ref) ->
         {C, Ref, connected} ->
             {ok, C};
         {_C, Ref, Error = {error, _}} ->
-            Error;
-        {'EXIT', _C, _Reason} ->
-            {error, closed}
+            Error
+    after 5000 ->
+            error(timeout)
     end.
 
 close(C) ->
