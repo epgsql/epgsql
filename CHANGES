@@ -1,3 +1,11 @@
+In 3.4.0
+
+* Use rebar3 as default build and test tool
+* Move tests to common test; launch test postgresql server from Erlang
+* Compatibility with Erlang 20
+* `ssl_options` connection option fixed
+* New types: int8range and int4range
+
 In 3.3.0
 
 * Streaming replication protocol support (epgsql may act like PostgreSQL slave)
