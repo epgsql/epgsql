@@ -14,8 +14,9 @@
 
 %% Execute command. It should send commands to socket.
 %% May be called many times if 'handle_message' will return 'requeue'.
--callback execute(epgsql_sock:pg_sock(), state()) ->
-    {ok, epgsql_sock:pg_sock(), state()}.
+-callback execute(epgsql_sock:pg_sock(), state()) -> Reply when
+      Reply :: {ok, epgsql_sock:pg_sock(), state()}
+             | {stop, Reason :: any(), Response :: any(), epgsql_sock:pg_sock()}.
 
 %% Handle incoming packet
 -callback handle_message(Type :: byte(), Payload :: binary() | epgsql:query_error(),

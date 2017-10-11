@@ -73,7 +73,7 @@ execute(PgSock, #connect{opts = Opts, stage = connect} = State) ->
                       end,
             {ok, PgSock3, State#connect{stage = auth}};
         {error, Reason} = Error ->
-            {stop, Reason, Error, PgSock} %FIXME: 'execute' supports only {ok, ...}
+            {stop, Reason, Error, PgSock}
     end;
 execute(PgSock, #connect{stage = auth, auth_method = cleartext, opts = Opts} = St) ->
     Password = get_val(password, Opts),
