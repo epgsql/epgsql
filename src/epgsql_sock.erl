@@ -89,7 +89,7 @@ close(C) when is_pid(C) ->
 
 -spec sync_command(epgsql:conection(), epgsql_command:command(), any()) -> any().
 sync_command(C, Command, Args) ->
-    gen_server:call(C, {command, Command, Args}, 1000).
+    gen_server:call(C, {command, Command, Args}, infinity).
 
 -spec async_command(epgsql:conection(), cast | incremental,
                     epgsql_command:command(), any()) -> reference().
