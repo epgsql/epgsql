@@ -1,10 +1,6 @@
--type epgsql_type() :: epgsql:type_name()
-                      | {array, epgsql:type_name()}
-                      | {unknown_oid, integer()}.
-
 -record(column, {
     name :: binary(),
-    type :: epgsql_type(),
+    type :: epgsql:epgsql_type(),
     oid :: integer(),
     size :: -1 | pos_integer(),
     modifier :: -1 | pos_integer(),
@@ -14,7 +10,7 @@
 -record(statement, {
     name :: string(),
     columns :: [#column{}],
-    types :: [epgsql_type()],
+    types :: [epgsql:epgsql_type()],
     parameter_info :: [epgsql_oid_db:oid_entry()]
 }).
 

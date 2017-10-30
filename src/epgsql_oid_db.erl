@@ -16,7 +16,7 @@
         {oid :: oid(),
          name :: epgsql:type_name(),
          is_array :: boolean(),
-         array_element_oid :: oid(),
+         array_element_oid :: oid() | undefined,
          codec :: module(),
          codec_state :: any()}).
 -record(oid_db,
@@ -29,7 +29,6 @@
 -opaque db() :: #oid_db{}.
 -opaque type_info() :: #type{}.
 
--define(DICT, dict).
 -define(RECORD_OID, 2249).
 
 
@@ -63,7 +62,7 @@ parse_rows(Rows) ->
 
 %% Build list of #type{}'s by merging oid and codec lists by type name.
 -spec join_codecs_oids(ordsets:ordset(oid_entry()),
-                       ordsets:ordset(epgsql_codec:codec_entry())) -> [#type{}].
+                       ordsets:ordset(epgsql_codec:codec_entry())) -> [type_info()].
 join_codecs_oids(Oids, Codecs) ->
     do_join(lists:sort(Oids), lists:sort(Codecs)).
 
@@ -90,21 +89,21 @@ do_join([], _) ->
 
 -spec from_list([type_info()]) -> db().
 from_list(Types) ->
-    #oid_db{by_oid = ?DICT:from_list(
+    #oid_db{by_oid = dict:from_list(
                        [{Oid, Type} || #type{oid = Oid} = Type <- Types]),
-            by_name = ?DICT:from_list(
+            by_name = dict:from_list(
                         [{{Name, IsArray}, Oid}
                          || #type{name = Name, is_array = IsArray, oid = Oid}
                                 <- Types])}.
 
 to_list(#oid_db{by_oid = Dict}) ->
-    [Type || {_Oid, Type} <- ?DICT:to_list(Dict)].
+    [Type || {_Oid, Type} <- dict:to_list(Dict)].
 
 -spec update([type_info()], db()) -> db().
 update(Types, #oid_db{by_oid = OldByOid, by_name = OldByName} = Store) ->
     #oid_db{by_oid = NewByOid, by_name = NewByName} = from_list(Types),
-    ByOid = ?DICT:merge(fun(_, _, V2) -> V2 end, OldByOid, NewByOid),
-    ByName = ?DICT:merge(fun(_, _, V2) -> V2 end, OldByName, NewByName),
+    ByOid = dict:merge(fun(_, _, V2) -> V2 end, OldByOid, NewByOid),
+    ByName = dict:merge(fun(_, _, V2) -> V2 end, OldByName, NewByName),
     Store#oid_db{by_oid = ByOid,
                  by_name = ByName}.
 
@@ -112,7 +111,7 @@ update(Types, #oid_db{by_oid = OldByOid, by_name = OldByName} = Store) ->
 %% find_by_oid(?RECORD_OID, _) ->
 %%     '$record';
 find_by_oid(Oid, #oid_db{by_oid = Dict}) ->
-    case ?DICT:find(Oid, Dict) of
+    case dict:find(Oid, Dict) of
         {ok, Type} -> Type;
         error -> undefined
     end.
@@ -120,11 +119,11 @@ find_by_oid(Oid, #oid_db{by_oid = Dict}) ->
 -spec find_by_name(epgsql:type_name(), boolean(), db()) -> type_info().
 find_by_name(Name, IsArray, #oid_db{by_oid = ByOid} = Db) ->
     Oid = oid_by_name(Name, IsArray, Db),
-    ?DICT:fetch(Oid, ByOid).                  % or maybe find_by_oid(Oid, Store)
+    dict:fetch(Oid, ByOid).                  % or maybe find_by_oid(Oid, Store)
 
 -spec oid_by_name(epgsql:type_name(), boolean(), db()) -> oid().
 oid_by_name(Name, IsArray, #oid_db{by_name = ByName}) ->
-    ?DICT:fetch({Name, IsArray}, ByName).
+    dict:fetch({Name, IsArray}, ByName).
 
 -spec type_to_codec_entry(type_info()) -> epgsql_codec:codec_entry().
 type_to_codec_entry(#type{name = Name, codec = Codec, codec_state = State}) ->

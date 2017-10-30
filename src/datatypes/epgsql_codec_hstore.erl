@@ -30,6 +30,7 @@ init(_, _) -> [].
 names() ->
     [hstore].
 
+-dialyzer([{nowarn_function, [encode/3]}, no_improper_lists]).
 encode({Hstore}, hstore, _) when is_list(Hstore) ->
     Size = length(Hstore),
     Body = [[encode_key(K) | encode_value(V)]

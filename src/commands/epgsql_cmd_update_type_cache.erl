@@ -12,8 +12,8 @@
 
 -record(upd,
         {codecs :: [{epgsql_codec:codec_mod(), Opts :: any()}],
-         codec_entries :: [epgsql_codec:codec_entry()],
-         decoder}).
+         codec_entries :: [epgsql_codec:codec_entry()] | undefined,
+         decoder :: epgsql_wire:row_decoder() | undefined}).
 
 init(Codecs) ->
     #upd{codecs = Codecs}.

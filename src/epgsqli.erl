@@ -91,7 +91,7 @@ parse(C, Sql) ->
 parse(C, Sql, Types) ->
     parse(C, "", Sql, Types).
 
--spec parse(epgsql:connection(), iolist(), string(), [epgsql_type()]) -> reference().
+-spec parse(epgsql:connection(), iolist(), string(), [epgsql:epgsql_type()]) -> reference().
 parse(C, Name, Sql, Types) ->
     incremental(C, epgsql_cmd_parse, {Name, Sql, Types}).
 

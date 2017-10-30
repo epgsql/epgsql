@@ -360,7 +360,7 @@ do_send(gen_tcp, Sock, Bin) ->
             ok
     catch
         error:_Error ->
-            {error,einval}
+            {error, einval}
     end;
 
 do_send(Mod, Sock, Bin) ->

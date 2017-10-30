@@ -49,8 +49,12 @@ handle_message(?ROW_DESCRIPTION, <<Count:?int16, Bin/binary>>, Sock,
                              parameter_info = Params,
                              columns = Columns2}},
     {finish, Result, {columns, Columns2}, Sock};
-handle_message(?NO_DATA, <<>>, Sock, #desc_stmt{name = Name, parameter_descr = Params}) ->
-    Result = {ok, #statement{name = Name, types = Params, columns = []}},
+handle_message(?NO_DATA, <<>>, Sock, #desc_stmt{name = Name, parameter_descr = Params,
+                                                parameter_typenames = TypeNames}) ->
+    Result = {ok, #statement{name = Name,
+                             types = TypeNames,
+                             parameter_info = Params,
+                             columns = []}},
     {finish, Result, no_data, Sock};
 handle_message(?ERROR, Error, _Sock, _State) ->
     Result = {error, Error},

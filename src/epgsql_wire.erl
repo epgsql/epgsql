@@ -247,10 +247,7 @@ encode_parameter({_, null}, _Codec) ->
 encode_parameter({{unknown_oid, _Oid}, Value}, _Codec) ->
     encode_text(Value);
 encode_parameter({Type, Value}, Codec) ->
-    case epgsql_binary:encode(Type, Value, Codec) of
-        {error, unsupported} -> encode_text(Value);
-        Encoded -> {1, Encoded}
-    end;
+    {1, epgsql_binary:encode(Type, Value, Codec)};
 encode_parameter(Value, _Codec) -> encode_text(Value).
 
 encode_text(B) when is_binary(B)  -> {0, encode_bin(B)};

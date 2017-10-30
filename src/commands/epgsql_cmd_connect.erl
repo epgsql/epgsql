@@ -5,13 +5,15 @@
 -module(epgsql_cmd_connect).
 -behaviour(epgsql_command).
 -export([init/1, execute/2, handle_message/4]).
--export_type([response/0]).
+-export_type([response/0, connect_error/0]).
 
 -type response() :: connected
-                  | {error,
-                     invalid_authorization_specification
-                     | invalid_password
-                     | epgsql:query_error()}.
+                  | {error, connect_error()}.
+-type connect_error() ::
+        invalid_authorization_specification
+      | invalid_password
+      | {unsupported_auth_method, integer()}
+      | epgsql:query_error().
 
 -include("epgsql.hrl").
 -include("protocol.hrl").
@@ -145,11 +147,6 @@ handle_message(?CANCELLATION_KEY, <<Pid:?int32, Key:?int32>>, Sock, _State) ->
 
 %% ReadyForQuery
 handle_message(?READY_FOR_QUERY, _, Sock, _State) ->
-    %% TODO decode dates to now() format
-    case epgsql_sock:get_parameter_internal(<<"integer_datetimes">>, Sock) of
-        <<"on">>  -> put(datetime_mod, epgsql_idatetime);
-        <<"off">> -> put(datetime_mod, epgsql_fdatetime)
-    end,
     Codec = epgsql_binary:new_codec(epgsql_oid_db, Sock),
     Sock1 = epgsql_sock:set_attr(codec, Codec, Sock),
     {finish, connected, connected, Sock1};

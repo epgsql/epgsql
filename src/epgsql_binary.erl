@@ -68,7 +68,7 @@ type_to_oid_info({array, Name}, Codec) ->
 type_to_oid_info(Name, Codec) ->
     type_to_info(Name, false, Codec).
 
--spec oid_to_info(epgsql_oid_db:oid(), codec()) -> epgsql_oid_db:type_info().
+-spec oid_to_info(epgsql_oid_db:oid(), codec()) -> epgsql_oid_db:type_info() | undefined.
 oid_to_info(Oid, {OidDb, Db}) ->
     OidDb:find_by_oid(Oid, Db).
 
@@ -196,14 +196,10 @@ decode_record1(<<Oid:?int32, Len:?int32, ValueBin:Len/binary, Rest/binary>>, Siz
 %%
 %% Encode
 %%
--spec encode(epgsql:type_name() | {array, epgsql:type_name()}, any(), codec()) ->
-                    {error, unsupported} | iolist().
+-spec encode(epgsql:type_name() | {array, epgsql:type_name()}, any(), codec()) -> iolist().
 encode(TypeName, Value, {OidDb, _Db} = Codec) ->
-    case type_to_oid_info(TypeName, Codec) of
-        undefined -> {error, unsupported};
-        Type ->
-            encode_with_type(Type, Value, OidDb)
-    end.
+    Type = type_to_oid_info(TypeName, Codec),
+    encode_with_type(Type, Value, OidDb).
 
 encode_with_type(Type, Value, OidDb) ->
     {Name, Mod, State} = OidDb:type_to_codec_entry(Type),
