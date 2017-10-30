@@ -176,10 +176,6 @@ get_parameter_internal(Name, #state{parameters = Parameters}) ->
 init([]) ->
     {ok, #state{}}.
 
-handle_call({update_type_cache, TypeInfos}, _From, #state{codec = Codec} = State) ->
-    Codec2 = epgsql_binary:update_type_cache(TypeInfos, Codec),
-    {reply, ok, State#state{codec = Codec2}};
-
 handle_call({get_parameter, Name}, _From, State) ->
     {reply, {ok, get_parameter_internal(Name, State)}, State};
 

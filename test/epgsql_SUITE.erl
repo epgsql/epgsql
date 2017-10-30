@@ -167,10 +167,10 @@ end_per_group(_GroupName, _Config) ->
         }}).
 
 %% From uuid.erl in http://gitorious.org/avtobiff/erlang-uuid
-uuid_to_string(<<U0:32, U1:16, U2:16, U3:16, U4:48>>) ->
-    lists:flatten(io_lib:format(
-                    "~8.16.0b-~4.16.0b-~4.16.0b-~4.16.0b-~12.16.0b",
-                    [U0, U1, U2, U3, U4])).
+uuid_to_bin_string(<<U0:32, U1:16, U2:16, U3:16, U4:48>>) ->
+    iolist_to_binary(io_lib:format(
+                       "~8.16.0b-~4.16.0b-~4.16.0b-~4.16.0b-~12.16.0b",
+                       [U0, U1, U2, U3, U4])).
 
 connect(Config) ->
     epgsql_ct:connect_only(Config, []).
@@ -554,8 +554,8 @@ describe_with_param(Config) ->
     Module = ?config(module, Config),
     epgsql_ct:with_connection(Config, fun(C) ->
         {ok, S} = Module:parse(C, "select id from test_table1 where id = $1"),
-        [int4] = S#statement.types,
-        [#column{name = <<"id">>}] = S#statement.columns,
+        ?assertEqual([int4], S#statement.types),
+        ?assertMatch([#column{name = <<"id">>}], S#statement.columns),
         {ok, S} = Module:describe(C, S),
         ok = Module:close(C, S),
         ok = Module:sync(C)
@@ -671,8 +671,8 @@ character_type(Config) ->
 
 uuid_type(Config) ->
     check_type(Config, uuid,
-        io_lib:format("'~s'", [uuid_to_string(?UUID1)]),
-        list_to_binary(uuid_to_string(?UUID1)), []).
+               io_lib:format("'~s'", [uuid_to_bin_string(?UUID1)]),
+               uuid_to_bin_string(?UUID1), []).
 
 point_type(Config) ->
     check_type(Config, point, "'(23.15, 100)'", {23.15, 100.0}, []).
@@ -694,9 +694,9 @@ geometry_type(Config) ->
 uuid_select(Config) ->
     Module = ?config(module, Config),
     epgsql_ct:with_rollback(Config, fun(C) ->
-        U1 = uuid_to_string(?UUID1),
-        U2 = uuid_to_string(?UUID2),
-        U3 = uuid_to_string(?UUID3),
+        U1 = uuid_to_bin_string(?UUID1),
+        U2 = uuid_to_bin_string(?UUID2),
+        U3 = uuid_to_bin_string(?UUID3),
         {ok, 1} =
             Module:equery(C, "insert into test_table2 (c_varchar, c_uuid) values ('UUID1', $1)",
                    [U1]),
@@ -708,12 +708,11 @@ uuid_select(Config) ->
                    [U3]),
         Res = Module:equery(C, "select c_varchar, c_uuid from test_table2 where c_uuid = any($1)",
                     [[U1, U2]]),
-        U1Bin = list_to_binary(U1),
-        U2Bin = list_to_binary(U2),
-        {ok,[{column,<<"c_varchar">>,varchar,_,_,_},
-             {column,<<"c_uuid">>,uuid,_,_,_}],
-         [{<<"UUID1">>, U1Bin},
-          {<<"UUID2">>, U2Bin}]} = Res
+        ?assertMatch(
+           {ok,[#column{name = <<"c_varchar">>, type = varchar},
+                #column{name = <<"c_uuid">>, type = uuid}],
+            [{<<"UUID1">>, U1},
+             {<<"UUID2">>, U2}]}, Res)
     end).
 
 date_time_type(Config) ->
@@ -761,7 +760,7 @@ hstore_type(Config) ->
     check_type(Config, hstore, "''", {[]}, []),
     check_type(Config, hstore,
                "'a => 1, b => 2.0, c => null'",
-               {[{<<"c">>, null}, {<<"b">>, <<"2.0">>}, {<<"a">>, <<"1">>}]}, Values).
+               {[{<<"a">>, <<"1">>}, {<<"b">>, <<"2.0">>}, {<<"c">>, null}]}, Values).
 
 net_type(Config) ->
     check_type(Config, cidr, "'127.0.0.1/32'", {{127,0,0,1}, 32}, [{{127,0,0,1}, 32}, {{0,0,0,0,0,0,0,1}, 128}]),
@@ -811,13 +810,14 @@ custom_types(Config) ->
     Module = ?config(module, Config),
     epgsql_ct:with_connection(Config, fun(C) ->
         Module:squery(C, "drop table if exists t_foo;"),
-        Module:squery(C, "drop type foo;"),
-        {ok, [], []} = Module:squery(C, "create type foo as enum('foo', 'bar');"),
-        ok = epgsql:update_type_cache(C, [<<"foo">>]),
-        {ok, [], []} = Module:squery(C, "create table t_foo (col foo);"),
-        {ok, S} = Module:parse(C, "insert_foo", "insert into t_foo values ($1)", [foo]),
-        ok = Module:bind(C, S, ["bar"]),
-        {ok, 1} = Module:execute(C, S)
+        Module:squery(C, "drop type if exists my_type;"),
+        {ok, [], []} = Module:squery(C, "create type my_type as enum('foo', 'bar');"),
+        {ok, [my_type]} = epgsql:update_type_cache(C, [{epgsql_codec_test_enum, [foo, bar]}]),
+        {ok, [], []} = Module:squery(C, "create table t_foo (col my_type);"),
+        {ok, S} = Module:parse(C, "insert_foo", "insert into t_foo values ($1)", [my_type]),
+        ok = Module:bind(C, S, [bar]),
+        {ok, 1} = Module:execute(C, S),
+        ?assertMatch({ok, _, [{bar}]}, Module:equery(C, "SELECT col FROM t_foo"))
     end).
 
 text_format(Config) ->
@@ -826,8 +826,8 @@ text_format(Config) ->
         Select = fun(Type, V) ->
             V2 = list_to_binary(V),
             Query = "select $1::" ++ Type,
-            {ok, _Cols, [{V2}]} = Module:equery(C, Query, [V]),
-            {ok, _Cols, [{V2}]} = Module:equery(C, Query, [V2])
+            ?assertMatch({ok, _Cols, [{V2}]}, Module:equery(C, Query, [V])),
+            ?assertMatch({ok, _Cols, [{V2}]}, Module:equery(C, Query, [V2]))
         end,
         Select("numeric", "123456")
     end).
@@ -1121,7 +1121,7 @@ check_type(Config, Type, In, Out, Values, Column) ->
     epgsql_ct:with_connection(Config, fun(C) ->
         Select = io_lib:format("select ~s::~w", [In, Type]),
         Res = Module:equery(C, Select),
-        {ok, [#column{type = Type}], [{Out}]} = Res,
+        ?assertMatch({ok, [#column{type = Type}], [{Out}]}, Res),
         Sql = io_lib:format("insert into test_table2 (~s) values ($1) returning ~s", [Column, Column]),
         {ok, #statement{columns = [#column{type = Type}]} = S} = Module:parse(C, Sql),
         Insert = fun(V) ->
@@ -1129,7 +1129,10 @@ check_type(Config, Type, In, Out, Values, Column) ->
             {ok, 1, [{V2}]} = Module:execute(C, S),
             case compare(Type, V, V2) of
                 true  -> ok;
-                false -> ?debugFmt("~p =/= ~p~n", [V, V2]), ?assert(false)
+                false ->
+                    error({write_read_compare_failed,
+                           iolist_to_binary(
+                             io_lib:format("~p =/= ~p~n", [V, V2]))})
             end,
             ok = Module:sync(C)
         end,

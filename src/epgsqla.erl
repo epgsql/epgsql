@@ -152,7 +152,7 @@ complete_connect(C, Ref) ->
             Retval =
                 case Msg of
                     connected ->
-                        ok = epgsql:update_type_cache(C),
+                        {ok, _} = epgsql:update_type_cache(C),
                         {C, Ref, connected};
                     {error, Error} ->
                         {C, Ref, {error, Error}}

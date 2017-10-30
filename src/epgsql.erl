@@ -30,8 +30,11 @@
          to_proplist/1]).
 
 -export_type([connection/0, connect_option/0, connect_opts/0,
-              connect_error/0, query_error/0,
-              sql_query/0, column/0, bind_param/0, typed_param/0,
+              connect_error/0, query_error/0, sql_query/0, column/0,
+              type_name/0]).
+
+%% Deprecated types
+-export_type([bind_param/0, typed_param/0,
               squery_row/0, equery_row/0, reply/1,
               pg_time/0, pg_date/0, pg_datetime/0, pg_interval/0]).
 
@@ -75,6 +78,13 @@
       | invalid_authorization_specification
       | invalid_password.
 -type query_error() :: #error{}.
+
+
+-type type_name() :: atom().
+
+
+
+
 
 %% Ranges are from https://www.postgresql.org/docs/current/static/datatype-datetime.html
 -type pg_date() ::
@@ -173,22 +183,20 @@ connect(C, Host, Username, Password, Opts0) ->
 
 -spec update_type_cache(connection()) -> ok.
 update_type_cache(C) ->
-    update_type_cache(C, [<<"hstore">>,<<"geometry">>]).
+    update_type_cache(C, [{epgsql_codec_hstore, []},
+                          {epgsql_codec_postgis, []}]).
 
--spec update_type_cache(connection(), [binary()]) -> ok.
-update_type_cache(C, DynamicTypes) ->
-    Query = "SELECT typname, oid::int4, typarray::int4"
-            " FROM pg_type"
-            " WHERE typname = ANY($1::varchar[])",
-    case equery(C, Query, [DynamicTypes]) of
-        {ok, _, TypeInfos} ->
-            ok = gen_server:call(C, {update_type_cache, TypeInfos});
-        {error, {error, error, _, _,
-                 <<"column \"typarray\" does not exist in pg_type">>, _}} ->
-            %% Do not fail connect if pg_type table in not in the expected
-            %% format. Known to happen for Redshift which is based on PG v8.0.2
-            ok
-    end.
+-spec update_type_cache(connection(), [{epgsql_codec:codec_mod(), Opts :: any()}]) ->
+                               {ok, [type_name()]} | {error, empty} | {error, query_error()}.
+update_type_cache(_C, []) ->
+    {error, empty};
+update_type_cache(C, Codecs) ->
+    %% {error, #error{severity = error,
+    %%                message = <<"column \"typarray\" does not exist in pg_type">>, _}}
+    %% Do not fail connect if pg_type table in not in the expected
+    %% format. Known to happen for Redshift which is based on PG v8.0.2
+    epgsql_sock:sync_command(C, epgsql_cmd_update_type_cache, Codecs).
+
 
 -spec close(connection()) -> ok.
 close(C) ->

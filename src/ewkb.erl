@@ -1,3 +1,5 @@
+%% https://en.wikipedia.org/wiki/Well-known_text
+%% http://postgis.net/docs/manual-2.4/using_postgis_dbmanagement.html#EWKB_EWKT
 -module(ewkb).
 -include("epgsql_geometry.hrl").
 -export([decode_geometry/1, encode_geometry/1]).

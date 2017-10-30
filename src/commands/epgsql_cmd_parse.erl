@@ -17,8 +17,10 @@
         {name :: iodata(),
          sql :: iodata(),
          types :: [atom()],
-         parameter_descr = []}).
+         parameter_typenames = [] :: [epgsql:type_name() | {array, epgsql:type_name()}],
+         parameter_descr = [] :: [epgsql_oid_db:oid_info()]}).
 
+%% FIXME: make it use oids instead of type names!
 init({Name, Sql, Types}) ->
     #parse{name = Name, sql = Sql, types = Types}.
 
@@ -38,19 +40,30 @@ handle_message(?PARSE_COMPLETE, <<>>, Sock, _State) ->
     {noaction, Sock};
 handle_message(?PARAMETER_DESCRIPTION, Bin, Sock, State) ->
     Codec = epgsql_sock:get_codec(Sock),
-    Types = epgsql_wire:decode_parameters(Bin, Codec),
-    Sock2 = epgsql_sock:notify(Sock, {types, Types}),
-    {noaction, Sock2, State#parse{parameter_descr = Types}};
+    TypeInfos = epgsql_wire:decode_parameters(Bin, Codec),
+    OidInfos = [epgsql_binary:typeinfo_to_oid_info(Type, Codec) || Type <- TypeInfos],
+    TypeNames = [epgsql_binary:typeinfo_to_name_array(Type, Codec) || Type <- TypeInfos],
+    Sock2 = epgsql_sock:notify(Sock, {types, TypeNames}),
+    {noaction, Sock2, State#parse{parameter_descr = OidInfos,
+                                  parameter_typenames = TypeNames}};
 handle_message(?ROW_DESCRIPTION, <<Count:?int16, Bin/binary>>, Sock,
-               #parse{name = Name, parameter_descr = Params}) ->
+               #parse{name = Name, parameter_descr = Params,
+                      parameter_typenames = TypeNames}) ->
     Codec = epgsql_sock:get_codec(Sock),
     Columns = epgsql_wire:decode_columns(Count, Bin, Codec),
-    Columns2 = [Col#column{format = epgsql_wire:format(Col#column.type, Codec)}
+    Columns2 = [Col#column{format = epgsql_wire:format(Col, Codec)}
                 || Col <- Columns],
-    Result = {ok, #statement{name = Name, types = Params, columns = Columns2}},
+    Result = {ok, #statement{name = Name,
+                             types = TypeNames,
+                             columns = Columns2,
+                             parameter_info = Params}},
     {finish, Result, {columns, Columns2}, Sock};
-handle_message(?NO_DATA, <<>>, Sock, #parse{name = Name, parameter_descr = Params}) ->
-    Result = {ok, #statement{name = Name, types = Params, columns = []}},
+handle_message(?NO_DATA, <<>>, Sock, #parse{name = Name, parameter_descr = Params,
+                                            parameter_typenames = TypeNames}) ->
+    Result = {ok, #statement{name = Name,
+                             types = TypeNames,
+                             parameter_info = Params,
+                             columns = []}},
     {finish, Result, no_data, Sock};
 handle_message(?ERROR, Error, _Sock, _State) ->
     Result = {error, Error},

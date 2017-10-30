@@ -150,7 +150,8 @@ handle_message(?READY_FOR_QUERY, _, Sock, _State) ->
         <<"on">>  -> put(datetime_mod, epgsql_idatetime);
         <<"off">> -> put(datetime_mod, epgsql_fdatetime)
     end,
-    Sock1 = epgsql_sock:set_attr(codec, epgsql_binary:new_codec([]), Sock),
+    Codec = epgsql_binary:new_codec(epgsql_oid_db, Sock),
+    Sock1 = epgsql_sock:set_attr(codec, Codec, Sock),
     {finish, connected, connected, Sock1};
 
 

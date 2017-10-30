@@ -3,6 +3,7 @@
 -module(epgsql_idatetime).
 
 -export([decode/2, encode/2]).
+-export([j2date/1, date2j/1]).
 
 -include("protocol.hrl").
 
@@ -24,15 +25,17 @@ decode(timestamp, <<N:?int64>>)                    -> i2timestamp(N);
 decode(timestamptz, <<N:?int64>>)                  -> i2timestamp(N);
 decode(interval, <<N:?int64, D:?int32, M:?int32>>) -> {i2time(N), D, M}.
 
-encode(date, D)         -> <<4:?int32, (date2j(D) - ?postgres_epoc_jdate):?int32>>;
-encode(time, T)         -> <<8:?int32, (time2i(T)):?int64>>;
-encode(timetz, {T, TZ}) -> <<12:?int32, (time2i(T)):?int64, TZ:?int32>>;
-encode(timestamp, TS = {_, _, _})   -> <<8:?int32, (now2i(TS)):?int64>>;
-encode(timestamp, TS)   -> <<8:?int32, (timestamp2i(TS)):?int64>>;
-encode(timestamptz, TS = {_, _, _})   -> <<8:?int32, (now2i(TS)):?int64>>;
-encode(timestamptz, TS) -> <<8:?int32, (timestamp2i(TS)):?int64>>;
-encode(interval, {T, D, M}) -> <<16:?int32, (time2i(T)):?int64, D:?int32, M:?int32>>.
+encode(date, D)         -> <<(date2j(D) - ?postgres_epoc_jdate):?int32>>;
+encode(time, T)         -> <<(time2i(T)):?int64>>;
+encode(timetz, {T, TZ}) -> <<(time2i(T)):?int64, TZ:?int32>>;
+encode(timestamp, TS = {_, _, _})   -> <<(now2i(TS)):?int64>>;
+encode(timestamp, TS)   -> <<(timestamp2i(TS)):?int64>>;
+encode(timestamptz, TS = {_, _, _})   -> <<(now2i(TS)):?int64>>;
+encode(timestamptz, TS) -> <<(timestamp2i(TS)):?int64>>;
+encode(interval, {T, D, M}) -> <<(time2i(T)):?int64, D:?int32, M:?int32>>.
 
+%% Julian calendar
+%% See $PG$/src/backend/utils/adt/datetime.c
 j2date(N) ->
     J = N + 32044,
     Q1 = J div 146097,
