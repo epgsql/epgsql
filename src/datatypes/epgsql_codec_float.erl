@@ -47,9 +47,9 @@ encode(minus_infinity, float8, _) -> ?NEG_INF8.
 
 decode(<<N:1/big-float-unit:32>>, float4, _) -> N;
 decode(<<N:1/big-float-unit:64>>, float8, _) -> N;
-decode(?NAN_PATTERN, float4, _) -> nan;
-decode(?NAN_PATTERN8, float8, _) -> nan;
 decode(?POS_INF, float4, _) -> plus_infinity;
 decode(?POS_INF8, float8, _) -> plus_infinity;
 decode(?NEG_INF, float4, _) -> minus_infinity;
-decode(?NEG_INF8, float8, _) -> minus_infinity.
+decode(?NEG_INF8, float8, _) -> minus_infinity;
+decode(?NAN_PATTERN, float4, _) -> nan;
+decode(?NAN_PATTERN8, float8, _) -> nan.

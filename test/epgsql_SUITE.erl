@@ -659,7 +659,9 @@ numeric_type(Config) ->
     check_type(Config, int4, "1", 1, [0, 512, -2147483648, +2147483647]),
     check_type(Config, int8, "1", 1, [0, 1024, -9223372036854775808, +9223372036854775807]),
     check_type(Config, float4, "1.0", 1.0, [0.0, 1.23456, -1.23456]),
-    check_type(Config, float8, "1.0", 1.0, [0.0, 1.23456789012345, -1.23456789012345]).
+    check_type(Config, float4, "'-Infinity'", minus_infinity, [minus_infinity, plus_infinity, nan]),
+    check_type(Config, float8, "1.0", 1.0, [0.0, 1.23456789012345, -1.23456789012345]),
+    check_type(Config, float8, "'nan'", nan, [minus_infinity, plus_infinity, nan]).
 
 character_type(Config) ->
     Alpha = unicode:characters_to_binary([16#03B1]),
@@ -1141,8 +1143,8 @@ check_type(Config, Type, In, Out, Values, Column) ->
 
 compare(_Type, null, null)      -> true;
 compare(_Type, undefined, null) -> true;
-compare(float4, V1, V2)         -> abs(V2 - V1) < 0.000001;
-compare(float8, V1, V2)         -> abs(V2 - V1) < 0.000000000000001;
+compare(float4, V1, V2) when is_float(V1) -> abs(V2 - V1) < 0.000001;
+compare(float8, V1, V2) when is_float(V1) -> abs(V2 - V1) < 0.000000000000001;
 compare(hstore, {V1}, V2)       -> compare(hstore, V1, V2);
 compare(hstore, V1, {V2})       -> compare(hstore, V1, V2);
 compare(hstore, V1, V2)         ->

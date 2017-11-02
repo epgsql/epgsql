@@ -13,6 +13,11 @@
 -export([init/2, names/0, encode/3, decode/3]).
 
 -export_type([data/0]).
+-export_type([pg_date/0,
+              pg_time/0,
+              pg_datetime/0,
+              pg_interval/0,
+              pg_timetz/0]).
 
 -type data() :: pg_date() | pg_time() | pg_datetime() | pg_interval() | pg_timetz().
 
