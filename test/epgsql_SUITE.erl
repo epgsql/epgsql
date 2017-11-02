@@ -766,7 +766,12 @@ hstore_type(Config) ->
 
 net_type(Config) ->
     check_type(Config, cidr, "'127.0.0.1/32'", {{127,0,0,1}, 32}, [{{127,0,0,1}, 32}, {{0,0,0,0,0,0,0,1}, 128}]),
-    check_type(Config, inet, "'127.0.0.1'", {127,0,0,1}, [{127,0,0,1}, {0,0,0,0,0,0,0,1}]).
+    check_type(Config, inet, "'127.0.0.1'", {127,0,0,1}, [{127,0,0,1}, {0,0,0,0,0,0,0,1}]),
+    %% macaddr8 available only on PG>=10
+    check_type(Config, macaddr,
+               "'FF:FF:FF:FF:FF:FF'", {255, 255, 255, 255, 255, 255},
+               [{255, 255, 255, 255, 255, 255},
+                {6, 0, 0, 0, 0, 0}]).
 
 array_type(Config) ->
     Module = ?config(module, Config),

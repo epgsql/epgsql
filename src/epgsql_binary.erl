@@ -283,6 +283,8 @@ default_oids() ->
      {interval, 1186, 1187},
      {json, 114, 199},
      {jsonb, 3802, 3807},
+     {macaddr, 829, 1040},
+     {macaddr8, 774, 775},
      {point, 600, 1017},
      {text, 25, 1009},
      {time, 1083, 1183},
