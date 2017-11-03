@@ -68,6 +68,9 @@ groups() ->
             range_type,
             range8_type,
             custom_types
+        ]},
+        {generic, [parallel], [
+            with_transaction
         ]}
     ],
 
@@ -125,7 +128,12 @@ groups() ->
         set_notice_receiver,
         get_cmd_status
     ],
-    Groups ++ [{Module, [], Tests} || Module <- modules()].
+    Groups ++ [case Module of
+                   epgsql ->
+                       {Module, [], [{group, generic} | Tests]};
+                   _ ->
+                       {Module, [], Tests}
+               end || Module <- modules()].
 
 end_per_suite(_Config) ->
     ok.
@@ -1042,6 +1050,49 @@ range8_type(Config) ->
             {984655, plus_infinity}, {minus_infinity, plus_infinity}
         ])
     end, []).
+
+
+with_transaction(Config) ->
+    Module = ?config(module, Config),
+    epgsql_ct:with_connection(
+      Config,
+      fun(C) ->
+              %% Success case
+              ?assertEqual(
+                 success, Module:with_transaction(C, fun(_) -> success end)),
+              ?assertEqual(
+                 success, Module:with_transaction(C, fun(_) -> success end,
+                                                  [{ensure_committed, true}])),
+              %% begin_opts
+              ?assertMatch(
+                 [{ok, _, [{<<"serializable">>}]},
+                  {ok, _, [{<<"on">>}]}],
+                 Module:with_transaction(
+                   C, fun(C1) ->
+                              Module:squery(C1, ("SHOW transaction_isolation; "
+                                                 "SHOW transaction_read_only"))
+                      end,
+                   [{begin_opts, "READ ONLY ISOLATION LEVEL SERIALIZABLE"}])),
+              %% ensure_committed failure
+              ?assertError(
+                 {ensure_committed_failed, rollback},
+                 Module:with_transaction(
+                   C, fun(C1) ->
+                              {error, _} = Module:squery(C1, "SELECT col FROM _nowhere_"),
+                              ok
+                      end,
+                   [{ensure_committed, true}])),
+              %% reraise
+              ?assertEqual(
+                 {rollback, my_err},
+                 Module:with_transaction(
+                   C, fun(_) -> error(my_err) end,
+                   [{reraise, false}])),
+              ?assertError(
+                 my_err,
+                 Module:with_transaction(
+                   C, fun(_) -> error(my_err) end, []))
+      end, []).
 
 %% =============================================================================
 %% Internal functions
