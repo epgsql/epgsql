@@ -344,8 +344,7 @@ with_transaction(C, F) ->
 %%   https://www.postgresql.org/docs/current/static/sql-begin.html)
 %%   Beware of SQL injections! No escaping is made on begin_opts!
 -spec with_transaction(
-        connection(), fun((connection) -> Reply), Opts) -> Reply | {rollback, any()}
-                                                               when
+        connection(), fun((connection()) -> Reply), Opts) -> Reply | {rollback, any()} | no_return() when
       Reply :: any(),
       Opts :: [{reraise, boolean()} |
                {ensure_committed, boolean()} |
@@ -360,7 +359,7 @@ with_transaction(C, F, Opts0) ->
     try
         {ok, [], []} = squery(C, Begin),
         R = F(C),
-        {ok, [], []} = squery(C, "COMMIT"),
+        {ok, [], []} = squery(C, <<"COMMIT">>),
         case proplists:get_value(ensure_committed, Opts, false) of
             true ->
                 {ok, CmdStatus} = get_cmd_status(C),
