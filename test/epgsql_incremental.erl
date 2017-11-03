@@ -19,27 +19,29 @@
 
 connect(Opts) ->
     Ref = epgsqli:connect(Opts),
-    await_connect(Ref).
+    await_connect(Ref, Opts).
 
 connect(Host, Opts) ->
     Ref = epgsqli:connect(Host, Opts),
-    await_connect(Ref).
+    await_connect(Ref, Opts).
 
 connect(Host, Username, Opts) ->
     Ref = epgsqli:connect(Host, Username, Opts),
-    await_connect(Ref).
+    await_connect(Ref, Opts).
 
 connect(Host, Username, Password, Opts) ->
     Ref = epgsqli:connect(Host, Username, Password, Opts),
-    await_connect(Ref).
+    await_connect(Ref, Opts).
 
-await_connect(Ref) ->
+await_connect(Ref, Opts0) ->
+    Opts = epgsql_cth:to_proplist(Opts0),
+    Timeout = proplists:get_value(timeout, Opts, 5000),
     receive
         {C, Ref, connected} ->
             {ok, C};
         {_C, Ref, Error = {error, _}} ->
             Error
-    after 5000 ->
+    after Timeout ->
             error(timeout)
     end.
 
