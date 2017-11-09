@@ -47,7 +47,7 @@
     {database, DBName     :: string()}             |
     {port,     PortNum    :: inet:port_number()}   |
     {ssl,      IsEnabled  :: boolean() | required} |
-    {ssl_opts, SslOptions :: [ssl:ssl_option()]}   | % @see OTP ssl app, ssl_api.hrl
+    {ssl_opts, SslOptions :: [ssl:ssl_option()]}   | % see OTP ssl app, ssl_api.hrl
     {timeout,  TimeoutMs  :: timeout()}            | % default: 5000 ms
     {async,    Receiver   :: pid() | atom()}       | % process to receive LISTEN/NOTIFY msgs
     {replication, Replication :: string()}. % Pass "database" to connect in replication mode

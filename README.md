@@ -139,49 +139,40 @@ squery(Connection, SqlQuery) -> ...
 ```
 examples:
 ```erlang
-InsertRes = epgsql:squery(C, "insert into account (name) values  ('alice'), ('bob')"),
-io:format("~p~n", [InsertRes]),
-```
-> ```
-{ok,2}
+epgsql:squery(C, "insert into account (name) values  ('alice'), ('bob')").
+> {ok,2}
 ```
 
 ```erlang
-SelectRes = epgsql:squery(C, "select * from account"),
-io:format("~p~n", [SelectRes]).
-```
-> ```
-{ok,
+epgsql:squery(C, "select * from account").
+> {ok,
     [{column,<<"id">>,int4,4,-1,0},{column,<<"name">>,text,-1,-1,0}],
     [{<<"1">>,<<"alice">>},{<<"2">>,<<"bob">>}]
 }
 ```
 
 ```erlang
-InsertReturningRes = epgsql:squery(C, 
+epgsql:squery(C,
     "insert into account(name)"
     "    values ('joe'), (null)"
-    "    returning *"),
-io:format("~p~n", [InsertReturningRes]).
-```
-> ```
-{ok,2,
+    "    returning *").
+> {ok,2,
     [{column,<<"id">>,int4,4,-1,0}, {column,<<"name">>,text,-1,-1,0}],
     [{<<"3">>,<<"joe">>},{<<"4">>,null}]
 }
 ```
 
 ```erlang
-{error, Reason} = epgsql:squery(C, "insert into account values (1, 'bad_pkey')"),
-io:format("~p~n", [Reason]).
-```
-> ```
-{error,
-    error,
-    <<"23505">>,
-    <<"duplicate key value violates unique constraint \"account_pkey\"">>,
-    [{detail,<<"Key (id)=(1) already exists.">>}]
-}
+-include_lib("epgsql/include/epgsql.hrl").
+epgsql:squery(C, "SELECT * FROM _nowhere_").
+> {error,
+   #error{severity = error,code = <<"42P01">>,
+          codename = undefined_table,
+          message = <<"relation \"_nowhere_\" does not exist">>,
+          extra = [{file,<<"parse_relation.c">>},
+                   {line,<<"1160">>},
+                   {position,<<"15">>},
+                   {routine,<<"parserOpenTable">>}]}}
 ```
 
 The simple query protocol returns all columns as binary strings
@@ -190,7 +181,7 @@ and does not support parameters binding.
 Several queries separated by semicolon can be executed by squery.
 
 ```erlang
-  [{ok, _, [{<<"1">>}]}, {ok, _, [{<<"2">>}]}] = epgsql:squery(C, "select 1; select 2").
+[{ok, _, [{<<"1">>}]}, {ok, _, [{<<"2">>}]}] = epgsql:squery(C, "select 1; select 2").
 ```
 
 `epgsqla:squery/2` returns result as a single message:
@@ -246,11 +237,8 @@ the unnamed prepared statement and portal. A `select` statement returns
 an error occurs, all statements result in `{error, #error{}}`.
 
 ```erlang
-SelectRes = epgsql:equery(C, "select id from account where name = $1", ["alice"]),
-io:format("~p~n", [SelectRes]).
-```
-> ```
-{ok,
+epgsql:equery(C, "select id from account where name = $1", ["alice"]),
+> {ok,
     [{column,<<"id">>,int4,4,-1,1}],
     [{1}]
 }
