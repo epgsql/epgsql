@@ -3,7 +3,8 @@
 -export([
          init/2,
          terminate/1,
-         pre_init_per_suite/3
+         pre_init_per_suite/3,
+         to_proplist/1
         ]).
 
 -include_lib("common_test/include/ct.hrl").
@@ -221,3 +222,8 @@ ts_add({Mega, Sec, Micro}, Timeout) ->
     {V div 1000000000000,
      V div 1000000 rem 1000000,
      V rem 1000000}.
+
+to_proplist(List) when is_list(List) ->
+    List;
+to_proplist(Map) ->
+    maps:to_list(Map).

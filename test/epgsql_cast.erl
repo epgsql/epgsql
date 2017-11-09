@@ -19,29 +19,31 @@
 
 connect(Opts) ->
     Ref = epgsqla:connect(Opts),
-    await_connect(Ref).
+    await_connect(Ref, Opts).
 
 connect(Host, Opts) ->
     Ref = epgsqla:connect(Host, Opts),
-    await_connect(Ref).
+    await_connect(Ref, Opts).
 
 connect(Host, Username, Opts) ->
     Ref = epgsqla:connect(Host, Username, Opts),
-    await_connect(Ref).
+    await_connect(Ref, Opts).
 
 connect(Host, Username, Password, Opts) ->
     Ref = epgsqla:connect(Host, Username, Password, Opts),
     %% TODO connect timeout
-    await_connect(Ref).
+    await_connect(Ref, Opts).
 
-await_connect(Ref) ->
+await_connect(Ref, Opts0) ->
+    Opts = epgsql_cth:to_proplist(Opts0),
+    Timeout = proplists:get_value(timeout, Opts, 5000),
     receive
         {C, Ref, connected} ->
             {ok, C};
         {_C, Ref, Error = {error, _}} ->
-            Error;
-        {'EXIT', _C, _Reason} ->
-            {error, closed}
+            Error
+    after Timeout ->
+            error(timeout)
     end.
 
 close(C) ->
