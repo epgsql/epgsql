@@ -22,6 +22,7 @@
          update_type_cache/1,
          update_type_cache/2,
          with_transaction/2,
+         with_transaction/3,
          sync_on_error/2,
          standby_status_update/3,
          start_replication/5,
@@ -328,16 +329,54 @@ cancel(C) ->
                                   when
       Reply :: any().
 with_transaction(C, F) ->
-    try {ok, [], []} = squery(C, "BEGIN"),
+    with_transaction(C, F, [{reraise, false}]).
+
+%% @doc Execute callback function with connection in a transaction.
+%% Transaction will be rolled back in case of exception.
+%% Options (proplist or map):
+%% - reraise (true): when set to true, exception will be re-thrown, otherwise
+%%   {rollback, ErrorReason} will be returned
+%% - ensure_comitted (false): even when callback returns without exception,
+%%   check that transaction was comitted by checking CommandComplete status
+%%   of "COMMIT" command. In case when transaction was rolled back, status will be
+%%   "rollback" instead of "commit".
+%% - begin_opts (""): append extra options to "BEGIN" command (see
+%%   https://www.postgresql.org/docs/current/static/sql-begin.html)
+%%   Beware of SQL injections! No escaping is made on begin_opts!
+-spec with_transaction(
+        connection(), fun((connection()) -> Reply), Opts) -> Reply | {rollback, any()} | no_return() when
+      Reply :: any(),
+      Opts :: [{reraise, boolean()} |
+               {ensure_committed, boolean()} |
+               {begin_opts, iodata()}].
+with_transaction(C, F, Opts0) ->
+    Opts = to_proplist(Opts0),
+    Begin = case proplists:get_value(begin_opts, Opts) of
+                undefined -> <<"BEGIN">>;
+                BeginOpts ->
+                    [<<"BEGIN ">> | BeginOpts]
+            end,
+    try
+        {ok, [], []} = squery(C, Begin),
         R = F(C),
-        {ok, [], []} = squery(C, "COMMIT"),
+        {ok, [], []} = squery(C, <<"COMMIT">>),
+        case proplists:get_value(ensure_committed, Opts, false) of
+            true ->
+                {ok, CmdStatus} = get_cmd_status(C),
+                (commit == CmdStatus) orelse error({ensure_committed_failed, CmdStatus});
+            false -> ok
+        end,
         R
     catch
-        _:Why ->
+        Type:Reason ->
             squery(C, "ROLLBACK"),
-            %% TODO hides error stacktrace
-            {rollback, Why}
+            handle_error(Type, Reason, proplists:get_value(reraise, Opts, true))
     end.
+
+handle_error(_, Reason, false) ->
+    {rollback, Reason};
+handle_error(Type, Reason, true) ->
+    erlang:raise(Type, Reason, erlang:get_stacktrace()).
 
 sync_on_error(C, Error = {error, _}) ->
     ok = sync(C),

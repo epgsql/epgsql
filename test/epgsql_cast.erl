@@ -11,7 +11,6 @@
 -export([parse/2, parse/3, parse/4, describe/2, describe/3]).
 -export([bind/3, bind/4, execute/2, execute/3, execute/4, execute_batch/2]).
 -export([close/2, close/3, sync/1]).
--export([with_transaction/2]).
 -export([receive_result/2, sync_on_error/2]).
 
 -include("epgsql.hrl").
@@ -142,19 +141,6 @@ close(C, Type, Name) ->
 sync(C) ->
     Ref = epgsqla:sync(C),
     receive_result(C, Ref).
-
-%% misc helper functions
-with_transaction(C, F) ->
-    try {ok, [], []} = squery(C, "BEGIN"),
-        R = F(C),
-        {ok, [], []} = squery(C, "COMMIT"),
-        R
-    catch
-        _:Why ->
-            squery(C, "ROLLBACK"),
-            %% TODO hides error stacktrace
-            {rollback, Why}
-    end.
 
 receive_result(C, Ref) ->
     %% TODO timeout
