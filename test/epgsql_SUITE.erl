@@ -669,7 +669,20 @@ character_type(Config) ->
     One   = unicode:characters_to_binary([16#10D360]),
     check_type(Config, bpchar, "'A'", $A, [1, $1, 16#7F, Alpha, Ka, One], "c_char"),
     check_type(Config, text, "'hi'", <<"hi">>, [<<"">>, <<"hi">>]),
-    check_type(Config, varchar, "'hi'", <<"hi">>, [<<"">>, <<"hi">>]).
+    check_type(Config, varchar, "'hi'", <<"hi">>, [<<"">>, <<"hi">>]),
+    %% Deprecated casts
+    epgsql_ct:with_connection(
+      Config,
+      fun(C) ->
+              Module = ?config(module, Config),
+              ?assertMatch({ok, _, [{<<"my_atom">>}]},
+                           Module:equery(C, "SELECT $1::varchar", [my_atom])),
+              ?assertMatch({ok, _, [{<<"12345">>}]},
+                           Module:equery(C, "SELECT $1::varchar", [12345])),
+              FloatBin = erlang:float_to_binary(1.2345),
+              ?assertMatch({ok, _, [{FloatBin}]},
+                           Module:equery(C, "SELECT $1::varchar", [1.2345]))
+      end).
 
 uuid_type(Config) ->
     check_type(Config, uuid,

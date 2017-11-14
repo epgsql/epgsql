@@ -25,6 +25,17 @@ names() ->
 
 encode(String, Name, State) when is_list(String) ->
     encode(list_to_binary(String), Name, State);
-encode(Bin, _, _) when is_binary(Bin) -> Bin.
+encode(Bin, _, _) when is_binary(Bin) -> Bin;
+encode(Other, _Name, _State) ->
+    %% This is for backward compatibitlty! Maybe add warning?
+    %% error_logger:warning_msg(
+    %%   "epgsql_codec_text.erl: Deprecated attempt to encode '~p' as '~s'",
+    %%   [Other, Name]),
+    encode_compat(Other).
+
+encode_compat(A) when is_atom(A)    -> atom_to_binary(A, utf8);
+encode_compat(I) when is_integer(I) -> integer_to_binary(I);
+encode_compat(F) when is_float(F)   -> float_to_binary(F).
+
 
 decode(Bin, _, _) -> Bin.
