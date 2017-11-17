@@ -1038,7 +1038,7 @@ get_cmd_status(Config) ->
         {ok, 1} = Module:squery(C, "UPDATE cmd_status_t SET col=3 WHERE col=1"),
         ?assertEqual({ok, {'update', 1}}, Module:get_cmd_status(C)),
         %% Failed queries have no status
-        {error, _} = Module:squery(C, "UPDATE cmd_status_t SET col='text' WHERE col=2"),
+        {error, _} = Module:squery(C, "DELETE FROM cmd_status_t WHERE not_col=2"),
         ?assertEqual({ok, undefined}, Module:get_cmd_status(C)),
         %% if COMMIT failed, status will be 'rollback'
         {ok, [], []} = Module:squery(C, "COMMIT"),

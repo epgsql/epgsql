@@ -221,8 +221,7 @@ receive_describe(C, Ref, Statement = #statement{}) ->
         {C, Ref, {types, Types}} ->
             receive_describe(C, Ref, Statement#statement{types = Types});
         {C, Ref, {columns, Columns}} ->
-            Columns2 = [Col#column{format = epgsql_wire:format(Col#column.type)} || Col <- Columns],
-            {ok, Statement#statement{columns = Columns2}};
+            {ok, Statement#statement{columns = Columns}};
         {C, Ref, no_data} ->
             {ok, Statement#statement{columns = []}};
         {C, Ref, Error = {error, _}} ->

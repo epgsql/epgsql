@@ -1,3 +1,0 @@
--define(int16, 1/big-signed-unit:16).
--define(int32, 1/big-signed-unit:32).
--define(int64, 1/big-signed-unit:64).

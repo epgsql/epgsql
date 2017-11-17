@@ -47,7 +47,9 @@ connect(Host, Username, Password, Opts) ->
 -spec connect(epgsql:connection(), inet:ip_address() | inet:hostname(),
               string(), string(), [epgsql:connect_option()]) -> reference().
 connect(C, Host, Username, Password, Opts) ->
-    epgsqla:complete_connect(C, incremental(C, {connect, Host, Username, Password, epgsql:to_proplist(Opts)})).
+    epgsqla:complete_connect(
+      C, incremental(
+           C, epgsql_cmd_connect, {Host, Username, Password, epgsql:to_proplist(Opts)})).
 
 -spec close(epgsql:connection()) -> ok.
 close(C) ->
@@ -70,18 +72,18 @@ get_cmd_status(C) ->
 
 -spec squery(epgsql:connection(), string()) -> reference().
 squery(C, Sql) ->
-    incremental(C, {squery, Sql}).
+    incremental(C, epgsql_cmd_squery, Sql).
 
 equery(C, Sql) ->
     equery(C, Sql, []).
 
 -spec equery(epgsql:connection(), #statement{}, [epgsql:typed_param()]) -> reference().
 equery(C, Statement, TypedParameters) ->
-    incremental(C, {equery, Statement, TypedParameters}).
+    incremental(C, epgsql_cmd_equery, {Statement, TypedParameters}).
 
 -spec prepared_query(epgsql:connection(), #statement{}, [epgsql:typed_param()]) -> reference().
 prepared_query(C, Statement, TypedParameters) ->
-    incremental(C, {prepared_query, Statement, TypedParameters}).
+    incremental(C, epgsql_cmd_prepared_query, {Statement, TypedParameters}).
 
 parse(C, Sql) ->
     parse(C, "", Sql, []).
@@ -91,14 +93,14 @@ parse(C, Sql, Types) ->
 
 -spec parse(epgsql:connection(), iolist(), string(), [epgsql_type()]) -> reference().
 parse(C, Name, Sql, Types) ->
-    incremental(C, {parse, Name, Sql, Types}).
+    incremental(C, epgsql_cmd_parse, {Name, Sql, Types}).
 
 bind(C, Statement, Parameters) ->
     bind(C, Statement, "", Parameters).
 
 -spec bind(epgsql:connection(), #statement{}, string(), [epgsql:bind_param()]) -> reference().
 bind(C, Statement, PortalName, Parameters) ->
-    incremental(C, {bind, Statement, PortalName, Parameters}).
+    incremental(C, epgsql_cmd_bind, {Statement, PortalName, Parameters}).
 
 execute(C, S) ->
     execute(C, S, "", 0).
@@ -108,29 +110,29 @@ execute(C, S, N) ->
 
 -spec execute(epgsql:connection(), #statement{}, string(), non_neg_integer()) -> reference().
 execute(C, Statement, PortalName, MaxRows) ->
-    incremental(C, {execute, Statement, PortalName, MaxRows}).
+    incremental(C, epgsql_cmd_execute, {Statement, PortalName, MaxRows}).
 
 -spec execute_batch(epgsql:connection(), [{#statement{}, [epgsql:bind_param()]}]) -> reference().
 execute_batch(C, Batch) ->
-    incremental(C, {execute_batch, Batch}).
+    incremental(C, epgsql_cmd_batch, Batch).
 
 describe(C, #statement{name = Name}) ->
     describe(C, statement, Name).
 
 describe(C, statement, Name) ->
-    incremental(C, {describe_statement, Name});
+    incremental(C, epgsql_cmd_describe_statement, Name);
 
 describe(C, portal, Name) ->
-    incremental(C, {describe_portal, Name}).
+    incremental(C, epgsql_cmd_describe_portal, Name).
 
 close(C, #statement{name = Name}) ->
     close(C, statement, Name).
 
 close(C, Type, Name) ->
-    incremental(C, {close, Type, Name}).
+    incremental(C, epgsql_cmd_close, {Type, Name}).
 
 sync(C) ->
-    incremental(C, sync).
+    incremental(C, epgsql_cmd_sync, []).
 
 -spec cancel(epgsql:connection()) -> ok.
 cancel(C) ->
@@ -139,7 +141,5 @@ cancel(C) ->
 
 %% -- internal functions --
 
-incremental(C, Command) ->
-    Ref = make_ref(),
-    gen_server:cast(C, {{incremental, self(), Ref}, Command}),
-    Ref.
+incremental(C, Command, Args) ->
+    epgsql_sock:async_command(C, incremental, Command, Args).

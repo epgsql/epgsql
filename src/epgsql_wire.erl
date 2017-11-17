@@ -7,29 +7,27 @@
          decode_error/1,
          decode_strings/1,
          decode_columns/3,
+         decode_parameters/2,
          encode/1,
          encode/2,
-         decode_data/3,
+         build_decoder/2,
+         decode_data/2,
          decode_complete/1,
          encode_types/2,
          encode_formats/1,
-         format/1,
+         format/2,
          encode_parameters/2,
          encode_standby_status_update/3]).
 
 -include("epgsql.hrl").
--include("epgsql_binary.hrl").
+-include("protocol.hrl").
+
 
 decode_message(<<Type:8, Len:?int32, Rest/binary>> = Bin) ->
     Len2 = Len - 4,
     case Rest of
         <<Data:Len2/binary, Tail/binary>> ->
-            case Type of
-                $E ->
-                    {{error, decode_error(Data)}, Tail};
-                _ ->
-                    {{Type, Data}, Tail}
-            end;
+            {Type, Data, Tail};
         _Other ->
             Bin
     end;
@@ -113,6 +111,7 @@ lower_atom(Str) when is_binary(Str) ->
 lower_atom(Str) when is_list(Str) ->
     list_to_atom(string:to_lower(Str)).
 
+%% FIXME: return iolist
 encode(Data) ->
     Bin = iolist_to_binary(Data),
     <<(byte_size(Bin) + 4):?int32, Bin/binary>>.
@@ -121,8 +120,13 @@ encode(Type, Data) ->
     Bin = iolist_to_binary(Data),
     <<Type:8, (byte_size(Bin) + 4):?int32, Bin/binary>>.
 
-%% decode data
-decode_data(Columns, Bin, Codec) ->
+%% Build decoder for DataRow
+build_decoder(Columns, Codec) ->
+    {Columns, Codec}.
+
+%% decode row data
+%% FIXME: use body recursion
+decode_data(Bin, {Columns, Codec}) ->
     decode_data(Columns, Bin, [], Codec).
 
 decode_data([], _Bin, Acc, _Codec) ->
@@ -139,6 +143,7 @@ decode_data([C | T], <<Len:?int32, Value:Len/binary, Rest/binary>>, Acc, Codec) 
     decode_data(T, Rest, [Value2 | Acc], Codec).
 
 %% decode column information
+%% TODO: use body-recursion
 decode_columns(Count, Bin, Codec) ->
     decode_columns(Count, Bin, [], Codec).
 
@@ -155,6 +160,10 @@ decode_columns(N, Bin, Acc, Codec) ->
       modifier = Modifier,
       format   = Format},
     decode_columns(N - 1, Rest2, [Desc | Acc], Codec).
+
+%% decode ParameterDescription
+decode_parameters(<<_Count:?int16, Bin/binary>>, Codec) ->
+    [epgsql_binary:oid2type(Oid, Codec) || <<Oid:?int32>> <= Bin].
 
 %% decode command complete msg
 decode_complete(<<"SELECT", 0>>)        -> select;
@@ -196,7 +205,7 @@ encode_formats([], Count, Acc) ->
 encode_formats([#column{format = Format} | T], Count, Acc) ->
     encode_formats(T, Count + 1, <<Acc/binary, Format:?int16>>).
 
-format(Type) ->
+format(Type, _Codec) ->
     case epgsql_binary:supports(Type) of
         true  -> 1;
         false -> 0
