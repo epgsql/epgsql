@@ -37,18 +37,18 @@ decode_message(<<Type:8, Len:?int32, Rest/binary>> = Bin) ->
 decode_message(Bin) ->
     Bin.
 
-%% decode a single null-terminated string
+%% @doc decode a single null-terminated string
 -spec decode_string(binary()) -> [binary(), ...].
 decode_string(Bin) ->
     binary:split(Bin, <<0>>).
 
-%% decode multiple null-terminated string
+%% @doc decode multiple null-terminated string
 -spec decode_strings(binary()) -> [binary(), ...].
 decode_strings(Bin) ->
     [<<>> | T] = lists:reverse(binary:split(Bin, <<0>>, [global])),
     lists:reverse(T).
 
-%% decode field
+%% @doc decode error's field
 -spec decode_fields(binary()) -> [{byte(), binary()}].
 decode_fields(Bin) ->
     decode_fields(Bin, []).
@@ -59,7 +59,7 @@ decode_fields(<<Type:8, Rest/binary>>, Acc) ->
     [Str, Rest2] = decode_string(Rest),
     decode_fields(Rest2, [{Type, Str} | Acc]).
 
-%% decode ErrorResponse
+%% @doc decode ErrorResponse
 %% See http://www.postgresql.org/docs/current/interactive/protocol-error-fields.html
 -spec decode_error(binary()) -> #error{}.
 decode_error(Bin) ->
@@ -118,7 +118,7 @@ lower_atom(Str) when is_list(Str) ->
     list_to_atom(string:to_lower(Str)).
 
 
-%% Build decoder for DataRow
+%% @doc Build decoder for DataRow
 -spec build_decoder([epgsql:column()], epgsql_binary:codec()) -> row_decoder().
 build_decoder(Columns, Codec) ->
     Decoders = lists:map(
@@ -131,7 +131,7 @@ build_decoder(Columns, Codec) ->
                  end, Columns),
     {Decoders, Columns, Codec}.
 
-%% decode row data
+%% @doc decode row data
 -spec decode_data(binary(), row_decoder()) -> tuple().
 decode_data(Bin, {Decoders, Columns, Codec}) ->
     list_to_tuple(decode_data(Bin, Decoders, Columns, Codec)).
@@ -143,7 +143,7 @@ decode_data(<<Len:?int32, Value:Len/binary, Rest/binary>>, [Decoder | Decs], [_C
     [epgsql_binary:decode(Value, Decoder)
      | decode_data(Rest, Decs, Cols, Codec)].
 
-%% decode column information
+%% @doc decode column information
 -spec decode_columns(non_neg_integer(), binary(), epgsql_binary:codec()) -> [#column{}].
 decode_columns(0, _Bin, _Codec) -> [];
 decode_columns(Count, Bin, Codec) ->
@@ -161,7 +161,7 @@ decode_columns(Count, Bin, Codec) ->
       format   = Format},
     [Desc | decode_columns(Count - 1, Rest2, Codec)].
 
-%% decode ParameterDescription
+%% @doc decode ParameterDescription
 -spec decode_parameters(binary(), epgsql_binary:codec()) ->
                                [epgsql_oid_db:type_info() | {unknown_oid, epgsql_oid_db:oid()}].
 decode_parameters(<<_Count:?int16, Bin/binary>>, Codec) ->
@@ -170,7 +170,7 @@ decode_parameters(<<_Count:?int16, Bin/binary>>, Codec) ->
          TypeInfo -> TypeInfo
      end || <<Oid:?int32>> <= Bin].
 
-%% decode command complete msg
+%% @doc decode command complete msg
 decode_complete(<<"SELECT", 0>>)        -> select;
 decode_complete(<<"SELECT", _/binary>>) -> select;
 decode_complete(<<"BEGIN", 0>>)         -> 'begin';
@@ -187,7 +187,7 @@ decode_complete(Bin) ->
     end.
 
 
-%% encode types
+%% @doc encode types
 encode_types(Types, Codec) ->
     encode_types(Types, 0, <<>>, Codec).
 
@@ -201,7 +201,7 @@ encode_types([Type | T], Count, Acc, Codec) ->
     end,
     encode_types(T, Count + 1, <<Acc/binary, Oid:?int32>>, Codec).
 
-%% encode expected column formats
+%% @doc encode expected column formats
 -spec encode_formats([#column{}]) -> binary().
 encode_formats(Columns) ->
     encode_formats(Columns, 0, <<>>).
@@ -219,7 +219,7 @@ format(#column{oid = Oid}, Codec) ->
         false -> 0                              %text
     end.
 
-%% encode parameters for 'Bind'
+%% @doc encode parameters for 'Bind'
 -spec encode_parameters([], epgsql_binary:codec()) -> iolist().
 encode_parameters(Parameters, Codec) ->
     encode_parameters(Parameters, 0, <<>>, [], Codec).
@@ -233,8 +233,7 @@ encode_parameters([P | T], Count, Formats, Values, Codec) ->
     Values2 = [Value | Values],
     encode_parameters(T, Count + 1, Formats2, Values2, Codec).
 
-%% encode parameter
-
+%% @doc encode single 'typed' parameter
 -spec encode_parameter({Type, Val :: any()},
                        epgsql_binary:codec()) -> {0..1, iolist()} when
       Type :: epgsql:type_name()
@@ -245,30 +244,32 @@ encode_parameter({T, undefined}, Codec) ->
 encode_parameter({_, null}, _Codec) ->
     {1, <<-1:?int32>>};
 encode_parameter({{unknown_oid, _Oid}, Value}, _Codec) ->
-    encode_text(Value);
+    {0, encode_text(Value)};
 encode_parameter({Type, Value}, Codec) ->
     {1, epgsql_binary:encode(Type, Value, Codec)};
-encode_parameter(Value, _Codec) -> encode_text(Value).
+encode_parameter(Value, _Codec) ->
+    {0, encode_text(Value)}.
 
-encode_text(B) when is_binary(B)  -> {0, encode_bin(B)};
-encode_text(A) when is_atom(A)    -> {0, encode_bin(atom_to_binary(A, utf8))};
-encode_text(I) when is_integer(I) -> {0, encode_bin(integer_to_binary(I))};
-encode_text(F) when is_float(F)   -> {0, encode_bin(float_to_binary(F))};
-encode_text(L) when is_list(L)    -> {0, encode_bin(list_to_binary(L))}.
-
-
-encode(Data) ->
-    Size = iolist_size(Data),
-    [<<(Size + 4):?int32>> | Data].
-
-encode(Type, Data) ->
-    Size = iolist_size(Data),
-    [<<Type:8, (Size + 4):?int32>> | Data].
-
+encode_text(B) when is_binary(B)  -> encode_bin(B);
+encode_text(A) when is_atom(A)    -> encode_bin(atom_to_binary(A, utf8));
+encode_text(I) when is_integer(I) -> encode_bin(integer_to_binary(I));
+encode_text(F) when is_float(F)   -> encode_bin(float_to_binary(F));
+encode_text(L) when is_list(L)    -> encode_bin(list_to_binary(L)).
 
 encode_bin(Bin) ->
     <<(byte_size(Bin)):?int32, Bin/binary>>.
 
+%% @doc Encode iodata with size-prefix (used for `StartupMessage' and `SSLRequest' packets)
+encode(Data) ->
+    Size = iolist_size(Data),
+    [<<(Size + 4):?int32>> | Data].
+
+%% @doc Encode PG command with type and size prefix
+encode(Type, Data) ->
+    Size = iolist_size(Data),
+    [<<Type:8, (Size + 4):?int32>> | Data].
+
+%% @doc encode replication status message
 encode_standby_status_update(ReceivedLSN, FlushedLSN, AppliedLSN) ->
     {MegaSecs, Secs, MicroSecs} = os:timestamp(),
     Timestamp = ((MegaSecs * 1000000 + Secs) * 1000000 + MicroSecs) - 946684800*1000000, %% microseconds since midnight on 2000-01-01

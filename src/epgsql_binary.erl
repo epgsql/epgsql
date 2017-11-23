@@ -1,5 +1,5 @@
 %%% Copyright (C) 2008 - Will Glozer.  All rights reserved.
-
+%% XXX: maybe merge this module into epgsql_codec?
 -module(epgsql_binary).
 
 -export([new_codec/2,
@@ -27,27 +27,31 @@
                       epgsql:type_name(),
                       epgsql_codec:state()}.
 
+-type type() :: epgsql:type_name() | {array, epgsql:type_name()}.
+-type maybe_unknown_type() :: type() | {unknown_oid, epgsql_oid_db:oid()}.
 
 -define(RECORD_OID, 2249).
 -define(RECORD_ARRAY_OID, 2287).
 
--spec new_codec(module(), epgsql_sock:pg_sock()) -> codec().
-new_codec(OidDb, PgSock) ->
+%% Codec is used to convert data (result rows and query parameters) between Erlang and postgresql formats
+%% It uses mappings between OID, type names and `epgsql_codec_*' modules (epgsql_oid_db)
+
+-spec new_codec(epgsql_sock:pg_sock(), list()) -> codec().
+new_codec(PgSock, Opts) ->
     Codecs = default_codecs(),
     Oids = default_oids(),
-    new_codec(OidDb, PgSock, Codecs, Oids).
+    new_codec(PgSock, Codecs, Oids, Opts).
 
-new_codec(OidDb, PgSock, Codecs, Oids) ->
+new_codec(PgSock, Codecs, Oids, Opts) ->
     CodecEntries = epgsql_codec:init_mods(Codecs, PgSock),
-    Types = OidDb:join_codecs_oids(Oids, CodecEntries),
-    #codec{oid_db = epgsql_oid_db:from_list(Types)}.
+    Types = epgsql_oid_db:join_codecs_oids(Oids, CodecEntries),
+    #codec{oid_db = epgsql_oid_db:from_list(Types), opts = Opts}.
 
 -spec update_codec([epgsql_oid_db:type_info()], codec()) -> codec().
 update_codec(TypeInfos, #codec{oid_db = Db} = Codec) ->
     Codec#codec{oid_db = epgsql_oid_db:update(TypeInfos, Db)}.
 
--spec oid_to_name(epgsql_oid_db:oid(), codec()) -> Type | {unknown_oid, epgsql_oid_db:oid()} when
-      Type :: epgsql:type_name() | {array, epgsql:type_name()}.
+-spec oid_to_name(epgsql_oid_db:oid(), codec()) -> maybe_unknown_type().
 oid_to_name(Oid, Codec) ->
     case oid_to_info(Oid, Codec) of
         undefined ->
@@ -59,6 +63,7 @@ oid_to_name(Oid, Codec) ->
             end
     end.
 
+-spec type_to_oid(type(), codec()) -> epgsql_oid_db:oid().
 type_to_oid({array, Name}, Codec) ->
     type_to_oid(Name, true, Codec);
 type_to_oid(Name, Codec) ->
@@ -68,9 +73,10 @@ type_to_oid(Name, Codec) ->
 type_to_oid(TypeName, IsArray, #codec{oid_db = Db}) ->
     epgsql_oid_db:oid_by_name(TypeName, IsArray, Db).
 
-type_to_oid_info({array, Name}, Codec) ->
+-spec type_to_type_info(type(), codec()) -> epgsql_oid_db:type_info() | undefined.
+type_to_type_info({array, Name}, Codec) ->
     type_to_info(Name, true, Codec);
-type_to_oid_info(Name, Codec) ->
+type_to_type_info(Name, Codec) ->
     type_to_info(Name, false, Codec).
 
 -spec oid_to_info(epgsql_oid_db:oid(), codec()) -> epgsql_oid_db:type_info() | undefined.
@@ -81,6 +87,8 @@ oid_to_info(Oid, #codec{oid_db = Db}) ->
 type_to_info(TypeName, IsArray, #codec{oid_db = Db}) ->
     epgsql_oid_db:find_by_name(TypeName, IsArray, Db).
 
+-spec typeinfo_to_name_array(Unknown | epgsql_oid_db:type_info(), _) -> Unknown | type() when
+      Unknown :: {unknown_oid, epgsql_oid_db:oid()}.
 typeinfo_to_name_array({unknown_oid, _} = Unknown, _) -> Unknown;
 typeinfo_to_name_array(TypeInfo, _) ->
     case epgsql_oid_db:type_to_oid_info(TypeInfo) of
@@ -88,6 +96,9 @@ typeinfo_to_name_array(TypeInfo, _) ->
         {_, Name, true} -> {array, Name}
     end.
 
+-spec typeinfo_to_oid_info(Unknown | epgsql_oid_db:type_info(), _) ->
+                                  Unknown | epgsql_oid_db:oid_info() when
+      Unknown :: {unknown_oid, epgsql_oid_db:oid()}.
 typeinfo_to_oid_info({unknown_oid, _} = Unknown, _) -> Unknown;
 typeinfo_to_oid_info(TypeInfo, _) ->
     epgsql_oid_db:type_to_oid_info(TypeInfo).
@@ -96,10 +107,12 @@ typeinfo_to_oid_info(TypeInfo, _) ->
 %% Decode
 %%
 
+%% @doc decode single cell
 -spec decode(binary(), decoder()) -> any().
 decode(Bin, {Fun, TypeName, State}) ->
     Fun(Bin, TypeName, State).
 
+%% @doc generate decoder to decode PG binary of datatype specified as OID
 -spec oid_to_decoder(epgsql_oid_db:oid(), binary | text, codec()) -> decoder().
 oid_to_decoder(?RECORD_OID, binary, Codec) ->
     {fun ?MODULE:decode_record/3, record, Codec};
@@ -201,9 +214,11 @@ decode_record1(<<Oid:?int32, Len:?int32, ValueBin:Len/binary, Rest/binary>>, Siz
 %%
 %% Encode
 %%
+
+%% Convert erlang value to PG binary of type, specified by type name
 -spec encode(epgsql:type_name() | {array, epgsql:type_name()}, any(), codec()) -> iolist().
 encode(TypeName, Value, Codec) ->
-    Type = type_to_oid_info(TypeName, Codec),
+    Type = type_to_type_info(TypeName, Codec),
     encode_with_type(Type, Value).
 
 encode_with_type(Type, Value) ->
@@ -251,6 +266,7 @@ supports(Oid, #codec{oid_db = Db}) ->
     epgsql_oid_db:find_by_oid(Oid, Db) =/= undefined.
 
 %% Default codec set
+%% XXX: maybe move to application env?
 -spec default_codecs() -> [epgsql_codec:codec_entry()].
 default_codecs() ->
     [{epgsql_codec_boolean,[]},

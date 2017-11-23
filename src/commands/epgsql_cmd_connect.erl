@@ -147,7 +147,7 @@ handle_message(?CANCELLATION_KEY, <<Pid:?int32, Key:?int32>>, Sock, _State) ->
 
 %% ReadyForQuery
 handle_message(?READY_FOR_QUERY, _, Sock, _State) ->
-    Codec = epgsql_binary:new_codec(epgsql_oid_db, Sock),
+    Codec = epgsql_binary:new_codec(Sock, []),
     Sock1 = epgsql_sock:set_attr(codec, Codec, Sock),
     {finish, connected, connected, Sock1};
 

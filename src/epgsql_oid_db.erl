@@ -51,7 +51,7 @@ build_query(TypeNames) ->
        "FROM pg_type "
        "WHERE typname IN (">>, Types, <<") ORDER BY typname">>].
 
-%% Parse result of `squery(build_query(...))'
+%% @doc Parse result of `squery(build_query(...))'
 -spec parse_rows(ordsets:ordset({binary(), binary(), binary()})) ->
                         ordsets:ordset(oid_entry()).
 parse_rows(Rows) ->
@@ -60,7 +60,7 @@ parse_rows(Rows) ->
       binary_to_integer(ArrayOid)}
      || {TypeName, Oid, ArrayOid} <- Rows].
 
-%% Build list of #type{}'s by merging oid and codec lists by type name.
+%% @doc Build list of #type{}'s by merging oid and codec lists by type name.
 -spec join_codecs_oids(ordsets:ordset(oid_entry()),
                        ordsets:ordset(epgsql_codec:codec_entry())) -> [type_info()].
 join_codecs_oids(Oids, Codecs) ->
@@ -99,6 +99,8 @@ from_list(Types) ->
 to_list(#oid_db{by_oid = Dict}) ->
     [Type || {_Oid, Type} <- kv_to_list(Dict)].
 
+%% @doc update DB adding new type definitions.
+%% If some of type definitions already exist, old ones will be overwritten by new ones
 -spec update([type_info()], db()) -> db().
 update(Types, #oid_db{by_oid = OldByOid, by_name = OldByName} = Store) ->
     #oid_db{by_oid = NewByOid, by_name = NewByName} = from_list(Types),
@@ -107,35 +109,41 @@ update(Types, #oid_db{by_oid = OldByOid, by_name = OldByName} = Store) ->
     Store#oid_db{by_oid = ByOid,
                  by_name = ByName}.
 
+%% @doc find type by OID
 -spec find_by_oid(oid(), db()) -> type_info() | undefined.
 %% find_by_oid(?RECORD_OID, _) ->
 %%     '$record';
 find_by_oid(Oid, #oid_db{by_oid = Dict}) ->
     kv_get(Oid, Dict, undefined).
 
+%% @doc find type by type name
 -spec find_by_name(epgsql:type_name(), boolean(), db()) -> type_info().
 find_by_name(Name, IsArray, #oid_db{by_oid = ByOid} = Db) ->
     Oid = oid_by_name(Name, IsArray, Db),
     kv_get(Oid, ByOid).                  % or maybe find_by_oid(Oid, Store)
 
+%% @doc lookup OID by type name. May fall
 -spec oid_by_name(epgsql:type_name(), boolean(), db()) -> oid().
 oid_by_name(Name, IsArray, #oid_db{by_name = ByName}) ->
     kv_get({Name, IsArray}, ByName).
 
+%% @doc convert type to codec_entry()
 -spec type_to_codec_entry(type_info()) -> epgsql_codec:codec_entry().
 type_to_codec_entry(#type{name = Name, codec = Codec, codec_state = State}) ->
     {Name, Codec, State}.
 
+%% @doc Convert type tp oid_info()
 -spec type_to_oid_info(type_info()) -> oid_info().
 type_to_oid_info(#type{name = Name, is_array = IsArray, oid = Oid}) ->
     {Oid, Name, IsArray}.
 
+%% @doc For array types return its element's OID
 -spec type_to_element_oid(type_info()) -> oid() | undefined.
-type_to_element_oid(#type{array_element_oid = ElementOid}) ->
+type_to_element_oid(#type{array_element_oid = ElementOid, is_array = true}) ->
     ElementOid.
 
 %% Internal
-
+%% TODO: replace by Erlang >=19 lists:join/2
 join(_Sep, []) -> [];
 join(Sep, [H | T]) -> [H | join_prepend(Sep, T)].
 
