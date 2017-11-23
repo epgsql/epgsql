@@ -18,10 +18,15 @@
 
 -include("protocol.hrl").
 
--opaque codec() :: {module(), epgsql_oid_db:db()}.
+-record(codec,
+        {opts = [] :: list(),                   % not used yet
+         oid_db :: epgsql_oid_db:db()}).
+
+-opaque codec() :: #codec{}.
 -opaque decoder() :: {fun((binary(), epgsql:type_name(), epgsql_codec:codec_state()) -> any()),
                       epgsql:type_name(),
                       epgsql_codec:state()}.
+
 
 -define(RECORD_OID, 2249).
 -define(RECORD_ARRAY_OID, 2287).
@@ -35,11 +40,11 @@ new_codec(OidDb, PgSock) ->
 new_codec(OidDb, PgSock, Codecs, Oids) ->
     CodecEntries = epgsql_codec:init_mods(Codecs, PgSock),
     Types = OidDb:join_codecs_oids(Oids, CodecEntries),
-    {OidDb, OidDb:from_list(Types)}.
+    #codec{oid_db = epgsql_oid_db:from_list(Types)}.
 
 -spec update_codec([epgsql_oid_db:type_info()], codec()) -> codec().
-update_codec(TypeInfos, {OidDb, Db}) ->
-    {OidDb, OidDb:update(TypeInfos, Db)}.
+update_codec(TypeInfos, #codec{oid_db = Db} = Codec) ->
+    Codec#codec{oid_db = epgsql_oid_db:update(TypeInfos, Db)}.
 
 -spec oid_to_name(epgsql_oid_db:oid(), codec()) -> Type | {unknown_oid, epgsql_oid_db:oid()} when
       Type :: epgsql:type_name() | {array, epgsql:type_name()}.
@@ -60,8 +65,8 @@ type_to_oid(Name, Codec) ->
     type_to_oid(Name, false, Codec).
 
 -spec type_to_oid(epgsql:type_name(), boolean(), codec()) -> epgsql_oid_db:oid().
-type_to_oid(TypeName, IsArray, {OidDb, Db}) ->
-    OidDb:oid_by_name(TypeName, IsArray, Db).
+type_to_oid(TypeName, IsArray, #codec{oid_db = Db}) ->
+    epgsql_oid_db:oid_by_name(TypeName, IsArray, Db).
 
 type_to_oid_info({array, Name}, Codec) ->
     type_to_info(Name, true, Codec);
@@ -69,23 +74,23 @@ type_to_oid_info(Name, Codec) ->
     type_to_info(Name, false, Codec).
 
 -spec oid_to_info(epgsql_oid_db:oid(), codec()) -> epgsql_oid_db:type_info() | undefined.
-oid_to_info(Oid, {OidDb, Db}) ->
-    OidDb:find_by_oid(Oid, Db).
+oid_to_info(Oid, #codec{oid_db = Db}) ->
+    epgsql_oid_db:find_by_oid(Oid, Db).
 
 -spec type_to_info(epgsql:type_name(), boolean(), codec()) -> epgsql_oid_db:type_info().
-type_to_info(TypeName, IsArray, {OidDb, Db}) ->
-    OidDb:find_by_name(TypeName, IsArray, Db).
+type_to_info(TypeName, IsArray, #codec{oid_db = Db}) ->
+    epgsql_oid_db:find_by_name(TypeName, IsArray, Db).
 
 typeinfo_to_name_array({unknown_oid, _} = Unknown, _) -> Unknown;
-typeinfo_to_name_array(TypeInfo, {OidDb, _}) ->
-    case OidDb:type_to_oid_info(TypeInfo) of
+typeinfo_to_name_array(TypeInfo, _) ->
+    case epgsql_oid_db:type_to_oid_info(TypeInfo) of
         {_, Name, false} -> Name;
         {_, Name, true} -> {array, Name}
     end.
 
 typeinfo_to_oid_info({unknown_oid, _} = Unknown, _) -> Unknown;
-typeinfo_to_oid_info(TypeInfo, {OidDb, _}) ->
-    OidDb:type_to_oid_info(TypeInfo).
+typeinfo_to_oid_info(TypeInfo, _) ->
+    epgsql_oid_db:type_to_oid_info(TypeInfo).
 
 %%
 %% Decode
@@ -101,20 +106,20 @@ oid_to_decoder(?RECORD_OID, binary, Codec) ->
 oid_to_decoder(?RECORD_ARRAY_OID, binary, Codec) ->
     %% See `make_array_decoder/3'
     {fun ?MODULE:decode_array/3, [], oid_to_decoder(?RECORD_OID, binary, Codec)};
-oid_to_decoder(Oid, Format, {OidDb, Db}) ->
-    case OidDb:find_by_oid(Oid, Db) of
+oid_to_decoder(Oid, Format, #codec{oid_db = Db}) ->
+    case epgsql_oid_db:find_by_oid(Oid, Db) of
         undefined when Format == binary ->
             {fun epgsql_codec_noop:decode/3, undefined, []};
         undefined when Format == text ->
             {fun epgsql_codec_noop:decode_text/3, undefined, []};
         Type ->
-            make_decoder(Type, Format, OidDb)
+            make_decoder(Type, Format)
     end.
 
--spec make_decoder(epgsql_oid_db:type_info(), binary | text, module()) -> decoder().
-make_decoder(Type, Format, OidDb) ->
-    {Name, Mod, State} = OidDb:type_to_codec_entry(Type),
-    {_Oid, Name, IsArray} = OidDb:type_to_oid_info(Type),
+-spec make_decoder(epgsql_oid_db:type_info(), binary | text) -> decoder().
+make_decoder(Type, Format) ->
+    {Name, Mod, State} = epgsql_oid_db:type_to_codec_entry(Type),
+    {_Oid, Name, IsArray} = epgsql_oid_db:type_to_oid_info(Type),
     make_decoder(Name, Mod, State, Format, IsArray).
 
 make_decoder(_Name, _Mod, _State, text, true) ->
@@ -182,12 +187,12 @@ decode_record(<<Size:?int32, Bin/binary>>, record, Codec) ->
 decode_record1(<<>>, 0, _Codec) -> [];
 decode_record1(<<_Type:?int32, -1:?int32, Rest/binary>>, Size, Codec) ->
     [null | decode_record1(Rest, Size - 1, Codec)];
-decode_record1(<<Oid:?int32, Len:?int32, ValueBin:Len/binary, Rest/binary>>, Size, {OidDb, Db} = Codec) ->
+decode_record1(<<Oid:?int32, Len:?int32, ValueBin:Len/binary, Rest/binary>>, Size, #codec{oid_db = Db} = Codec) ->
     Value =
-        case OidDb:find_by_oid(Oid, Db) of
+        case epgsql_oid_db:find_by_oid(Oid, Db) of
             undefined -> ValueBin;
             Type ->
-                {Name, Mod, State} = OidDb:type_to_codec_entry(Type),
+                {Name, Mod, State} = epgsql_oid_db:type_to_codec_entry(Type),
                 Mod:decode(ValueBin, Name, State)
         end,
     [Value | decode_record1(Rest, Size - 1, Codec)].
@@ -197,16 +202,16 @@ decode_record1(<<Oid:?int32, Len:?int32, ValueBin:Len/binary, Rest/binary>>, Siz
 %% Encode
 %%
 -spec encode(epgsql:type_name() | {array, epgsql:type_name()}, any(), codec()) -> iolist().
-encode(TypeName, Value, {OidDb, _Db} = Codec) ->
+encode(TypeName, Value, Codec) ->
     Type = type_to_oid_info(TypeName, Codec),
-    encode_with_type(Type, Value, OidDb).
+    encode_with_type(Type, Value).
 
-encode_with_type(Type, Value, OidDb) ->
-    {Name, Mod, State} = OidDb:type_to_codec_entry(Type),
-    case OidDb:type_to_oid_info(Type) of
+encode_with_type(Type, Value) ->
+    {Name, Mod, State} = epgsql_oid_db:type_to_codec_entry(Type),
+    case epgsql_oid_db:type_to_oid_info(Type) of
         {_ArrayOid, _, true} ->
             %FIXME: check if this OID is the same as was returned by 'Describe'
-            ElementOid = OidDb:type_to_element_oid(Type),
+            ElementOid = epgsql_oid_db:type_to_element_oid(Type),
             encode_array(Value, ElementOid, {Mod, Name, State});
         {_Oid, _, false} ->
             encode_value(Value, {Mod, Name, State})
@@ -242,8 +247,8 @@ encode_array(Array, NDims, Lengths, Codec) ->
 %% Supports
 supports(RecOid, _) when RecOid == ?RECORD_OID; RecOid == ?RECORD_ARRAY_OID ->
     true;
-supports(Oid, {OidDb, Db}) ->
-    OidDb:find_by_oid(Oid, Db) =/= undefined.
+supports(Oid, #codec{oid_db = Db}) ->
+    epgsql_oid_db:find_by_oid(Oid, Db) =/= undefined.
 
 %% Default codec set
 -spec default_codecs() -> [epgsql_codec:codec_entry()].
