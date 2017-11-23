@@ -20,8 +20,8 @@
          codec :: module(),
          codec_state :: any()}).
 -record(oid_db,
-        {by_oid :: dict:dict(oid(), #type{}),
-         by_name :: dict:dict(epgsql:type_name(), #type{})}).
+        {by_oid :: kv(oid(), #type{}),
+         by_name :: kv(epgsql:type_name(), #type{})}).
 
 -type oid() :: non_neg_integer().
 -type oid_entry() :: {epgsql:type_name(), Oid :: oid(), ArrayOid :: oid()}.
@@ -89,21 +89,21 @@ do_join([], _) ->
 
 -spec from_list([type_info()]) -> db().
 from_list(Types) ->
-    #oid_db{by_oid = dict:from_list(
+    #oid_db{by_oid = kv_from_list(
                        [{Oid, Type} || #type{oid = Oid} = Type <- Types]),
-            by_name = dict:from_list(
+            by_name = kv_from_list(
                         [{{Name, IsArray}, Oid}
                          || #type{name = Name, is_array = IsArray, oid = Oid}
                                 <- Types])}.
 
 to_list(#oid_db{by_oid = Dict}) ->
-    [Type || {_Oid, Type} <- dict:to_list(Dict)].
+    [Type || {_Oid, Type} <- kv_to_list(Dict)].
 
 -spec update([type_info()], db()) -> db().
 update(Types, #oid_db{by_oid = OldByOid, by_name = OldByName} = Store) ->
     #oid_db{by_oid = NewByOid, by_name = NewByName} = from_list(Types),
-    ByOid = dict:merge(fun(_, _, V2) -> V2 end, OldByOid, NewByOid),
-    ByName = dict:merge(fun(_, _, V2) -> V2 end, OldByName, NewByName),
+    ByOid = kv_merge(OldByOid, NewByOid),
+    ByName = kv_merge(OldByName, NewByName),
     Store#oid_db{by_oid = ByOid,
                  by_name = ByName}.
 
@@ -111,19 +111,16 @@ update(Types, #oid_db{by_oid = OldByOid, by_name = OldByName} = Store) ->
 %% find_by_oid(?RECORD_OID, _) ->
 %%     '$record';
 find_by_oid(Oid, #oid_db{by_oid = Dict}) ->
-    case dict:find(Oid, Dict) of
-        {ok, Type} -> Type;
-        error -> undefined
-    end.
+    kv_get(Oid, Dict, undefined).
 
 -spec find_by_name(epgsql:type_name(), boolean(), db()) -> type_info().
 find_by_name(Name, IsArray, #oid_db{by_oid = ByOid} = Db) ->
     Oid = oid_by_name(Name, IsArray, Db),
-    dict:fetch(Oid, ByOid).                  % or maybe find_by_oid(Oid, Store)
+    kv_get(Oid, ByOid).                  % or maybe find_by_oid(Oid, Store)
 
 -spec oid_by_name(epgsql:type_name(), boolean(), db()) -> oid().
 oid_by_name(Name, IsArray, #oid_db{by_name = ByName}) ->
-    dict:fetch({Name, IsArray}, ByName).
+    kv_get({Name, IsArray}, ByName).
 
 -spec type_to_codec_entry(type_info()) -> epgsql_codec:codec_entry().
 type_to_codec_entry(#type{name = Name, codec = Codec, codec_state = State}) ->
@@ -144,3 +141,50 @@ join(Sep, [H | T]) -> [H | join_prepend(Sep, T)].
 
 join_prepend(_Sep, []) -> [];
 join_prepend(Sep, [H | T]) -> [Sep, H | join_prepend(Sep, T)].
+
+
+%% K-V storage
+%% In Erlang 17 map access time is O(n), so, it's faster to use dicts.
+%% In Erlang >=18 maps are the most eficient choice
+-ifdef(FAST_MAPS).
+
+-type kv(K, V) :: #{K => V}.
+
+kv_from_list(L) ->
+    maps:from_list(L).
+
+kv_to_list(Map) ->
+    maps:to_list(Map).
+
+kv_get(Key, Map) ->
+    maps:get(Key, Map).
+
+kv_get(Key, Map, Default) ->
+    maps:get(Key, Map, Default).
+
+kv_merge(Map1, Map2) ->
+    maps:merge(Map1, Map2).
+
+-else.
+
+-type kv(K, V) :: dict:dict(K, V).
+
+kv_from_list(L) ->
+    dict:from_list(L).
+
+kv_to_list(Dict) ->
+    dict:to_list(Dict).
+
+kv_get(Key, Dict) ->
+    dict:fetch(Key, Dict).
+
+kv_get(Key, Dict, Default) ->
+    case dict:find(Key, Dict) of
+        {ok, Value} -> Value;
+        error -> Default
+    end.
+
+kv_merge(Dict1, Dict2) ->
+    dict:merge(fun(_, _, V2) -> V2 end, Dict1, Dict2).
+
+-endif.
