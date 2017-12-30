@@ -8,8 +8,8 @@
          decode_strings/1,
          decode_columns/3,
          decode_parameters/2,
-         encode/1,
-         encode/2,
+         encode_command/1,
+         encode_command/2,
          build_decoder/2,
          decode_data/2,
          decode_complete/1,
@@ -260,12 +260,12 @@ encode_bin(Bin) ->
     <<(byte_size(Bin)):?int32, Bin/binary>>.
 
 %% @doc Encode iodata with size-prefix (used for `StartupMessage' and `SSLRequest' packets)
-encode(Data) ->
+encode_command(Data) ->
     Size = iolist_size(Data),
     [<<(Size + 4):?int32>> | Data].
 
 %% @doc Encode PG command with type and size prefix
-encode(Type, Data) ->
+encode_command(Type, Data) ->
     Size = iolist_size(Data),
     [<<Type:8, (Size + 4):?int32>> | Data].
 
