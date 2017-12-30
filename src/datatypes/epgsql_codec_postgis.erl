@@ -12,8 +12,7 @@
 
 -export_type([data/0]).
 
--type data() :: point().
--type point() :: {}.
+-type data() :: ewkb:geometry().
 
 init(_, _) -> [].
 

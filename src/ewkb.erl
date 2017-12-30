@@ -1,9 +1,50 @@
 %% https://en.wikipedia.org/wiki/Well-known_text
 %% http://postgis.net/docs/manual-2.4/using_postgis_dbmanagement.html#EWKB_EWKT
 -module(ewkb).
--include("epgsql_geometry.hrl").
 -export([decode_geometry/1, encode_geometry/1]).
+-export_type([point_type/0, point/1, multi_point/1, line_string/1,
+              multi_line_string/1, basic_string/1, curve/1, multi_curve/1,
+              polygon/1, multi_polygon/1, triangle/1, curve_polygon/1,
+              polyhedral_surface/1, surface/1, multi_surface/1, tin/1,
+              geometry/1, geometry/0, geometry_collection/1, geom_type/0]).
 
+-include("epgsql_geometry.hrl").
+
+-type point_type() :: '2d' | '3d' | '2dm' | '3dm'.
+-type point(PointType) :: #point{ point_type :: PointType }.
+-type multi_point(PointType) :: #multi_point{ point_type :: PointType }.
+-type line_string(PointType) :: #line_string{ point_type :: PointType }.
+-type multi_line_string(PointType) :: #multi_line_string{ point_type :: PointType }.
+-type basic_string(PointType) :: #circular_string{ point_type :: PointType }
+                               | #line_string{ point_type :: PointType }.
+-type curve(PointType) :: #circular_string{ point_type :: PointType }
+                        | #line_string{ point_type :: PointType }
+                        | #compound_curve{ point_type :: PointType }.
+-type multi_curve(PointType) :: #multi_curve{ point_type :: PointType }.
+-type polygon(PointType) :: #polygon{ point_type :: PointType }.
+-type multi_polygon(PointType) :: #multi_polygon{ point_type :: PointType }.
+-type triangle(PointType) :: #triangle{ point_type :: PointType }.
+-type curve_polygon(PointType) :: #curve_polygon{ point_type :: PointType }.
+-type polyhedral_surface(PointType) :: #polyhedral_surface{ point_type :: PointType }.
+-type surface(PointType) :: polygon(PointType)
+                          | curve_polygon(PointType)
+                          | polyhedral_surface(PointType).
+-type multi_surface(PointType) :: #multi_surface{ point_type :: PointType }.
+-type tin(PointType) :: #tin{ point_type :: PointType }.
+-type geometry(PointType) :: point(PointType) |
+                             line_string(PointType) |
+                             triangle(PointType) |
+                             tin(PointType) |
+                             curve(PointType) |
+                             surface(PointType) |
+                             multi_point(PointType) |
+                             multi_line_string(PointType) |
+                             multi_polygon(PointType) |
+                             multi_curve(PointType) |
+                             multi_surface(PointType) |
+                             geometry_collection(PointType).
+-type geometry() :: geometry(point_type()).
+-type geometry_collection(PointType) :: [geometry(PointType)].
 
 -type geom_type() :: geometry
                    | point       %
@@ -24,11 +65,12 @@
                    | tin%
                    | triangle.%
 
-
+-spec decode_geometry(binary()) -> geometry().
 decode_geometry(Binary) ->
   {Geometry, <<>>} = decode_geometry_data(Binary),
   Geometry.
 
+-spec encode_geometry(geometry()) -> binary().
 encode_geometry(Geometry) ->
   Type = encode_type(Geometry),
   PointType = encode_point_type(Geometry),
@@ -260,4 +302,3 @@ encode_point_type('2d') -> <<0,0>>;
 encode_point_type('2dm') -> <<0,64>>;
 encode_point_type('3d') -> <<0,128>>;
 encode_point_type('3dm') -> <<0,192>>.
-
