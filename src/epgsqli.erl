@@ -47,9 +47,9 @@ connect(Host, Username, Password, Opts) ->
 -spec connect(epgsql:connection(), inet:ip_address() | inet:hostname(),
               string(), string(), [epgsql:connect_option()]) -> reference().
 connect(C, Host, Username, Password, Opts) ->
+    Opts1 = epgsql:to_proplist(Opts),
     epgsqla:complete_connect(
-      C, incremental(
-           C, epgsql_cmd_connect, {Host, Username, Password, epgsql:to_proplist(Opts)})).
+      C, incremental(C, epgsql_cmd_connect, {Host, Username, Password, Opts1}), Opts1).
 
 -spec close(epgsql:connection()) -> ok.
 close(C) ->

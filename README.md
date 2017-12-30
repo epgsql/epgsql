@@ -69,6 +69,7 @@ see `CHANGES` for full list.
     {ssl_opts, SslOptions :: [ssl:ssl_option()]}   | % @see OTP ssl app, ssl_api.hrl
     {timeout,  TimeoutMs  :: timeout()}            | % default: 5000 ms
     {async,    Receiver   :: pid() | atom()}       | % process to receive LISTEN/NOTIFY msgs
+    {codecs,   Codecs     :: [{epgsql_codec:codec_mod(), any()}]} |
     {replication, Replication :: string()}. % Pass "database" to connect in replication mode
     
 -spec connect(host(), string(), string(), [connect_option()] | map())
@@ -78,7 +79,7 @@ see `CHANGES` for full list.
 %% `Host'     - host to connect to
 %% `Username' - username to connect as, defaults to `$USER'
 %% `Password' - optional password to authenticate with
-%% `Opts'     - proplist of extra options
+%% `Opts'     - proplist or map of extra options
 %% returns `{ok, Connection}' otherwise `{error, Reason}'
 connect(Host, Username, Password, Opts) -> ...
 ```

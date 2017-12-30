@@ -53,6 +53,7 @@
     {ssl_opts, SslOptions :: [ssl:ssl_option()]}   | % see OTP ssl app, ssl_api.hrl
     {timeout,  TimeoutMs  :: timeout()}            | % default: 5000 ms
     {async,    Receiver   :: pid() | atom()}       | % process to receive LISTEN/NOTIFY msgs
+    {codecs,   Codecs     :: [{epgsql_codec:codec_mod(), any()}]} |
     {replication, Replication :: string()}. % Pass "database" to connect in replication mode
 
 -ifdef(have_maps).
@@ -67,6 +68,7 @@
           ssl_opts => [ssl:ssl_option()],
           timeout => timeout(),
           async => pid(),
+          codecs => [{epgsql_codec:codec_mod(), any()}],
           replication => string()}.
 -else.
 -type connect_opts() :: [connect_option()].
@@ -148,15 +150,24 @@ connect(C, Host, Username, Password, Opts0) ->
     case epgsql_sock:sync_command(
            C, epgsql_cmd_connect, {Host, Username, Password, Opts}) of
         connected ->
-            case proplists:get_value(replication, Opts, undefined) of
-                undefined ->
-                    update_type_cache(C),
-                    {ok, C};
-                _ -> {ok, C} %% do not update update_type_cache if connection is in replication mode
-            end;
+            %% If following call fails for you, try to add {codecs, []} connect option
+            {ok, _} = maybe_update_typecache(C, Opts),
+            {ok, C};
         Error = {error, _} ->
             Error
     end.
+
+maybe_update_typecache(C, Opts) ->
+    maybe_update_typecache(C, proplists:get_value(replication, Opts), proplists:get_value(codecs, Opts)).
+
+maybe_update_typecache(C, undefined, undefined) ->
+    %% TODO: don't execute 'update_type_cache' when `codecs` is undefined.
+    %% This will break backward compatibility
+    update_type_cache(C);
+maybe_update_typecache(C, undefined, [_ | _] = Codecs) ->
+    update_type_cache(C, Codecs);
+maybe_update_typecache(_, _, _) ->
+    {ok, []}.
 
 update_type_cache(C) ->
     update_type_cache(C, [{epgsql_codec_hstore, []},

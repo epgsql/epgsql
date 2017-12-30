@@ -19,7 +19,7 @@
          close/2, close/3,
          sync/1,
          cancel/1,
-         complete_connect/2]).
+         complete_connect/3]).
 
 -include("epgsql.hrl").
 
@@ -48,9 +48,9 @@ connect(Host, Username, Password, Opts) ->
 -spec connect(epgsql:connection(), inet:ip_address() | inet:hostname(),
               string(), string(), [epgsql:connect_option()]) -> reference().
 connect(C, Host, Username, Password, Opts) ->
+    Opts1 = epgsql:to_proplist(Opts),
     complete_connect(
-      C, cast(
-           C, epgsql_cmd_connect, {Host, Username, Password, epgsql:to_proplist(Opts)})).
+      C, cast(C, epgsql_cmd_connect, {Host, Username, Password, Opts1}), Opts1).
 
 -spec close(epgsql:connection()) -> ok.
 close(C) ->
@@ -144,20 +144,22 @@ cancel(C) ->
 cast(C, Command, Args) ->
     epgsql_sock:async_command(C, cast, Command, Args).
 
-complete_connect(C, Ref) ->
+complete_connect(C, Ref, Opts) ->
     receive
         %% If we connect, then try and update the type cache.  When
         %% all is said and done, pass the result along as a message.
-        {C, Ref, Msg} ->
-            Retval =
-                case Msg of
-                    connected ->
-                        {ok, _} = epgsql:update_type_cache(C),
-                        {C, Ref, connected};
-                    {error, Error} ->
-                        {C, Ref, {error, Error}}
-                end,
-            self() ! Retval;
+        {C, Ref, connected} ->
+            case proplists:get_value(codecs, Opts) of
+                undefined ->
+                    {ok, _} = epgsql:update_type_cache(C);
+                [_|_] = Codecs ->
+                    {ok, _} = epgsql:update_type_cache(C, Codecs);
+                [] ->
+                    ok
+            end,
+            self() ! {C, Ref, connected};
+        {C, Ref, {error, _} = Err} ->
+            self() ! {C, Ref, Err};
         {'EXIT', C, Reason} ->
             self() ! {'EXIT', C, Reason}
     end,
