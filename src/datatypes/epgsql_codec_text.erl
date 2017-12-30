@@ -15,7 +15,7 @@
 -export_type([data/0]).
 
 -type data() :: in_data() | out_data().
--type in_data() :: binary() | string().
+-type in_data() :: binary() | iolist() | string().
 -type out_data() :: binary().
 
 init(_, _) -> [].
@@ -24,7 +24,15 @@ names() ->
     [text, varchar, bytea].
 
 encode(String, Name, State) when is_list(String) ->
-    encode(list_to_binary(String), Name, State);
+    %% Try to not convert iolists to binary; this way they will be written directly to socket
+    %% But we are doing implicit check that iolist is well formed by calling
+    %% relatively cheap iolist_size/1 on it
+    try iolist_size(String) of
+        _ -> String
+    catch error:badarg when Name == varchar orelse Name == text ->
+            %% Maybe it's a unicode string; try to convert it to bytes
+            encode(unicode:characters_to_binary(String), Name, State)
+    end;
 encode(Bin, _, _) when is_binary(Bin) -> Bin;
 encode(Other, _Name, _State) ->
     %% This is for backward compatibitlty! Maybe add warning?

@@ -670,11 +670,15 @@ character_type(Config) ->
     check_type(Config, bpchar, "'A'", $A, [1, $1, 16#7F, Alpha, Ka, One], "c_char"),
     check_type(Config, text, "'hi'", <<"hi">>, [<<"">>, <<"hi">>]),
     check_type(Config, varchar, "'hi'", <<"hi">>, [<<"">>, <<"hi">>]),
-    %% Deprecated casts
     epgsql_ct:with_connection(
       Config,
       fun(C) ->
               Module = ?config(module, Config),
+              %% IOlists
+              ?assertMatch({ok, _, [{<<1087/utf8, 1088/utf8, 1080/utf8,
+                                        1074/utf8, 1077/utf8, 1090/utf8>>}]},
+                           Module:equery(C, "SELECT $1::text", [[1087,1088,1080,1074,1077,1090]])),
+              %% Deprecated casts
               ?assertMatch({ok, _, [{<<"my_atom">>}]},
                            Module:equery(C, "SELECT $1::varchar", [my_atom])),
               ?assertMatch({ok, _, [{<<"12345">>}]},
