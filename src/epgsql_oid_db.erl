@@ -21,15 +21,14 @@
          codec_state :: any()}).
 -record(oid_db,
         {by_oid :: kv(oid(), #type{}),
-         by_name :: kv(epgsql:type_name(), #type{})}).
+         by_name :: kv(epgsql:type_name(), oid())}).
 
 -type oid() :: non_neg_integer().
+%% Row of `typname', `oid', `typarray' from pg_type table.
 -type oid_entry() :: {epgsql:type_name(), Oid :: oid(), ArrayOid :: oid()}.
 -type oid_info() :: {Oid :: oid(), epgsql:type_name(), IsArray :: boolean()}.
 -opaque db() :: #oid_db{}.
 -opaque type_info() :: #type{}.
-
--define(RECORD_OID, 2249).
 
 
 %%
@@ -47,7 +46,7 @@ build_query(TypeNames) ->
     Types = join(",",
                  [["'", ToBin(TypeName) | "'"]
                   || TypeName <- TypeNames]),
-    [<<"SELECT typname, oid::int4, typarray::int4 "
+    [<<"SELECT typname::text, oid::int4, typarray::int4 "
        "FROM pg_type "
        "WHERE typname IN (">>, Types, <<") ORDER BY typname">>].
 
@@ -111,8 +110,6 @@ update(Types, #oid_db{by_oid = OldByOid, by_name = OldByName} = Store) ->
 
 %% @doc find type by OID
 -spec find_by_oid(oid(), db()) -> type_info() | undefined.
-%% find_by_oid(?RECORD_OID, _) ->
-%%     '$record';
 find_by_oid(Oid, #oid_db{by_oid = Dict}) ->
     kv_get(Oid, Dict, undefined).
 
