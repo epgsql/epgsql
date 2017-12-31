@@ -10,7 +10,7 @@
 -module(epgsql_codec_uuid).
 -behaviour(epgsql_codec).
 
--export([init/2, names/0, encode/3, decode/3]).
+-export([init/2, names/0, encode/3, decode/3, decode_text/3]).
 
 -export_type([data/0]).
 
@@ -33,3 +33,5 @@ encode(Uuid, uuid, _) when is_binary(Uuid) ->
 decode(<<U0:32, U1:16, U2:16, U3:16, U4:48>>, uuid, _) ->
     Format = "~8.16.0b-~4.16.0b-~4.16.0b-~4.16.0b-~12.16.0b",
     iolist_to_binary(io_lib:format(Format, [U0, U1, U2, U3, U4])).
+
+decode_text(V, _, _) -> V.

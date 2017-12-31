@@ -21,7 +21,7 @@
          codec_state :: any()}).
 -record(oid_db,
         {by_oid :: kv(oid(), #type{}),
-         by_name :: kv(epgsql:type_name(), oid())}).
+         by_name :: kv({epgsql:type_name(), boolean()}, oid())}).
 
 -type oid() :: non_neg_integer().
 %% Row of `typname', `oid', `typarray' from pg_type table.
@@ -172,7 +172,7 @@ kv_merge(Map1, Map2) ->
 
 -else.
 
--type kv(K, V) :: dict:dict(K, V).
+-type kv(_K, _V) :: any(). % dict:dict(K, V) causes dialyzer errors on erl <= 17
 
 kv_from_list(L) ->
     dict:from_list(L).

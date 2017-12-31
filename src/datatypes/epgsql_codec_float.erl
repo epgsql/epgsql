@@ -8,7 +8,7 @@
 -module(epgsql_codec_float).
 -behaviour(epgsql_codec).
 
--export([init/2, names/0, encode/3, decode/3]).
+-export([init/2, names/0, encode/3, decode/3, decode_text/3]).
 
 -export_type([data/0]).
 
@@ -53,3 +53,5 @@ decode(?NEG_INF, float4, _) -> minus_infinity;
 decode(?NEG_INF8, float8, _) -> minus_infinity;
 decode(?NAN_PATTERN, float4, _) -> nan;
 decode(?NAN_PATTERN8, float8, _) -> nan.
+
+decode_text(V, _, _) -> V.

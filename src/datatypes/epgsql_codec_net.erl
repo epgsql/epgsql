@@ -9,7 +9,7 @@
 -module(epgsql_codec_net).
 -behaviour(epgsql_codec).
 
--export([init/2, names/0, encode/3, decode/3]).
+-export([init/2, names/0, encode/3, decode/3, decode_text/3]).
 
 -export_type([data/0]).
 
@@ -70,3 +70,5 @@ decode_net(<<?INET, ?MAX_IP_MASK, 0, ?IP_SIZE, Bin/binary>>) ->
     list_to_tuple(binary_to_list(Bin));
 decode_net(<<?INET6, ?MAX_IP6_MASK, 0, ?IP6_SIZE, Bin/binary>>) ->
     list_to_tuple([X || <<X:16>> <= Bin]).
+
+decode_text(V, _, _) -> V.

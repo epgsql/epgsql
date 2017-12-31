@@ -10,7 +10,7 @@
 -module(epgsql_codec_intrange).
 -behaviour(epgsql_codec).
 
--export([init/2, names/0, encode/3, decode/3]).
+-export([init/2, names/0, encode/3, decode/3, decode_text/3]).
 
 -include("protocol.hrl").
 
@@ -86,3 +86,5 @@ decode_int8range(<<18:1/big-signed-unit:8, 8:?int32, From:?int64>>) ->
     {From, plus_infinity};
 decode_int8range(<<24:1/big-signed-unit:8>>) ->
     {minus_infinity, plus_infinity}.
+
+decode_text(V, _, _) -> V.

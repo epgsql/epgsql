@@ -9,7 +9,7 @@
 -module(epgsql_codec_json).
 -behaviour(epgsql_codec).
 
--export([init/2, names/0, encode/3, decode/3]).
+-export([init/2, names/0, encode/3, decode/3, decode_text/3]).
 
 -export_type([data/0]).
 
@@ -33,3 +33,5 @@ decode(Bin, json, _) ->
     Bin;
 decode(<<?JSONB_VERSION_1:8, Bin/binary>>, jsonb, _) ->
     Bin.
+
+decode_text(V, _, _) -> V.

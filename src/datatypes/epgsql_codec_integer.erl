@@ -9,7 +9,7 @@
 -module(epgsql_codec_integer).
 -behaviour(epgsql_codec).
 
--export([init/2, names/0, encode/3, decode/3]).
+-export([init/2, names/0, encode/3, decode/3, decode_text/3]).
 
 -export_type([data/0]).
 
@@ -36,3 +36,5 @@ encode(N, int8, _) ->
 decode(<<N:1/big-signed-unit:16>>, int2, _)    -> N;
 decode(<<N:1/big-signed-unit:32>>, int4, _)    -> N;
 decode(<<N:1/big-signed-unit:64>>, int8, _)    -> N.
+
+decode_text(V, _, _) -> V.

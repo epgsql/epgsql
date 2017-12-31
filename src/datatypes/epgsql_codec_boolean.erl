@@ -9,7 +9,7 @@
 -module(epgsql_codec_boolean).
 -behaviour(epgsql_codec).
 
--export([init/2, names/0, encode/3, decode/3]).
+-export([init/2, names/0, encode/3, decode/3, decode_text/3]).
 
 -export_type([data/0]).
 
@@ -27,3 +27,5 @@ encode(false, bool, _) ->
 
 decode(<<1:1/big-signed-unit:8>>, bool, _) -> true;
 decode(<<0:1/big-signed-unit:8>>, bool, _) -> false.
+
+decode_text(V, _, _) -> V.

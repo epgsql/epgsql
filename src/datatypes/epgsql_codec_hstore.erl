@@ -11,7 +11,7 @@
 -module(epgsql_codec_hstore).
 -behaviour(epgsql_codec).
 
--export([init/2, names/0, encode/3, decode/3]).
+-export([init/2, names/0, encode/3, decode/3, decode_text/3]).
 
 -include("protocol.hrl").
 
@@ -34,7 +34,8 @@ names() ->
 
 encode({Hstore}, hstore, _) when is_list(Hstore) ->
     Size = length(Hstore),
-    Body = [[encode_key(K) | encode_value(V)]
+    %% TODO: construct improper list when support for Erl 17 will be dropped
+    Body = [[encode_key(K), encode_value(V)]
            || {K, V} <- Hstore],
     [<<Size:?int32>> | Body].
 
@@ -71,3 +72,5 @@ do_decode(N, <<KeyLen:?int32, Key:KeyLen/binary, -1:?int32, Rest/binary>>) ->
 do_decode(N, <<KeyLen:?int32, Key:KeyLen/binary,
                ValLen:?int32, Value:ValLen/binary, Rest/binary>>) ->
     [{Key, Value} | do_decode(N - 1, Rest)].
+
+decode_text(V, _, _) -> V.

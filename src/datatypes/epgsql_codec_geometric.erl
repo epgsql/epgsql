@@ -10,7 +10,7 @@
 -module(epgsql_codec_geometric).
 -behaviour(epgsql_codec).
 
--export([init/2, names/0, encode/3, decode/3]).
+-export([init/2, names/0, encode/3, decode/3, decode_text/3]).
 
 -export_type([data/0]).
 
@@ -28,3 +28,5 @@ encode({X, Y}, point, _) when is_number(X), is_number(Y) ->
 
 decode(<<X:1/big-float-unit:64, Y:1/big-float-unit:64>>, point, _) ->
     {X, Y}.
+
+decode_text(V, _, _) -> V.

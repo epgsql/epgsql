@@ -9,7 +9,7 @@
 -module(epgsql_codec).
 -export([init_mods/2]).
 
--export_type([codec_state/0, codec_mod/0]).
+-export_type([codec_state/0, codec_mod/0, codec_entry/0]).
 
 %%
 %% Behaviour

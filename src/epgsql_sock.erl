@@ -56,8 +56,10 @@
                    | {cast, pid(), reference()}
                    | {incremental, pid(), reference()}.
 
+-type tcp_socket() :: port(). %gen_tcp:socket() isn't exported prior to erl 18
+
 -record(state, {mod :: gen_tcp | ssl | undefined,
-                sock :: gen_tcp:socket() | ssl:sslsocket() | undefined,
+                sock :: tcp_socket() | ssl:sslsocket() | undefined,
                 data = <<>>,
                 backend :: {Pid :: integer(), Key :: integer()} | undefined,
                 handler = on_message :: on_message | on_replication | undefined,
@@ -87,11 +89,11 @@ close(C) when is_pid(C) ->
     catch gen_server:cast(C, stop),
     ok.
 
--spec sync_command(epgsql:conection(), epgsql_command:command(), any()) -> any().
+-spec sync_command(epgsql:connection(), epgsql_command:command(), any()) -> any().
 sync_command(C, Command, Args) ->
     gen_server:call(C, {command, Command, Args}, infinity).
 
--spec async_command(epgsql:conection(), cast | incremental,
+-spec async_command(epgsql:connection(), cast | incremental,
                     epgsql_command:command(), any()) -> reference().
 async_command(C, Transport, Command, Args) ->
     Ref = make_ref(),
@@ -118,7 +120,7 @@ cancel(S) ->
 %% send()
 %% send_many()
 
--spec set_net_socket(gen_tcp | ssl, gen_tcp:socket() | ssl:sslsocket(), pg_sock()) -> pg_sock().
+-spec set_net_socket(gen_tcp | ssl, tcp_socket() | ssl:sslsocket(), pg_sock()) -> pg_sock().
 set_net_socket(Mod, Socket, State) ->
     State1 = State#state{mod = Mod, sock = Socket},
     setopts(State1, [{active, true}]),

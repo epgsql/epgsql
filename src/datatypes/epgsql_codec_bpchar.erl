@@ -10,7 +10,7 @@
 -module(epgsql_codec_bpchar).
 -behaviour(epgsql_codec).
 
--export([init/2, names/0, encode/3, decode/3]).
+-export([init/2, names/0, encode/3, decode/3, decode_text/3]).
 
 -export_type([data/0]).
 
@@ -28,3 +28,5 @@ encode(Bin, bpchar, _) when is_binary(Bin) ->
 
 decode(<<C:1/big-unsigned-unit:8>>, _, _) -> C;
 decode(Bin, bpchar, _) -> Bin.
+
+decode_text(V, _, _) -> V.

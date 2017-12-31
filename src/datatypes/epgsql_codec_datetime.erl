@@ -10,7 +10,7 @@
 -module(epgsql_codec_datetime).
 -behaviour(epgsql_codec).
 
--export([init/2, names/0, encode/3, decode/3]).
+-export([init/2, names/0, encode/3, decode/3, decode_text/3]).
 
 -export_type([data/0]).
 -export_type([pg_date/0,
@@ -51,3 +51,5 @@ encode(Val, Type, Mod) ->
 
 decode(Bin, Type, Mod) ->
     Mod:decode(Type, Bin).
+
+decode_text(V, _, _) -> V.

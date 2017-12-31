@@ -10,7 +10,7 @@
 -module(epgsql_codec_text).
 -behaviour(epgsql_codec).
 
--export([init/2, names/0, encode/3, decode/3]).
+-export([init/2, names/0, encode/3, decode/3, decode_text/3]).
 
 -export_type([data/0]).
 
@@ -47,3 +47,5 @@ encode_compat(F) when is_float(F)   -> float_to_binary(F).
 
 
 decode(Bin, _, _) -> Bin.
+
+decode_text(V, _, _) -> V.

@@ -25,7 +25,7 @@
 -opaque codec() :: #codec{}.
 -opaque decoder() :: {fun((binary(), epgsql:type_name(), epgsql_codec:codec_state()) -> any()),
                       epgsql:type_name(),
-                      epgsql_codec:state()}.
+                      epgsql_codec:codec_state()}.
 
 -type type() :: epgsql:type_name() | {array, epgsql:type_name()}.
 -type maybe_unknown_type() :: type() | {unknown_oid, epgsql_oid_db:oid()}.
@@ -267,7 +267,7 @@ supports(Oid, #codec{oid_db = Db}) ->
 
 %% Default codec set
 %% XXX: maybe move to application env?
--spec default_codecs() -> [epgsql_codec:codec_entry()].
+-spec default_codecs() -> [{epgsql_codec:codec_mod(), any()}].
 default_codecs() ->
     [{epgsql_codec_boolean,[]},
      {epgsql_codec_bpchar,[]},

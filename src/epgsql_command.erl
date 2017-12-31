@@ -5,7 +5,7 @@
 -module(epgsql_command).
 -export([init/2, execute/3, handle_message/5]).
 
--export_type([command/0]).
+-export_type([command/0, state/0]).
 
 -type command() :: module().
 -type state() :: any().
