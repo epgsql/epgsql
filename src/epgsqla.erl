@@ -69,7 +69,7 @@ set_notice_receiver(C, PidOrName) ->
 get_cmd_status(C) ->
     epgsql_sock:get_cmd_status(C).
 
--spec squery(epgsql:connection(), string()) -> reference().
+-spec squery(epgsql:connection(), epgsql:sql_query()) -> reference().
 squery(C, Sql) ->
     cast(C, {squery, Sql}).
 
@@ -90,7 +90,7 @@ parse(C, Sql) ->
 parse(C, Sql, Types) ->
     parse(C, "", Sql, Types).
 
--spec parse(epgsql:connection(), iolist(), string(), [epgsql_type()]) -> reference().
+-spec parse(epgsql:connection(), iolist(), epgsql:sql_query(), [epgsql_type()]) -> reference().
 parse(C, Name, Sql, Types) ->
     cast(C, {parse, Name, Sql, Types}).
 
