@@ -36,7 +36,7 @@
 
 -include("epgsql.hrl").
 
--type sql_query() :: string() | iodata().
+-type sql_query() :: iodata().
 -type host() :: inet:ip_address() | inet:hostname().
 -type connection() :: pid().
 -type connect_option() ::

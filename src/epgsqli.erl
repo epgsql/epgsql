@@ -62,18 +62,18 @@ get_parameter(C, Name) ->
 set_notice_receiver(C, PidOrName) ->
     epgsql_sock:set_notice_receiver(C, PidOrName).
 
--spec get_cmd_status(epgsql:connection()) -> {ok, Status}
-                                          when
-      Status :: undefined | atom() | {atom(), integer()}.
+-spec get_cmd_status(epgsql:connection()) -> {ok, Status} when
+          Status :: undefined | atom() | {atom(), integer()}.
 get_cmd_status(C) ->
     epgsql_sock:get_cmd_status(C).
 
--spec squery(epgsql:connection(), string()) -> reference().
+-spec squery(epgsql:connection(), epgsql:sql_query()) -> reference().
 squery(C, Sql) ->
     incremental(C, {squery, Sql}).
 
-equery(C, Sql) ->
-    equery(C, Sql, []).
+-spec equery(epgsql:connection(), #statement{}) -> reference().
+equery(C, Statement) ->
+    equery(C, Statement, []).
 
 -spec equery(epgsql:connection(), #statement{}, [epgsql:typed_param()]) -> reference().
 equery(C, Statement, TypedParameters) ->
@@ -83,13 +83,15 @@ equery(C, Statement, TypedParameters) ->
 prepared_query(C, Statement, TypedParameters) ->
     incremental(C, {prepared_query, Statement, TypedParameters}).
 
+-spec parse(epgsql:connection(), epgsql:sql_query()) -> reference().
 parse(C, Sql) ->
     parse(C, "", Sql, []).
 
+-spec parse(epgsql:connection(), epgsql:sql_query(), [epgsql_type()]) -> reference().
 parse(C, Sql, Types) ->
     parse(C, "", Sql, Types).
 
--spec parse(epgsql:connection(), iolist(), string(), [epgsql_type()]) -> reference().
+-spec parse(epgsql:connection(), iolist(), epgsql:sql_query(), [epgsql_type()]) -> reference().
 parse(C, Name, Sql, Types) ->
     incremental(C, {parse, Name, Sql, Types}).
 
