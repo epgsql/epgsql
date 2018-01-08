@@ -14,57 +14,21 @@
 -define(secs_per_hour, 3600.0).
 -define(secs_per_minute, 60.0).
 
-decode(date, <<J:1/big-signed-unit:32>>)             -> j2date(?postgres_epoc_jdate + J);
+decode(date, <<J:1/big-signed-unit:32>>)             -> epgsql_idatetime:j2date(?postgres_epoc_jdate + J);
 decode(time, <<N:1/big-float-unit:64>>)              -> f2time(N);
 decode(timetz, <<N:1/big-float-unit:64, TZ:?int32>>) -> {f2time(N), TZ};
 decode(timestamp, <<N:1/big-float-unit:64>>)         -> f2timestamp(N);
 decode(timestamptz, <<N:1/big-float-unit:64>>)       -> f2timestamp(N);
 decode(interval, <<N:1/big-float-unit:64, D:?int32, M:?int32>>) -> {f2time(N), D, M}.
 
-encode(date, D)         -> <<4:?int32, (date2j(D) - ?postgres_epoc_jdate):1/big-signed-unit:32>>;
-encode(time, T)         -> <<8:?int32, (time2f(T)):1/big-float-unit:64>>;
-encode(timetz, {T, TZ}) -> <<12:?int32, (time2f(T)):1/big-float-unit:64, TZ:?int32>>;
-encode(timestamp, TS = {_, _, _})   -> <<8:?int32, (now2f(TS)):1/big-float-unit:64>>;
-encode(timestamp, TS)   -> <<8:?int32, (timestamp2f(TS)):1/big-float-unit:64>>;
-encode(timestamptz, TS = {_, _, _})   -> <<8:?int32, (now2f(TS)):1/big-float-unit:64>>;
-encode(timestamptz, TS) -> <<8:?int32, (timestamp2f(TS)):1/big-float-unit:64>>;
-encode(interval, {T, D, M}) -> <<16:?int32, (time2f(T)):1/big-float-unit:64, D:?int32, M:?int32>>.
-
-j2date(N) ->
-    J = N + 32044,
-    Q1 = J div 146097,
-    Extra = (J - Q1 * 146097) * 4 + 3,
-    J2 = J + 60 + Q1 * 3 + Extra div 146097,
-    Q2 = J2 div 1461,
-    J3 = J2 - Q2 * 1461,
-    Y = J3 * 4 div 1461,
-    J4 = case Y of
-        0 -> ((J3 + 306) rem 366) + 123;
-        _ -> ((J3 + 305) rem 365) + 123
-    end,
-    Year = (Y + Q2 * 4) - 4800,
-    Q3 = J4 * 2141 div 65536,
-    Day = J4 - 7834 * Q3 div 256,
-    Month = (Q3 + 10) rem 12 + 1,
-    {Year, Month, Day}.
-
-date2j({Y, M, D}) ->
-    M2 = case M > 2 of
-        true ->
-            M + 1;
-        false ->
-            M + 13
-    end,
-    Y2 = case M > 2 of
-        true ->
-            Y + 4800;
-        false ->
-            Y + 4799
-    end,
-    C = Y2 div 100,
-    J1 = Y2 * 365 - 32167,
-    J2 = J1 + (Y2 div 4 - C + C div 4),
-    J2 + 7834 * M2 div 256 + D.
+encode(date, D)         -> <<(epgsql_idatetime:date2j(D) - ?postgres_epoc_jdate):1/big-signed-unit:32>>;
+encode(time, T)         -> <<(time2f(T)):1/big-float-unit:64>>;
+encode(timetz, {T, TZ}) -> <<(time2f(T)):1/big-float-unit:64, TZ:?int32>>;
+encode(timestamp, TS = {_, _, _})   -> <<(now2f(TS)):1/big-float-unit:64>>;
+encode(timestamp, TS)   -> <<(timestamp2f(TS)):1/big-float-unit:64>>;
+encode(timestamptz, TS = {_, _, _})   -> <<(now2f(TS)):1/big-float-unit:64>>;
+encode(timestamptz, TS) -> <<(timestamp2f(TS)):1/big-float-unit:64>>;
+encode(interval, {T, D, M}) -> <<(time2f(T)):1/big-float-unit:64, D:?int32, M:?int32>>.
 
 f2time(N) ->
     {R1, Hour} = tmodulo(N, ?secs_per_hour),
@@ -86,7 +50,7 @@ f2timestamp(N) ->
 
 f2timestamp2(D, T) ->
     {_H, _M, S} = Time = f2time(T),
-    Date = j2date(D),
+    Date = epgsql_idatetime:j2date(D),
     case tsround(S - trunc(S)) of
         N when N >= 1.0 ->
             case ceiling(T) of
@@ -98,7 +62,7 @@ f2timestamp2(D, T) ->
     {Date, Time}.
 
 timestamp2f({Date, Time}) ->
-    D = date2j(Date) - ?postgres_epoc_jdate,
+    D = epgsql_idatetime:date2j(Date) - ?postgres_epoc_jdate,
     D * ?secs_per_day + time2f(Time).
 
 now2f({MegaSecs, Secs, MicroSecs}) ->

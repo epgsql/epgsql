@@ -56,8 +56,10 @@
                    | {cast, pid(), reference()}
                    | {incremental, pid(), reference()}.
 
+-type tcp_socket() :: port(). %gen_tcp:socket() isn't exported prior to erl 18
+
 -record(state, {mod :: gen_tcp | ssl | undefined,
-                sock :: gen_tcp:socket() | ssl:sslsocket() | undefined,
+                sock :: tcp_socket() | ssl:sslsocket() | undefined,
                 data = <<>>,
                 backend :: {Pid :: integer(), Key :: integer()} | undefined,
                 handler = on_message :: on_message | on_replication | undefined,
@@ -87,11 +89,11 @@ close(C) when is_pid(C) ->
     catch gen_server:cast(C, stop),
     ok.
 
--spec sync_command(epgsql:conection(), epgsql_command:command(), any()) -> any().
+-spec sync_command(epgsql:connection(), epgsql_command:command(), any()) -> any().
 sync_command(C, Command, Args) ->
     gen_server:call(C, {command, Command, Args}, infinity).
 
--spec async_command(epgsql:conection(), cast | incremental,
+-spec async_command(epgsql:connection(), cast | incremental,
                     epgsql_command:command(), any()) -> reference().
 async_command(C, Transport, Command, Args) ->
     Ref = make_ref(),
@@ -118,7 +120,7 @@ cancel(S) ->
 %% send()
 %% send_many()
 
--spec set_net_socket(gen_tcp | ssl, gen_tcp:socket() | ssl:sslsocket(), pg_sock()) -> pg_sock().
+-spec set_net_socket(gen_tcp | ssl, tcp_socket() | ssl:sslsocket(), pg_sock()) -> pg_sock().
 set_net_socket(Mod, Socket, State) ->
     State1 = State#state{mod = Mod, sock = Socket},
     setopts(State1, [{active, true}]),
@@ -175,10 +177,6 @@ get_parameter_internal(Name, #state{parameters = Parameters}) ->
 
 init([]) ->
     {ok, #state{}}.
-
-handle_call({update_type_cache, TypeInfos}, _From, #state{codec = Codec} = State) ->
-    Codec2 = epgsql_binary:update_type_cache(TypeInfos, Codec),
-    {reply, ok, State#state{codec = Codec2}};
 
 handle_call({get_parameter, Name}, _From, State) ->
     {reply, {ok, get_parameter_internal(Name, State)}, State};
@@ -344,18 +342,20 @@ setopts(#state{mod = Mod, sock = Sock}, Opts) ->
         ssl     -> ssl:setopts(Sock, Opts)
     end.
 
+%% This one only used in connection initiation to send client's
+%% `StartupMessage' and `SSLRequest' packets
 -spec send(pg_sock(), iodata()) -> ok | {error, any()}.
 send(#state{mod = Mod, sock = Sock}, Data) ->
-    do_send(Mod, Sock, epgsql_wire:encode(Data)).
+    do_send(Mod, Sock, epgsql_wire:encode_command(Data)).
 
 -spec send(pg_sock(), byte(), iodata()) -> ok | {error, any()}.
 send(#state{mod = Mod, sock = Sock}, Type, Data) ->
-    do_send(Mod, Sock, epgsql_wire:encode(Type, Data)).
+    do_send(Mod, Sock, epgsql_wire:encode_command(Type, Data)).
 
 -spec send_multi(pg_sock(), [{byte(), iodata()}]) -> ok | {error, any()}.
 send_multi(#state{mod = Mod, sock = Sock}, List) ->
     do_send(Mod, Sock, lists:map(fun({Type, Data}) ->
-        epgsql_wire:encode(Type, Data)
+        epgsql_wire:encode_command(Type, Data)
     end, List)).
 
 do_send(gen_tcp, Sock, Bin) ->
@@ -364,7 +364,7 @@ do_send(gen_tcp, Sock, Bin) ->
             ok
     catch
         error:_Error ->
-            {error,einval}
+            {error, einval}
     end;
 
 do_send(Mod, Sock, Bin) ->

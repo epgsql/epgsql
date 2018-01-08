@@ -8,7 +8,7 @@
 
 -type response() :: {ok, Count :: non_neg_integer(), Rows :: [tuple()]}
                   | {ok, Count :: non_neg_integer()}
-                  | {ok, Rows :: [tuple()]}
+                  | {ok | partial, Rows :: [tuple()]}
                   | {error, epgsql:query_error()}.
 
 -include("epgsql.hrl").

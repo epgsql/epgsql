@@ -69,6 +69,7 @@ see `CHANGES` for full list.
     {ssl_opts, SslOptions :: [ssl:ssl_option()]}   | % @see OTP ssl app, ssl_api.hrl
     {timeout,  TimeoutMs  :: timeout()}            | % default: 5000 ms
     {async,    Receiver   :: pid() | atom()}       | % process to receive LISTEN/NOTIFY msgs
+    {codecs,   Codecs     :: [{epgsql_codec:codec_mod(), any()}]} |
     {replication, Replication :: string()}. % Pass "database" to connect in replication mode
     
 -spec connect(host(), string(), string(), [connect_option()] | map())
@@ -78,7 +79,7 @@ see `CHANGES` for full list.
 %% `Host'     - host to connect to
 %% `Username' - username to connect as, defaults to `$USER'
 %% `Password' - optional password to authenticate with
-%% `Opts'     - proplist of extra options
+%% `Opts'     - proplist or map of extra options
 %% returns `{ok, Connection}' otherwise `{error, Reason}'
 connect(Host, Username, Password, Opts) -> ...
 ```
@@ -388,13 +389,17 @@ example:
 - `{C, Ref, done}` - execution of all queries from Batch has finished
 
 ## Data Representation
+
+Data representation may be configured using [pluggable datatype codecs](pluggable_types.md),
+so following is just default mapping:
+
 PG type       | Representation
 --------------|-------------------------------------
   null        | `null`
   bool        | `true` | `false`
   char        | `$A` | `binary`
   intX        | `1`
-  floatX      | `1.0`
+  floatX      | `1.0` | `nan` | `minus_infinity` | `plus_infinity`
   date        | `{Year, Month, Day}`
   time        | `{Hour, Minute, Second.Microsecond}`
   timetz      | `{time, Timezone}`
@@ -410,11 +415,16 @@ PG type       | Representation
   int4range   | `[1,5)`
   hstore      | `{list({binary(), binary() | null})}`
   json/jsonb  | `<<"{ \"key\": [ 1, 1.0, true, \"string\" ] }">>`
+  uuid        | `<<"123e4567-e89b-12d3-a456-426655440000">>`
+  inet        | `inet:ip_address()`
+  cidr        | `{ip_address(), Mask :: 0..32}`
+  macaddr(8)  | tuple of 6 or 8 `byte()`
+  geometry    | `ewkb:geometry()`
 
 
   `timestamp` and `timestamptz` parameters can take `erlang:now()` format: `{MegaSeconds, Seconds, MicroSeconds}`
 
-  `int4range` is a range type for ints (bigint not supported yet) that obeys inclusive/exclusive semantics,
+  `int4range` is a range type for ints that obeys inclusive/exclusive semantics,
   bracket and parentheses respectively. Additionally, infinities are represented by the atoms `minus_infinity`
   and `plus_infinity`
 
@@ -504,6 +514,13 @@ Parameter's value may change during connection's lifetime.
 
 See [streaming.md](streaming.md).
 
+## Pluggable commands
+
+TODO: docs
+
+## Pluggable datatype codecs
+
+See [pluggable_types.md](pluggable_types.md)
 
 ## Mailing list
 
