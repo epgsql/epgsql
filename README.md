@@ -143,19 +143,19 @@ InsertRes = epgsql:squery(C, "insert into account (name) values  ('alice'), ('bo
 io:format("~p~n", [InsertRes]),
 ```
 > ```
-{ok,2}
-```
+> {ok,2}
+> ```
 
 ```erlang
 SelectRes = epgsql:squery(C, "select * from account"),
 io:format("~p~n", [SelectRes]).
 ```
 > ```
-{ok,
-    [{column,<<"id">>,int4,4,-1,0},{column,<<"name">>,text,-1,-1,0}],
-    [{<<"1">>,<<"alice">>},{<<"2">>,<<"bob">>}]
-}
-```
+> {ok,
+>     [{column,<<"id">>,int4,4,-1,0},{column,<<"name">>,text,-1,-1,0}],
+>     [{<<"1">>,<<"alice">>},{<<"2">>,<<"bob">>}]
+> }
+> ```
 
 ```erlang
 InsertReturningRes = epgsql:squery(C, 
@@ -165,24 +165,24 @@ InsertReturningRes = epgsql:squery(C,
 io:format("~p~n", [InsertReturningRes]).
 ```
 > ```
-{ok,2,
-    [{column,<<"id">>,int4,4,-1,0}, {column,<<"name">>,text,-1,-1,0}],
-    [{<<"3">>,<<"joe">>},{<<"4">>,null}]
-}
-```
+> {ok,2,
+>     [{column,<<"id">>,int4,4,-1,0}, {column,<<"name">>,text,-1,-1,0}],
+>     [{<<"3">>,<<"joe">>},{<<"4">>,null}]
+> }
+> ```
 
 ```erlang
 {error, Reason} = epgsql:squery(C, "insert into account values (1, 'bad_pkey')"),
 io:format("~p~n", [Reason]).
 ```
 > ```
-{error,
-    error,
-    <<"23505">>,
-    <<"duplicate key value violates unique constraint \"account_pkey\"">>,
-    [{detail,<<"Key (id)=(1) already exists.">>}]
-}
-```
+> {error,
+>     error,
+>     <<"23505">>,
+>     <<"duplicate key value violates unique constraint \"account_pkey\"">>,
+>     [{detail,<<"Key (id)=(1) already exists.">>}]
+> }
+> ```
 
 The simple query protocol returns all columns as binary strings
 and does not support parameters binding.
@@ -250,11 +250,11 @@ SelectRes = epgsql:equery(C, "select id from account where name = $1", ["alice"]
 io:format("~p~n", [SelectRes]).
 ```
 > ```
-{ok,
-    [{column,<<"id">>,int4,4,-1,1}],
-    [{1}]
-}
-```
+> {ok,
+>     [{column,<<"id">>,int4,4,-1,1}],
+>     [{1}]
+> }
+> ```
 
 PostgreSQL's binary format is used to return integers as Erlang
 integers, floats as floats, bytes/text/varchar columns as binaries,
