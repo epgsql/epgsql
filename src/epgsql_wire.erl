@@ -61,7 +61,7 @@ decode_fields(<<Type:8, Rest/binary>>, Acc) ->
 
 %% @doc decode ErrorResponse
 %% See http://www.postgresql.org/docs/current/interactive/protocol-error-fields.html
--spec decode_error(binary()) -> #error{}.
+-spec decode_error(binary()) -> epgsql:query_error().
 decode_error(Bin) ->
     Fields = decode_fields(Bin),
     ErrCode = proplists:get_value($C, Fields),
@@ -144,7 +144,7 @@ decode_data(<<Len:?int32, Value:Len/binary, Rest/binary>>, [Decoder | Decs], [_C
      | decode_data(Rest, Decs, Cols, Codec)].
 
 %% @doc decode column information
--spec decode_columns(non_neg_integer(), binary(), epgsql_binary:codec()) -> [#column{}].
+-spec decode_columns(non_neg_integer(), binary(), epgsql_binary:codec()) -> [epgsql:column()].
 decode_columns(0, _Bin, _Codec) -> [];
 decode_columns(Count, Bin, Codec) ->
     [Name, Rest] = decode_string(Bin),
@@ -202,7 +202,7 @@ encode_types([Type | T], Count, Acc, Codec) ->
     encode_types(T, Count + 1, <<Acc/binary, Oid:?int32>>, Codec).
 
 %% @doc encode expected column formats
--spec encode_formats([#column{}]) -> binary().
+-spec encode_formats([epgsql:column()]) -> binary().
 encode_formats(Columns) ->
     encode_formats(Columns, 0, <<>>).
 
@@ -272,5 +272,6 @@ encode_command(Type, Data) ->
 %% @doc encode replication status message
 encode_standby_status_update(ReceivedLSN, FlushedLSN, AppliedLSN) ->
     {MegaSecs, Secs, MicroSecs} = os:timestamp(),
-    Timestamp = ((MegaSecs * 1000000 + Secs) * 1000000 + MicroSecs) - 946684800*1000000, %% microseconds since midnight on 2000-01-01
+    %% microseconds since midnight on 2000-01-01
+    Timestamp = ((MegaSecs * 1000000 + Secs) * 1000000 + MicroSecs) - 946684800*1000000,
     <<$r:8, ReceivedLSN:?int64, FlushedLSN:?int64, AppliedLSN:?int64, Timestamp:?int64, 0:8>>.

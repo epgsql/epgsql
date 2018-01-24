@@ -57,6 +57,7 @@
                    | {incremental, pid(), reference()}.
 
 -type tcp_socket() :: port(). %gen_tcp:socket() isn't exported prior to erl 18
+-type repl_state() :: #repl{}.
 
 -record(state, {mod :: gen_tcp | ssl | undefined,
                 sock :: tcp_socket() | ssl:sslsocket() | undefined,
@@ -75,10 +76,9 @@
                 sync_required :: boolean() | undefined,
                 txstatus :: byte() | undefined,  % $I | $T | $E,
                 complete_status :: atom() | {atom(), integer()} | undefined,
-                repl :: #repl{} | undefined}).
+                repl :: repl_state() | undefined}).
 
 -opaque pg_sock() :: #state{}.
-
 
 %% -- client interface --
 
@@ -153,7 +153,7 @@ set_packet_handler(Handler, State) ->
 get_codec(#state{codec = Codec}) ->
     Codec.
 
--spec get_replication_state(pg_sock()) -> #repl{}.
+-spec get_replication_state(pg_sock()) -> repl_state().
 get_replication_state(#state{repl = Repl}) ->
     Repl.
 
@@ -366,9 +366,8 @@ do_send(gen_tcp, Sock, Bin) ->
         error:_Error ->
             {error, einval}
     end;
-
-do_send(Mod, Sock, Bin) ->
-    Mod:send(Sock, Bin).
+do_send(ssl, Sock, Bin) ->
+    ssl:send(Sock, Bin).
 
 loop(#state{data = Data, handler = Handler, repl = Repl} = State) ->
     case epgsql_wire:decode_message(Data) of
@@ -562,7 +561,7 @@ handle_xlog_data(StartLSN, EndLSN, WALRecord,
                  #repl{cbmodule = CbModule, cbstate = CbState, receiver = undefined} = Repl) ->
     %% with callback method
     {ok, LastFlushedLSN, LastAppliedLSN, NewCbState} =
-        CbModule:handle_x_log_data(StartLSN, EndLSN, WALRecord, CbState),
+        epgsql:handle_x_log_data(CbModule, StartLSN, EndLSN, WALRecord, CbState),
     Repl#repl{feedback_required = true,
               last_received_lsn = EndLSN,
               last_flushed_lsn = LastFlushedLSN,

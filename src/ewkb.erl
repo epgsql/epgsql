@@ -104,7 +104,7 @@ encode_geometry_data({SimpleCollection, _, Data})
          SimpleCollection == triangle ->
   encode_collection(Data);
 encode_geometry_data({TypedCollection, _, Data})
-    when 
+    when
         TypedCollection == multi_point;
         TypedCollection == multi_line_string;
         TypedCollection == multi_curve;
@@ -139,8 +139,8 @@ encode_typed_collection(Collection) when is_list(Collection) ->
     end,
     <<>>,
     Collection),
-  <<LengthBin/binary, CollectionBin/binary>>.  
-  
+  <<LengthBin/binary, CollectionBin/binary>>.
+
 
 encode_int32(Int) when is_integer(Int) ->
   <<Int:1/little-integer-unit:32>>.
@@ -161,8 +161,8 @@ decode_geometry_data(surface, _, _) -> error({surface, not_supported});
 decode_geometry_data(geometry, _, _) -> error({geometry, not_supported});
 decode_geometry_data(point, PointType, Data) ->
   decode_point(PointType, Data);
-decode_geometry_data(LineType, PointType, Data) 
-    when LineType == line_string; 
+decode_geometry_data(LineType, PointType, Data)
+    when LineType == line_string;
          LineType == circular_string ->
   {Points, Rest} = decode_collection(point, PointType, Data),
   {{LineType, PointType, Points}, Rest};
@@ -173,7 +173,7 @@ decode_geometry_data(triangle, PointType, Data) ->
   {#polygon{ rings = Rings }, Rest} = decode_geometry_data(polygon, PointType, Data),
   {#triangle{ point_type = PointType, rings = Rings }, Rest};
 decode_geometry_data(Collection, PointType, Data)
-    when 
+    when
         Collection == multi_point;
         Collection == multi_line_string;
         Collection == multi_curve;
@@ -229,13 +229,13 @@ decode_point(PointType, Data) ->
     {[], Data},
     lists:seq(1, point_size(PointType))),
   Point = case {PointType, Values} of
-    {'2d', [X,Y]} ->
+    {'2d', [X, Y]} ->
       #point{ point_type = PointType, x = X, y = Y };
-    {'2dm', [X,Y,M]} ->
+    {'2dm', [X, Y, M]} ->
       #point{ point_type = PointType, x = X, y = Y, m = M };
-    {'3d', [X,Y,Z]} ->
+    {'3d', [X, Y, Z]} ->
       #point{ point_type = PointType, x = X, y = Y, z = Z };
-    {'3dm', [X,Y,Z,M]} ->
+    {'3dm', [X, Y, Z, M]} ->
       #point{ point_type = PointType, x = X, y = Y, z = Z, m = M }
   end,
   {Point, Rest}.
@@ -247,24 +247,24 @@ point_size('3d')  -> 3;
 point_size('3dm') -> 4.
 
 -spec decode_type(binary()) -> geom_type().
-decode_type(<<0,0>>) -> geometry;
-decode_type(<<1,0>>) -> point;
-decode_type(<<2,0>>) -> line_string;
-decode_type(<<3,0>>) -> polygon;
-decode_type(<<4,0>>) -> multi_point;
-decode_type(<<5,0>>) -> multi_line_string;
-decode_type(<<6,0>>) -> multi_polygon;
-decode_type(<<7,0>>) -> geometry_collection;
-decode_type(<<8,0>>) -> circular_string;
-decode_type(<<9,0>>) -> compound_curve;
-decode_type(<<10,0>>) -> curve_polygon;
-decode_type(<<11,0>>) -> multi_curve;
-decode_type(<<12,0>>) -> multi_surface;
-decode_type(<<13,0>>) -> curve;
-decode_type(<<14,0>>) -> surface;
-decode_type(<<15,0>>) -> polyhedral_surface;
-decode_type(<<16,0>>) -> tin;
-decode_type(<<17,0>>) -> triangle.
+decode_type(<<0, 0>>) -> geometry;
+decode_type(<<1, 0>>) -> point;
+decode_type(<<2, 0>>) -> line_string;
+decode_type(<<3, 0>>) -> polygon;
+decode_type(<<4, 0>>) -> multi_point;
+decode_type(<<5, 0>>) -> multi_line_string;
+decode_type(<<6, 0>>) -> multi_polygon;
+decode_type(<<7, 0>>) -> geometry_collection;
+decode_type(<<8, 0>>) -> circular_string;
+decode_type(<<9, 0>>) -> compound_curve;
+decode_type(<<10, 0>>) -> curve_polygon;
+decode_type(<<11, 0>>) -> multi_curve;
+decode_type(<<12, 0>>) -> multi_surface;
+decode_type(<<13, 0>>) -> curve;
+decode_type(<<14, 0>>) -> surface;
+decode_type(<<15, 0>>) -> polyhedral_surface;
+decode_type(<<16, 0>>) -> tin;
+decode_type(<<17, 0>>) -> triangle.
 
 -spec encode_type(geometry() | geom_type()) -> binary().
 encode_type(Geometry) when is_tuple(Geometry) ->
@@ -290,7 +290,7 @@ encode_type(triangle)            -> <<17, 0>>.
 
 
 -spec decode_point_type(binary()) -> point_type().
-decode_point_type(<<0,0>>) -> '2d';
+decode_point_type(<<0, 0>>) -> '2d';
 decode_point_type(<<0, 64>>) -> '2dm';
 decode_point_type(<<0, 128>>) -> '3d';
 decode_point_type(<<0, 192>>) -> '3dm'.
@@ -298,7 +298,7 @@ decode_point_type(<<0, 192>>) -> '3dm'.
 -spec encode_point_type(geometry() | point_type()) -> binary().
 encode_point_type(Geometry) when is_tuple(Geometry) ->
   encode_point_type(element(2, Geometry));
-encode_point_type('2d') -> <<0,0>>;
-encode_point_type('2dm') -> <<0,64>>;
-encode_point_type('3d') -> <<0,128>>;
-encode_point_type('3dm') -> <<0,192>>.
+encode_point_type('2d') -> <<0, 0>>;
+encode_point_type('2dm') -> <<0, 64>>;
+encode_point_type('3d') -> <<0, 128>>;
+encode_point_type('3dm') -> <<0, 192>>.
