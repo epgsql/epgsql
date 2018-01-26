@@ -44,12 +44,16 @@ init(_, Sock) ->
 names() ->
     [time, timetz, date, timestamp, timestamptz, interval].
 
-%% FIXME: move common logick out from fdatetime/idatetime; make them more
+%% FIXME: move common logic out from fdatetime/idatetime; make them more
 %% low-level
-encode(Val, Type, Mod) ->
-    Mod:encode(Type, Val).
+encode(Val, Type, epgsql_idatetime) ->
+    epgsql_idatetime:encode(Type, Val);
+encode(Val, Type, epgsql_fdatetime) ->
+    epgsql_fdatetime:encode(Type, Val).
 
-decode(Bin, Type, Mod) ->
-    Mod:decode(Type, Bin).
+decode(Bin, Type, epgsql_idatetime) ->
+    epgsql_idatetime:decode(Type, Bin);
+decode(Bin, Type, epgsql_fdatetime) ->
+    epgsql_fdatetime:decode(Type, Bin).
 
 decode_text(V, _, _) -> V.

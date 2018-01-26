@@ -206,7 +206,7 @@ decode_record1(<<Oid:?int32, Len:?int32, ValueBin:Len/binary, Rest/binary>>, Siz
             undefined -> ValueBin;
             Type ->
                 {Name, Mod, State} = epgsql_oid_db:type_to_codec_entry(Type),
-                Mod:decode(ValueBin, Name, State)
+                epgsql_codec:decode(Mod, ValueBin, Name, State)
         end,
     [Value | decode_record1(Rest, Size - 1, Codec)].
 
@@ -233,7 +233,7 @@ encode_with_type(Type, Value) ->
     end.
 
 encode_value(Value, {Mod, Name, State}) ->
-    Payload = Mod:encode(Value, Name, State),
+    Payload = epgsql_codec:encode(Mod, Value, Name, State),
     [<<(iolist_size(Payload)):?int32>> | Payload].
 
 
@@ -269,19 +269,19 @@ supports(Oid, #codec{oid_db = Db}) ->
 %% XXX: maybe move to application env?
 -spec default_codecs() -> [{epgsql_codec:codec_mod(), any()}].
 default_codecs() ->
-    [{epgsql_codec_boolean,[]},
-     {epgsql_codec_bpchar,[]},
-     {epgsql_codec_datetime,[]},
-     {epgsql_codec_float,[]},
+    [{epgsql_codec_boolean, []},
+     {epgsql_codec_bpchar, []},
+     {epgsql_codec_datetime, []},
+     {epgsql_codec_float, []},
      {epgsql_codec_geometric, []},
      %% {epgsql_codec_hstore, []},
-     {epgsql_codec_integer,[]},
-     {epgsql_codec_intrange,[]},
-     {epgsql_codec_json,[]},
-     {epgsql_codec_net,[]},
+     {epgsql_codec_integer, []},
+     {epgsql_codec_intrange, []},
+     {epgsql_codec_json, []},
+     {epgsql_codec_net, []},
      %% {epgsql_codec_postgis,[]},
-     {epgsql_codec_text,[]},
-     {epgsql_codec_uuid,[]}].
+     {epgsql_codec_text, []},
+     {epgsql_codec_uuid, []}].
 
 -spec default_oids() -> [epgsql_oid_db:oid_entry()].
 default_oids() ->

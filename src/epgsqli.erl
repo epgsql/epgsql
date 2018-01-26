@@ -77,11 +77,11 @@ squery(C, Sql) ->
 equery(C, Sql) ->
     equery(C, Sql, []).
 
--spec equery(epgsql:connection(), #statement{}, [epgsql:typed_param()]) -> reference().
+-spec equery(epgsql:connection(), epgsql:statement(), [epgsql:typed_param()]) -> reference().
 equery(C, Statement, TypedParameters) ->
     incremental(C, epgsql_cmd_equery, {Statement, TypedParameters}).
 
--spec prepared_query(epgsql:connection(), #statement{}, [epgsql:typed_param()]) -> reference().
+-spec prepared_query(epgsql:connection(), epgsql:statement(), [epgsql:typed_param()]) -> reference().
 prepared_query(C, Statement, TypedParameters) ->
     incremental(C, epgsql_cmd_prepared_query, {Statement, TypedParameters}).
 
@@ -98,7 +98,7 @@ parse(C, Name, Sql, Types) ->
 bind(C, Statement, Parameters) ->
     bind(C, Statement, "", Parameters).
 
--spec bind(epgsql:connection(), #statement{}, string(), [epgsql:bind_param()]) -> reference().
+-spec bind(epgsql:connection(), epgsql:statement(), string(), [epgsql:bind_param()]) -> reference().
 bind(C, Statement, PortalName, Parameters) ->
     incremental(C, epgsql_cmd_bind, {Statement, PortalName, Parameters}).
 
@@ -108,11 +108,11 @@ execute(C, S) ->
 execute(C, S, N) ->
     execute(C, S, "", N).
 
--spec execute(epgsql:connection(), #statement{}, string(), non_neg_integer()) -> reference().
+-spec execute(epgsql:connection(), epgsql:statement(), string(), non_neg_integer()) -> reference().
 execute(C, Statement, PortalName, MaxRows) ->
     incremental(C, epgsql_cmd_execute, {Statement, PortalName, MaxRows}).
 
--spec execute_batch(epgsql:connection(), [{#statement{}, [epgsql:bind_param()]}]) -> reference().
+-spec execute_batch(epgsql:connection(), [{epgsql:statement(), [epgsql:bind_param()]}]) -> reference().
 execute_batch(C, Batch) ->
     incremental(C, epgsql_cmd_batch, Batch).
 

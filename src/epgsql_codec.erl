@@ -7,7 +7,7 @@
 %%% Created : 12 Oct 2017 by Sergey Prokhorov <me@seriyps.ru>
 
 -module(epgsql_codec).
--export([init_mods/2]).
+-export([init_mods/2, encode/4, decode/4, decode_text/4]).
 
 -export_type([codec_state/0, codec_mod/0, codec_entry/0]).
 
@@ -67,3 +67,15 @@ add_names([Name | Names], {Mod, State} = MS, Set, Acc) ->
     end;
 add_names([], _, Set, Acc) ->
     {Set, Acc}.
+
+-spec encode(codec_mod(), any(), epgsql:type_name(), codec_state()) -> iodata().
+encode(Mod, Cell, TypeName, CodecState) ->
+    Mod:encode(Cell, TypeName, CodecState).
+
+-spec decode(codec_mod(), binary(), epgsql:type_name(), codec_state()) -> any().
+decode(Mod, Cell, TypeName, CodecState) ->
+    Mod:decode(Cell, TypeName, CodecState).
+
+-spec decode_text(codec_mod(), binary(), epgsql:type_name(), codec_state()) -> any().
+decode_text(Mod, Cell, TypeName, CodecState) ->
+    Mod:decode(Cell, TypeName, CodecState).
