@@ -44,7 +44,7 @@ init(_, Sock) ->
 names() ->
     [time, timetz, date, timestamp, timestamptz, interval].
 
-%% FIXME: move common logick out from fdatetime/idatetime; make them more
+%% FIXME: move common logic out from fdatetime/idatetime; make them more
 %% low-level
 encode(Val, Type, epgsql_idatetime) ->
     epgsql_idatetime:encode(Type, Val);
