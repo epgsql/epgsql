@@ -46,6 +46,7 @@ groups() ->
             connect_as,
             connect_with_cleartext,
             connect_with_md5,
+            connect_with_scram,
             connect_with_invalid_user,
             connect_with_invalid_password,
             connect_with_ssl,
@@ -192,6 +193,13 @@ connect_with_md5(Config) ->
     epgsql_ct:connect_only(Config, [
         "epgsql_test_md5",
         "epgsql_test_md5",
+        [{database, "epgsql_test_db1"}]
+    ]).
+
+connect_with_scram(Config) ->
+    epgsql_ct:connect_only(Config, [
+        "epgsql_test_scram",
+        "epgsql_test_scram",
         [{database, "epgsql_test_db1"}]
     ]).
 

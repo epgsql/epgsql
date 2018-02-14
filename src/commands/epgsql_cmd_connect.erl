@@ -20,8 +20,18 @@
 
 -record(connect,
         {opts :: list(),
-         auth_method,
+         auth_fun :: fun() | undefined,
+         auth_state :: any() | undefined,
+         auth_send :: {integer(), iodata()} | undefined,
          stage = connect :: connect | auth | initialization}).
+
+-define(SCRAM_AUTH_METHOD, <<"SCRAM-SHA-256">>).
+-define(AUTH_OK, 0).
+-define(AUTH_CLEARTEXT, 3).
+-define(AUTH_MD5, 5).
+-define(AUTH_SASL, 10).
+-define(AUTH_SASL_CONTINUE, 11).
+-define(AUTH_SASL_FINAL, 12).
 
 init({Host, Username, Password, Opts}) ->
     Opts1 = [{host, Host},
@@ -77,17 +87,9 @@ execute(PgSock, #connect{opts = Opts, stage = connect} = State) ->
         {error, Reason} = Error ->
             {stop, Reason, Error, PgSock}
     end;
-execute(PgSock, #connect{stage = auth, auth_method = cleartext, opts = Opts} = St) ->
-    Password = get_val(password, Opts),
-    epgsql_sock:send(PgSock, ?PASSWORD, [Password, 0]),
-    {ok, PgSock, St};
-execute(PgSock, #connect{stage = auth, auth_method = {md5, Salt}, opts = Opts} = St) ->
-    User = get_val(username, Opts),
-    Password = get_val(password, Opts),
-    Digest1 = hex(erlang:md5([Password, User])),
-    Str = ["md5", hex(erlang:md5([Digest1, Salt])), 0],
-    epgsql_sock:send(PgSock, ?PASSWORD, Str),
-    {ok, PgSock, St}.
+execute(PgSock, #connect{stage = auth, auth_send = {PacketId, Data}} = St) ->
+    epgsql_sock:send(PgSock, PacketId, Data),
+    {ok, PgSock, St#connect{auth_send = undefined}}.
 
 
 maybe_ssl(S, false, _, PgSock) ->
@@ -114,19 +116,79 @@ maybe_ssl(S, Flag, Opts, PgSock) ->
             end
     end.
 
+
+%% Auth sub-protocol
+
+auth_init(Fun, InitState, PgSock, St) ->
+    auth_handle(init, PgSock, St#connect{auth_fun = Fun, auth_state = InitState,
+                                                    stage = auth}).
+
+auth_handle(Data, PgSock, #connect{auth_fun = Fun, auth_state = AuthSt} = St) ->
+    case Fun(Data, AuthSt, St) of
+        {send, SendPacketId, SendData, AuthSt1} ->
+            {requeue, PgSock, St#connect{auth_state = AuthSt1,
+                                         auth_send = {SendPacketId, SendData}}};
+        ok ->
+            {noaction, PgSock, St}
+    end.
+
+auth_cleartext(init, _AuthState, #connect{opts = Opts}) ->
+    Password = get_val(password, Opts),
+    {send, ?PASSWORD, [Password, 0], undefined};
+auth_cleartext(_, _, _) -> unknown.
+
+auth_md5(init, Salt, #connect{opts = Opts}) ->
+    User = get_val(username, Opts),
+    Password = get_val(password, Opts),
+    Digest1 = hex(erlang:md5([Password, User])),
+    Str = ["md5", hex(erlang:md5([Digest1, Salt])), 0],
+    {send, ?PASSWORD, Str, undefined};
+auth_md5(_, _, _) -> unknown.
+
+
+auth_scram(init, undefined, #connect{opts = Opts}) ->
+    User = get_val(username, Opts),
+    Nonce = epgsql_scram:get_nonce(10),
+    ClientFirst = epgsql_scram:get_client_first(User, Nonce),
+    SaslInitialResponse = [?SCRAM_AUTH_METHOD, 0, <<(iolist_size(ClientFirst)):?int32>>, ClientFirst],
+    {send, ?SASL_ANY_RESPONSE, SaslInitialResponse, {auth_request, Nonce}};
+auth_scram(<<?AUTH_SASL_CONTINUE:?int32, ServerFirst/binary>>, {auth_request, Nonce}, #connect{opts = Opts}) ->
+    User = get_val(username, Opts),
+    Password = get_val(password, Opts),
+    ServerFirstParts = epgsql_scram:parse_server_first(ServerFirst, Nonce),
+    {ClientFinalMessage, ServerProof} = epgsql_scram:get_client_final(ServerFirstParts, Nonce, User, Password),
+    {send, ?SASL_ANY_RESPONSE, ClientFinalMessage, {server_final, ServerProof}};
+auth_scram(_Msg, {server_final, _ServerProof}, _Conn) ->
+    ok.
+
+
 %% --- Auth ---
 
 %% AuthenticationOk
-handle_message(?AUTHENTICATION_REQUEST, <<0:?int32>>, Sock, State) ->
+handle_message(?AUTHENTICATION_REQUEST, <<?AUTH_OK:?int32>>, Sock, State) ->
     {noaction, Sock, State#connect{stage = initialization}};
 
 %% AuthenticationCleartextPassword
-handle_message(?AUTHENTICATION_REQUEST, <<3:?int32>>, Sock, St) ->
-    {requeue, Sock, St#connect{stage = auth, auth_method = cleartext}};
+handle_message(?AUTHENTICATION_REQUEST, <<?AUTH_CLEARTEXT:?int32>>, Sock, St) ->
+    auth_init(fun auth_cleartext/3, undefined, Sock, St);
 
 %% AuthenticationMD5Password
-handle_message(?AUTHENTICATION_REQUEST, <<5:?int32, Salt:4/binary>>, Sock, St) ->
-    {requeue, Sock, St#connect{stage = auth, auth_method = {md5, Salt}}};
+handle_message(?AUTHENTICATION_REQUEST, <<?AUTH_MD5:?int32, Salt:4/binary>>, Sock, St) ->
+    auth_init(fun auth_md5/3, Salt, Sock, St);
+
+%% AuthenticationSASL
+handle_message(?AUTHENTICATION_REQUEST, <<?AUTH_SASL:?int32, MethodsB/binary>>, Sock, St) ->
+    Methods = epgsql_wire:decode_strings(MethodsB),
+    case lists:member(?SCRAM_AUTH_METHOD, Methods) of
+        true ->
+            auth_init(fun auth_scram/3, undefined, Sock, St);
+        false ->
+            {stop, normal, {error, {unsupported_auth_method,
+                                    lists:delete(<<>>, Methods)}}}
+    end;
+
+handle_message(?AUTHENTICATION_REQUEST, Packet, Sock, #connect{stage = auth} = St) ->
+    auth_handle(Packet, Sock, St);
 
 handle_message(?AUTHENTICATION_REQUEST, <<M:?int32, _/binary>>, Sock, _State) ->
     Method = case M of
@@ -135,7 +197,7 @@ handle_message(?AUTHENTICATION_REQUEST, <<M:?int32, _/binary>>, Sock, _State) ->
         6 -> scm;
         7 -> gss;
         8 -> sspi;
-        _ -> unknown
+        _ -> {unknown, M}
     end,
     {stop, normal, {error, {unsupported_auth_method, Method}}, Sock};
 

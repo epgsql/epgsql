@@ -196,6 +196,7 @@ write_pg_hba_config(Config) ->
         "host    epgsql_test_db1 ", User, "              127.0.0.1/32    trust\n",
         "host    epgsql_test_db1 epgsql_test             127.0.0.1/32    trust\n",
         "host    epgsql_test_db1 epgsql_test_md5         127.0.0.1/32    md5\n",
+        "host    epgsql_test_db1 epgsql_test_scram       127.0.0.1/32    scram-sha-256\n",
         "host    epgsql_test_db1 epgsql_test_cleartext   127.0.0.1/32    password\n",
         "hostssl epgsql_test_db1 epgsql_test_cert        127.0.0.1/32    cert clientcert=1\n",
         "host    replication     epgsql_test_replication 127.0.0.1/32    trust"
