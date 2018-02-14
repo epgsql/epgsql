@@ -11,12 +11,20 @@
 -export([get_nonce/1,
          get_client_first/2,
          get_client_final/4,
-         parse_server_first/2]).
+         parse_server_first/2,
+         parse_server_final/1]).
 -export([hi/3,
          hmac/2,
          h/1,
          bin_xor/2]).
 
+-type nonce() :: binary().
+-type server_first() :: [{nonce, nonce()} |
+                         {salt, binary()} |
+                         {i, pos_integer()} |
+                         {raw, binary()}].
+
+-spec get_client_first(iodata(), nonce()) -> iodata().
 get_client_first(UserName, Nonce) ->
     %% Username is ignored by postgresql
     [<<"n,,">> | client_first_bare(UserName, Nonce)].
@@ -24,10 +32,12 @@ get_client_first(UserName, Nonce) ->
 client_first_bare(UserName, Nonce) ->
     [<<"n=">>, UserName, <<",r=">>, Nonce].
 
+-spec get_nonce(pos_integer()) -> nonce().
 get_nonce(Len) ->
     Nonce = crypto:strong_rand_bytes(Len),
     base64:encode(Nonce).
 
+-spec parse_server_first(binary(), nonce()) -> server_first().
 parse_server_first(ServerFirst, ClientNonce) ->
     PartsB = binary:split(ServerFirst, <<",">>, [global]),
     (length(PartsB) == 3) orelse error({invalid_server_first, ServerFirst}),
@@ -49,6 +59,8 @@ parse_server_first(ServerFirst, ClientNonce) ->
 %% AuthMessage     := client-first-message-bare + "," + server-first-message + "," + client-final-message-without-proof
 %% ClientSignature := HMAC(StoredKey, AuthMessage)
 %% ClientProof     := ClientKey XOR ClientSignature
+-spec get_client_final(server_first(), nonce(), iodata(), iodata()) ->
+                              {ClientFinal :: iodata(), ServerSignature :: binary()}.
 get_client_final(SrvFirst, ClientNonce, UserName, Password) ->
     ChannelBinding = <<"c=biws">>,                 %channel-binding isn't implemented
     Nonce = [<<"r=">>, proplists:get_value(nonce, SrvFirst)],
@@ -70,6 +82,13 @@ get_client_final(SrvFirst, ClientNonce, UserName, Password) ->
     ServerSignature = hmac(ServerKey, AuthMessage),
 
     {[ClientFinalWithoutProof, ",p=", base64:encode(ClientProof)], ServerSignature}.
+
+-spec parse_server_final(binary()) -> {ok, binary()} | {error, binary()}.
+parse_server_final(<<"v=", ServerFinal/binary>>) ->
+    [ServerFinal1 | _] = binary:split(ServerFinal, <<",">>),
+    {ok, base64:decode(ServerFinal1)};
+parse_server_final(<<"e=", ServerError/binary>>) ->
+    {error, ServerError}.
 
 %% Helpers
 
@@ -113,11 +132,13 @@ exchange_test() ->
 
     ClientFirst = <<"n,,n=,r=9IZ2O01zb9IgiIZ1WJ/zgpJB">>,
     ServerFirst = <<"r=9IZ2O01zb9IgiIZ1WJ/zgpJBjx/oIRLs02gGSHcw1KEty3eY,s=fs3IXBy7U7+IvVjZ,i=4096">>,
-    ClientFinal = <<"c=biws,r=9IZ2O01zb9IgiIZ1WJ/zgpJBjx/oIRLs02gGSHcw1KEty3eY,p=AmNKosjJzS31NTlQYNs5BTeQjdHdk7lOflDo5re2an8=">>,
-    _ServerFinal = "v=U+ppxD5XUKtradnv8e2MkeupiA8FU87Sg8CXzXHDAzw=",
+    ClientFinal = <<"c=biws,r=9IZ2O01zb9IgiIZ1WJ/zgpJBjx/oIRLs02gGSHcw1KEty3eY,p=AmNKosjJzS31NTlQ"
+                    "YNs5BTeQjdHdk7lOflDo5re2an8=">>,
+    ServerFinal = <<"v=U+ppxD5XUKtradnv8e2MkeupiA8FU87Sg8CXzXHDAzw=">>,
 
     ?assertEqual(ClientFirst, iolist_to_binary(get_client_first(Username, Nonce))),
     SF = parse_server_first(ServerFirst, Nonce),
-    {CF, _} = get_client_final(SF, Nonce, Username, Password),
-    ?assertEqual(ClientFinal, iolist_to_binary(CF), CF).
+    {CF, ServerProof} = get_client_final(SF, Nonce, Username, Password),
+    ?assertEqual(ClientFinal, iolist_to_binary(CF)),
+    ?assertEqual({ok, ServerProof}, parse_server_final(ServerFinal)).
 -endif.
