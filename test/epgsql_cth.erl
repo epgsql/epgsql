@@ -212,13 +212,17 @@ write_pg_hba_config(Config) ->
         "host    epgsql_test_db1 epgsql_test             127.0.0.1/32    trust\n",
         "host    epgsql_test_db1 epgsql_test_md5         127.0.0.1/32    md5\n",
         "host    epgsql_test_db1 epgsql_test_cleartext   127.0.0.1/32    password\n",
-        "hostssl epgsql_test_db1 epgsql_test_cert        127.0.0.1/32    cert clientcert=1\n",
-        "host    replication     epgsql_test_replication 127.0.0.1/32    trust\n" |
+        "hostssl epgsql_test_db1 epgsql_test_cert        127.0.0.1/32    cert clientcert=1\n" |
         case Version >= [10, 0] of
             true ->
-                "host    epgsql_test_db1 epgsql_test_scram       127.0.0.1/32    scram-sha-256\n";
+                %% See
+                %% https://www.postgresql.org/docs/10/static/release-10.html
+                %% "Change how logical replication uses pg_hba.conf"
+                ["host    epgsql_test_db1 epgsql_test_replication 127.0.0.1/32    trust\n",
+                 %% scram auth method only available on PG >= 10
+                 "host    epgsql_test_db1 epgsql_test_scram       127.0.0.1/32    scram-sha-256\n"];
             false ->
-                []
+                ["host    replication     epgsql_test_replication 127.0.0.1/32    trust\n"]
         end
     ],
     FilePath = filename:join(PgDataDir, "pg_hba.conf"),
