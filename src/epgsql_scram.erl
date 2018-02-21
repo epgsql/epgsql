@@ -1,3 +1,4 @@
+%%% coding: utf-8
 %%% @doc
 %%% SCRAM--SHA-256 helper functions
 %%% See
@@ -32,10 +33,15 @@ get_client_first(UserName, Nonce) ->
 client_first_bare(UserName, Nonce) ->
     [<<"n=">>, UserName, <<",r=">>, Nonce].
 
+%% @doc Generate unique ASCII string.
+%% Resulting string length isn't guaranteed, but it's guaranteed to be unique and will
+%% contain `NumRandomBytes' of random data.
 -spec get_nonce(pos_integer()) -> nonce().
-get_nonce(Len) ->
-    Nonce = crypto:strong_rand_bytes(Len),
-    base64:encode(Nonce).
+get_nonce(NumRandomBytes) when NumRandomBytes < 255 ->
+    Random = crypto:strong_rand_bytes(NumRandomBytes),
+    Unique = binary:encode_unsigned(unique()),
+    NonceBin = <<NumRandomBytes, Random:NumRandomBytes/binary, Unique/binary>>,
+    base64:encode(NonceBin).
 
 -spec parse_server_first(binary(), nonce()) -> server_first().
 parse_server_first(ServerFirst, ClientNonce) ->
@@ -92,9 +98,14 @@ parse_server_final(<<"e=", ServerError/binary>>) ->
 
 %% Helpers
 
-%% TODO: implement
+%% TODO: implement according to rfc3454
 normalize(Str) ->
+    lists:all(fun is_ascii_non_control/1, unicode:characters_to_list(Str, utf8))
+        orelse error({scram_non_ascii_password, Str}),
     Str.
+
+is_ascii_non_control(C) when C > 16#1F, C < 16#7F -> true;
+is_ascii_non_control(_) -> false.
 
 check_nonce(ClientNonce, ServerNonce) ->
     Size = size(ClientNonce),
@@ -122,6 +133,18 @@ h(Str) ->
 bin_xor(B1, B2) ->
     crypto:exor(B1, B2).
 
+
+-ifdef(FAST_MAPS).
+unique() ->
+    erlang:unique_integer([positive]).
+-else.
+unique() ->
+    %% POSIX timestamp microseconds
+    {Mega, Secs, Micro} = erlang:now(),
+    (Mega * 1000000 + Secs) * 1000000 + Micro.
+-endif.
+
+
 -ifdef(TEST).
 -include_lib("eunit/include/eunit.hrl").
 
@@ -141,4 +164,9 @@ exchange_test() ->
     {CF, ServerProof} = get_client_final(SF, Nonce, Username, Password),
     ?assertEqual(ClientFinal, iolist_to_binary(CF)),
     ?assertEqual({ok, ServerProof}, parse_server_final(ServerFinal)).
+
+normalize_test() ->
+    ?assertEqual(<<"123 !~">>, normalize(<<"123 !~">>)),
+    ?assertError({scram_non_ascii_password, _}, normalize(<<"привет"/utf8>>)).
+
 -endif.

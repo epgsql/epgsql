@@ -20,7 +20,11 @@
 -include("epgsql.hrl").
 -include("protocol.hrl").
 
--type auth_fun() :: fun((init | binary(), _, _) -> {send, byte(), iodata(), any()} | ok | {error, any()}).
+-type auth_fun() :: fun((init | binary(), _, _) ->
+                                     {send, byte(), iodata(), any()}
+                                   | ok
+                                   | {error, any()}
+                                   | unknown).
 
 -record(connect,
         {opts :: list(),
@@ -157,7 +161,8 @@ auth_handle(Data, PgSock, #connect{auth_fun = Fun, auth_state = AuthSt} = St) ->
                                          auth_send = {SendPacketId, SendData}}};
         ok -> {noaction, PgSock, St};
         {error, Reason} ->
-            {stop, normal, {error, Reason}}
+            {stop, normal, {error, Reason}};
+        unknown -> unknown
     end.
 
 %% AuthenticationCleartextPassword
@@ -178,7 +183,7 @@ auth_md5(_, _, _) -> unknown.
 %% AuthenticationSASL
 auth_scram(init, undefined, #connect{opts = Opts}) ->
     User = get_val(username, Opts),
-    Nonce = epgsql_scram:get_nonce(10),
+    Nonce = epgsql_scram:get_nonce(16),
     ClientFirst = epgsql_scram:get_client_first(User, Nonce),
     SaslInitialResponse = [?SCRAM_AUTH_METHOD, 0, <<(iolist_size(ClientFirst)):?int32>>, ClientFirst],
     {send, ?SASL_ANY_RESPONSE, SaslInitialResponse, {auth_request, Nonce}};
@@ -192,14 +197,19 @@ auth_scram(<<?AUTH_SASL_FINAL:?int32, ServerFinalMsg/binary>>, {server_final, Se
     case epgsql_scram:parse_server_final(ServerFinalMsg) of
         {ok, ServerProof} -> ok;
         Other -> {error, {sasl_server_final, Other}}
-    end.
+    end;
+auth_scram(_, _, _) ->
+    unknown.
 
 
 %% --- Auth ---
 
 %% AuthenticationOk
 handle_message(?AUTHENTICATION_REQUEST, <<?AUTH_OK:?int32>>, Sock, State) ->
-    {noaction, Sock, State#connect{stage = initialization}};
+    {noaction, Sock, State#connect{stage = initialization,
+                                   auth_fun = undefined,
+                                   auth_state = undefned,
+                                   auth_send = undefined}};
 
 handle_message(?AUTHENTICATION_REQUEST, Message, Sock, #connect{stage = Stage} = St) when Stage =/= auth ->
     auth_init(Message, Sock, St);
