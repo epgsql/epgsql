@@ -16,6 +16,7 @@
 -define(SIMPLEQUERY, $Q).
 -define(AUTHENTICATION_REQUEST, $R).
 -define(SYNC, $S).
+-define(SASL_ANY_RESPONSE, $p).
 
 %% Parameters
 

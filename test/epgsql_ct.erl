@@ -64,15 +64,16 @@ with_rollback(Config, F) ->
       end).
 
 with_min_version(Config, Min, F, Args) ->
-    Module = ?config(module, Config),
-    epgsql_ct:with_connection(Config, fun(C) ->
-        {ok, Bin} = Module:get_parameter(C, <<"server_version">>),
-        {ok, [{float, 1, Ver} | _], _} = erl_scan:string(binary_to_list(Bin)),
-        case Ver >= Min of
-            true  -> F(C);
-            false -> ?debugFmt("skipping test requiring PostgreSQL >= ~.2f~n", [Min])
-        end
-    end, Args).
+    PgConf = ?config(pg_config, Config),
+    Ver = ?config(version, PgConf),
+
+    case Ver >= Min of
+        true ->
+            epgsql_ct:with_connection(Config, F, Args);
+        false ->
+            ?debugFmt("skipping test requiring PostgreSQL >= ~p, but we have ~p ~p",
+                      [Min, Ver, Config])
+    end.
 
 %% flush mailbox
 flush() ->

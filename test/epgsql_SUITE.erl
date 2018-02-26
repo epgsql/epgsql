@@ -46,6 +46,7 @@ groups() ->
             connect_as,
             connect_with_cleartext,
             connect_with_md5,
+            connect_with_scram,
             connect_with_invalid_user,
             connect_with_invalid_password,
             connect_with_ssl,
@@ -194,6 +195,19 @@ connect_with_md5(Config) ->
         "epgsql_test_md5",
         [{database, "epgsql_test_db1"}]
     ]).
+
+connect_with_scram(Config) ->
+    PgConf = ?config(pg_config, Config),
+    Ver = ?config(version, PgConf),
+    (Ver >= [10, 0])
+        andalso
+        epgsql_ct:connect_only(
+          Config,
+          [
+           "epgsql_test_scram",
+           "epgsql_test_scram",
+           [{database, "epgsql_test_db1"}]
+          ]).
 
 connect_with_invalid_user(Config) ->
     {Host, Port} = epgsql_ct:connection_data(Config),
@@ -860,8 +874,8 @@ query_timeout(Config) ->
     Module = ?config(module, Config),
     epgsql_ct:with_connection(Config, fun(C) ->
         {ok, _, _} = Module:squery(C, "SET statement_timeout = 500"),
-        ?TIMEOUT_ERROR = Module:squery(C, "SELECT pg_sleep(1)"),
-        ?TIMEOUT_ERROR = Module:equery(C, "SELECT pg_sleep(2)"),
+        ?assertMatch(?TIMEOUT_ERROR, Module:squery(C, "SELECT pg_sleep(1)")),
+        ?assertMatch(?TIMEOUT_ERROR, Module:equery(C, "SELECT pg_sleep(2)")),
         {ok, _Cols, [{1}]} = Module:equery(C, "SELECT 1")
     end, []).
 
@@ -871,7 +885,7 @@ execute_timeout(Config) ->
         {ok, _, _} = Module:squery(C, "SET statement_timeout = 500"),
         {ok, S} = Module:parse(C, "select pg_sleep($1)"),
         ok = Module:bind(C, S, [2]),
-        ?TIMEOUT_ERROR = Module:execute(C, S, 0),
+        ?assertMatch(?TIMEOUT_ERROR, Module:execute(C, S, 0)),
         ok = Module:sync(C),
         ok = Module:bind(C, S, [0]),
         {ok, [{<<>>}]} = Module:execute(C, S, 0),
@@ -982,7 +996,7 @@ listen_notify(Config) ->
 
 listen_notify_payload(Config) ->
     Module = ?config(module, Config),
-    epgsql_ct:with_min_version(Config, 9.0, fun(C) ->
+    epgsql_ct:with_min_version(Config, [9, 0], fun(C) ->
         {ok, [], []}     = Module:squery(C, "listen epgsql_test"),
         {ok, _, [{Pid}]} = Module:equery(C, "select pg_backend_pid()"),
         {ok, [], []}     = Module:squery(C, "notify epgsql_test, 'test!'"),
@@ -995,7 +1009,7 @@ listen_notify_payload(Config) ->
 
 set_notice_receiver(Config) ->
     Module = ?config(module, Config),
-    epgsql_ct:with_min_version(Config, 9.0, fun(C) ->
+    epgsql_ct:with_min_version(Config, [9, 0], fun(C) ->
         {ok, [], []}     = Module:squery(C, "listen epgsql_test"),
         {ok, _, [{Pid}]} = Module:equery(C, "select pg_backend_pid()"),
 
@@ -1073,7 +1087,7 @@ get_cmd_status(Config) ->
     end).
 
 range_type(Config) ->
-    epgsql_ct:with_min_version(Config, 9.2, fun(_C) ->
+    epgsql_ct:with_min_version(Config, [9, 2], fun(_C) ->
         check_type(Config, int4range, "int4range(10, 20)", {10, 20}, [
             {1, 58}, {-1, 12}, {-985521, 5412687}, {minus_infinity, 0},
             {984655, plus_infinity}, {minus_infinity, plus_infinity}
@@ -1081,7 +1095,7 @@ range_type(Config) ->
    end, []).
 
 range8_type(Config) ->
-    epgsql_ct:with_min_version(Config, 9.2, fun(_C) ->
+    epgsql_ct:with_min_version(Config, [9, 2], fun(_C) ->
         check_type(Config, int8range, "int8range(10, 20)", {10, 20}, [
             {1, 58}, {-1, 12}, {-9223372036854775808, 5412687},
             {minus_infinity, 9223372036854775807},
