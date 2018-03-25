@@ -483,6 +483,33 @@ Message formats:
 
 ## Utility functions
 
+### Transaction helpers
+
+```erlang
+with_transaction(connection(), fun((connection()) -> Result :: any()), Opts) ->
+    Result | {rollback, Reason :: any()} when
+Opts :: [{reraise, boolean()},
+         {ensure_committed, boolean()},
+         {begin_opts, iodata()}] | map().
+```
+
+Executes function in context of PostgreSQL transaction. It executes `BEGIN` before executing the function,
+`ROLLBACK` if function raises an exception and `COMMIT` if returns without an error.
+It will return result, returned by a function in success case. Failure case might be different depending on
+options passed.
+Options (proplist or map):
+- `reraise` (default `true`): when set to true, original exception will be re-thrown after rollback,
+  otherwise `{rollback, ErrorReason}` will be returned
+- `ensure_committed` (default `false`): even when callback returns without exception,
+  check that transaction was comitted by checking `CommandComplete` status
+  of `COMMIT` command. In case when transaction was rolled back, status will be
+  `rollback` instead of `commit` and `ensure_committed_failed` error will be generated.
+- `begin_opts` (default `""`): append extra options to `BEGIN` command (see
+  https://www.postgresql.org/docs/current/static/sql-begin.html) as a string by just
+  appending them to `"BEGIN "` string. Eg `{begin_opts, "ISOLATION LEVEL SERIALIZABLE"}`.
+  Beware of SQL injections! No escaping is made on value of `begin_opts`!
+
+
 ### Command status
 
 `epgsql{a,i}:get_cmd_status(C) -> undefined | atom() | {atom(), integer()}`
@@ -516,7 +543,7 @@ See [streaming.md](streaming.md).
 
 ## Pluggable commands
 
-TODO: docs
+See [pluggable_commands.md](pluggable_commands.md)
 
 ## Pluggable datatype codecs
 
