@@ -359,6 +359,9 @@ send_multi(#state{mod = Mod, sock = Sock}, List) ->
     end, List)).
 
 do_send(gen_tcp, Sock, Bin) ->
+    %% Why not gen_tcp:send/2?
+    %% See https://github.com/rabbitmq/rabbitmq-common/blob/v3.7.4/src/rabbit_writer.erl#L367-L384
+    %% Because of that we also have `handle_info({inet_reply, ...`
     try erlang:port_command(Sock, Bin) of
         true ->
             ok
