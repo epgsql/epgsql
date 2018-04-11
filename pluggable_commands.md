@@ -1,15 +1,15 @@
 # Pluggable commands
 
-Starting from epgsql 4.0.0 it's possible to make a custom epgsql commands. By term "command"
-we assume a single `request -> response` sequence.
+Starting from epgsql 4.0.0 it's possible to create custom epgsql commands. The term "command"
+signifies a single `request -> response` sequence.
 Under the hood it might contain many PostgreSQL protocol command requests and responses,
-but from the point of view of epgsql user, it's a single request that produces a single
+but from the point of view of an epgsql user, it's a single request that produces a single
 response.
 Examples of such commands are `connect`, `squery`, `equery`, `prepared_query`,
 `parse`/`bind`/`execute` and so on. See [src/commands](src/commands) for a full list and
 examples. Basically, almost all epgsql end-user APIs are implemented as a commands.
 
-It is possible to send many commands without waiting for a result of previously sent ones
+It is possible to send many commands without waiting for the results of previously sent ones
 (pipelining) by using `epgsqla` or `epgsqli` interfaces.
 
 ## Possible usecases
@@ -24,25 +24,25 @@ Why you may want to implement a custom command? Some ideas:
 
 ## This can be done by following steps
 
-If you are not familiar with PostgreSQL wire protocol, please, read at least
+If you are not familiar with the PostgreSQL wire protocol, please, read at least the
 [Message Flow](https://www.postgresql.org/docs/current/static/protocol-flow.html) and
 [Message Formats](https://www.postgresql.org/docs/current/static/protocol-message-formats.html)
-sections of PostgreSQL documentation.
-But, basicaly, whole [Frontend/Backend Protocol](https://www.postgresql.org/docs/current/static/protocol.html)
+sections of the PostgreSQL documentation.
+The entire [Frontend/Backend Protocol](https://www.postgresql.org/docs/current/static/protocol.html)
 would be nice to know.
 
 ### Implement epgsql_command behaviour callback module
 
 See [epgsql_command](src/epgsql_command.erl).
 
-This module should have following functions exported:
+This module should have the following functions exported:
 
 ```erlang
 init(any()) -> state().
 ```
 
-Called only once when command was received and is about to be executed by epgsql connection
-process. Command's arguments are passed as callback argument, see `epgsql_sock:sync_command/3` and
+Called only once when the command is received and is about to be executed by the epgsql connection
+process. Command's arguments are passed as the callback's arguments, see `epgsql_sock:sync_command/3` and
 `epgsql_sock:async_command/4`. Should initialize and return command's state that will be
 passed to all subsequent callbacks. No PostgreSQL interactions should be done here.
 
@@ -54,11 +54,11 @@ execute(pg_sock(), state()) ->
 ```
 
 Client -> Server packets should be sent from this callback by `epgsql_sock:send_multi/2` or
-`epgsql_sock:send/3`. `epgsql_wire` module usualy used to create wire protocol packets.
-Please, notice, that many packets might be sent at once. See `epgsql_cmd_equery` as an example.
+`epgsql_sock:send/3`. `epgsql_wire` module is usually used to create wire protocol packets.
+Please note that many packets might be sent at once. See `epgsql_cmd_equery` as an example.
 
 This callback might be executed more than once for a single command execution if your command
-requires response for some of the packets to send next packet (more than one round-trip).
+requires a response for some of the packets to send next packet (more than one round-trip).
 Since epgsql is asynchronous under the hood, you can't just do blocking `receive`.
 See `handle_message/4 -> {requeue, ...}` and `epgsql_cmd_connect` as an example.
 
@@ -80,45 +80,44 @@ handle_message(Type :: byte(), Payload :: binary() | query_error(),
 
 ```
 
-Server -> Client packet handling code. Packet `Type` byte is integer ID of a
-[protocol packet](https://www.postgresql.org/docs/current/static/protocol-message-formats.html), basicaly
-the 1st byte of a packet. And `Payload` is the rest bytes of a packet. `epgsql_wire` module
-have some helpers that might help to decode packet payload.
+Server -> Client packet handling code. Packet `Type` byte is the integer ID of a
+[protocol packet](https://www.postgresql.org/docs/current/static/protocol-message-formats.html), basically
+the 1st byte of a packet. And `Payload` is the remaining bytes of a packet. `epgsql_wire` module
+has some helpers that might help decode the packet payload.
 
-In case when epgsql connection got an error packet from server, it will be decoded and `Payload`
+In the case when the epgsql connection gets an error packet from the server, it will be decoded and `Payload`
 will be `query_error()` instead of binary.
 
-Please, NEVER call `epgsql_sock:send/3`/`epgsql_sock:send_multi/2` from this callback! Use
-`requeue` return instead! Otherwise you will break pipelining!
+**NEVER** call `epgsql_sock:send/3`/`epgsql_sock:send_multi/2` from this callback! Use
+`requeue` return instead: otherwise you will break pipelining!
 
 This callback should return one of the following responses to control command's behaviour:
 
 - `{noaction, pg_sock()}` - to do nothing (this usualy means that packet was ignored)
 - `{noaction, pg_sock(), state()}` - do nothing, but update command's state
 - `{add_row, tuple(), pg_sock(), state()}` - add a row to current resultset rows accumulator.
-  You may get current accumulated resultset by `epgsql_sock::get_rows(pg_sock())` (except
+  You may get the current accumulated resultset by `epgsql_sock::get_rows(pg_sock())` (except
   when `epgsqli` interface is used).
-- `{add_result, Result :: any(), Notification :: any(), pg_sock(), state()}` - add
-  new result to list of results. Usualy all commands have only single result, except `squery` when
-  multiple SQL queries was passed separated by a semicolon and `execute_batch`.
-  You usualy will just return smth like `{ok, epgsql_sock:get_rows(PgSock)}` or some kind of
-  error as a result. `Notification` is used for `epgsqli` interface.
-  You may get current list of accumulated results by `epgsql_sock:get_results(pg_sock())`.
+- `{add_result, Result :: any(), Notification :: any(), pg_sock(), state()}` - add a
+  new result to the list of results. Usualy all commands have only a single result, except `squery`, when
+  multiple SQL queries were passed, separated by a semicolon and `execute_batch`.
+  You will usually will just return something like `{ok, epgsql_sock:get_rows(PgSock)}` or an error as a result. `Notification` is used for `epgsqli` interface.
+  You may get the current list of accumulated results with `epgsql_sock:get_results(pg_sock())`.
 - `{finish, Results, Notification, pg_sock(), state()}` - returned when command was successfuly
   executed and no more actions needed. `Results` will be returned to a client as a result of command
-  execution and command will be descheduled from epgsql connection process.
-  You usualy use result of `epgsql_sock:get_results/1` as a `Results`.
+  execution and the command will be descheduled from epgsql connection process.
+  You usually use the result of `epgsql_sock:get_results/1` as a `Results`.
   `Notification` is used for `epgsqli` interface.
-- `{requeue, pg_sock(), state()}` - asks epgsql process to put this command to execution queue
-  once again (with a new state). That means that `execute/2` callback will be executed again and
-  new packets might be sent from client to server. This way you can implement chatty commands with
+- `{requeue, pg_sock(), state()}` - asks the epgsql process to put this command in the execution queue
+  once again (with a new state). This means that the `execute/2` callback will be executed again and
+  new packets may be sent from client to server. This way you can implement chatty commands with
   multiple `request -> response` sequences. See `epgsql_cmd_connect` as an example.
 - `{stop, Reason, Response, pg_sock()}` - returned when some unrecoverable error occured and
   you want to terminate epgsql connection process. `Response` will be returned as a command result
   and `Reason` will be process termination reason.
   Please, try to avoid use of this response if possible.
 - `{sync_required, Why}` - returned to finish command execution, flush enqueued but not yet
-  executed commands and to set epgsql process in to `sync_required` state. In this state it
+  executed commands and to set epgsql process to `sync_required` state. In this state it
   will not accept any commands except `epgsql_cmd_sync`.
   This usualy means that multipacket protocol sequence was done out-of-order (eg, `bind` before `parse`),
   so, client and server states are out-of-sync and we need to reset them.
@@ -138,8 +137,8 @@ By calling
   asynchronous behaviour when **each row** and some status info will be delivered as separate erlang
   messages (`epgsqli`-like API)
 
-`command()` is a name of a module, implementing `epgsql_command` behaviour.
-`Args` may be any (eg, SQL query / arguments / options), they will be passed to `init/1` callback as is.
+`command()` is the name of a module, implementing `epgsql_command` behaviour.
+`Args` may be any (eg, SQL query / arguments / options), they will be passed to `init/1` callback as-is.
 
 ## Tips
 
@@ -147,9 +146,9 @@ By calling
   add `do(Conn, Arg1, Arg2...) -> epgsql_sock:sync_command(Conn, ?MODULE, Args).` to
   incapsulate `epgsql_sock` calls and provide end-user API.
 * Don't be afraid of `requeue`. It might make your code more complex, but will make it possible to
-  implement complex multistep logick inside of a single command
-* `epgsql_sock` module have some APIs that might be used from a commands. Refer to module's
-  source code. `epgsql_wire` have some helpers to encode/decode wire protocol and data packets.
+  implement complex multistep logic inside of a single command
+* `epgsql_sock` module has some APIs that might be used from within commands. Refer to that module's
+  source code. `epgsql_wire` has some helpers to encode/decode wire protocol and data packets.
 * Packet IDs are defined in `include/protocol.hrl`
 * Again, never try to send packets from `handle_message/4` or `init/1` callbacks!
-* Note that any error in callback functions will cause crash of epgsql connection process!
+* Note that any error in callback functions will crash the epgsql connection process!
