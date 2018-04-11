@@ -493,21 +493,21 @@ Opts :: [{reraise, boolean()},
          {begin_opts, iodata()}] | map().
 ```
 
-Executes function in context of PostgreSQL transaction. It executes `BEGIN` before executing the function,
-`ROLLBACK` if function raises an exception and `COMMIT` if returns without an error.
-It will return result, returned by a function in success case. Failure case might be different depending on
-options passed.
+Executes a function in a PostgreSQL transaction. It executes `BEGIN` prior to executing the function,
+`ROLLBACK` if the function raises an exception and `COMMIT` if the function returns without an error.
+If it is successful, it returns the result of the function. The failure case may differ, depending on
+the options passed.
 Options (proplist or map):
-- `reraise` (default `true`): when set to true, original exception will be re-thrown after rollback,
+- `reraise` (default `true`): when set to true, the original exception will be re-thrown after rollback,
   otherwise `{rollback, ErrorReason}` will be returned
-- `ensure_committed` (default `false`): even when callback returns without exception,
-  check that transaction was comitted by checking `CommandComplete` status
-  of `COMMIT` command. In case when transaction was rolled back, status will be
-  `rollback` instead of `commit` and `ensure_committed_failed` error will be generated.
+- `ensure_committed` (default `false`): even when the callback returns without exception,
+  check that transaction was committed by checking the `CommandComplete` status
+  of the `COMMIT` command. If the transaction was rolled back, the status will be
+  `rollback` instead of `commit` and an `ensure_committed_failed` error will be generated.
 - `begin_opts` (default `""`): append extra options to `BEGIN` command (see
   https://www.postgresql.org/docs/current/static/sql-begin.html) as a string by just
   appending them to `"BEGIN "` string. Eg `{begin_opts, "ISOLATION LEVEL SERIALIZABLE"}`.
-  Beware of SQL injections! No escaping is made on value of `begin_opts`!
+  Beware of SQL injection! The value of `begin_opts` is not escaped!
 
 
 ### Command status
