@@ -18,6 +18,6 @@ otp_release:
   - 17.4
   - R16B03-1
 script:
+  - make elvis
   - make test
   - make dialyzer
-  - make elvis

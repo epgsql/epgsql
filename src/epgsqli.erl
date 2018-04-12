@@ -73,7 +73,7 @@ get_cmd_status(C) ->
 squery(C, Sql) ->
     incremental(C, epgsql_cmd_squery, Sql).
 
--spec equery(epgsql:connection(), #statement{}) -> reference().
+-spec equery(epgsql:connection(), epgsql:statement()) -> reference().
 equery(C, Statement) ->
     equery(C, Statement, []).
 
