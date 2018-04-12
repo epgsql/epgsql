@@ -1,4 +1,5 @@
 REBAR = rebar3
+ERL_VSN = $(shell erl -eval 'erlang:display(erlang:system_info(otp_release)), halt().'  -noshell)
 
 all: compile
 
@@ -17,4 +18,14 @@ test: compile
 dialyzer: compile
 	@$(REBAR) dialyzer
 
-.PHONY: all compile clean test dialyzer
+elvis:
+	@case "$(ERL_VSN)" in\
+		"R16"*)\
+			echo "Elvis is disabled on erl 16"\
+			;;\
+		*)\
+			$(REBAR) as lint lint\
+			;;\
+	esac
+
+.PHONY: all compile clean test dialyzer elvis

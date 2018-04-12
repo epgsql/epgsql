@@ -69,6 +69,7 @@ see `CHANGES` for full list.
     {ssl_opts, SslOptions :: [ssl:ssl_option()]}   | % @see OTP ssl app, ssl_api.hrl
     {timeout,  TimeoutMs  :: timeout()}            | % default: 5000 ms
     {async,    Receiver   :: pid() | atom()}       | % process to receive LISTEN/NOTIFY msgs
+    {codecs,   Codecs     :: [{epgsql_codec:codec_mod(), any()}]} |
     {replication, Replication :: string()}. % Pass "database" to connect in replication mode
     
 -spec connect(host(), string(), string(), [connect_option()] | map())
@@ -78,7 +79,7 @@ see `CHANGES` for full list.
 %% `Host'     - host to connect to
 %% `Username' - username to connect as, defaults to `$USER'
 %% `Password' - optional password to authenticate with
-%% `Opts'     - proplist of extra options
+%% `Opts'     - proplist or map of extra options
 %% returns `{ok, Connection}' otherwise `{error, Reason}'
 connect(Host, Username, Password, Opts) -> ...
 ```
@@ -139,49 +140,40 @@ squery(Connection, SqlQuery) -> ...
 ```
 examples:
 ```erlang
-InsertRes = epgsql:squery(C, "insert into account (name) values  ('alice'), ('bob')"),
-io:format("~p~n", [InsertRes]),
-```
-> ```
-{ok,2}
+epgsql:squery(C, "insert into account (name) values  ('alice'), ('bob')").
+> {ok,2}
 ```
 
 ```erlang
-SelectRes = epgsql:squery(C, "select * from account"),
-io:format("~p~n", [SelectRes]).
-```
-> ```
-{ok,
+epgsql:squery(C, "select * from account").
+> {ok,
     [{column,<<"id">>,int4,4,-1,0},{column,<<"name">>,text,-1,-1,0}],
     [{<<"1">>,<<"alice">>},{<<"2">>,<<"bob">>}]
 }
 ```
 
 ```erlang
-InsertReturningRes = epgsql:squery(C, 
+epgsql:squery(C,
     "insert into account(name)"
     "    values ('joe'), (null)"
-    "    returning *"),
-io:format("~p~n", [InsertReturningRes]).
-```
-> ```
-{ok,2,
+    "    returning *").
+> {ok,2,
     [{column,<<"id">>,int4,4,-1,0}, {column,<<"name">>,text,-1,-1,0}],
     [{<<"3">>,<<"joe">>},{<<"4">>,null}]
 }
 ```
 
 ```erlang
-{error, Reason} = epgsql:squery(C, "insert into account values (1, 'bad_pkey')"),
-io:format("~p~n", [Reason]).
-```
-> ```
-{error,
-    error,
-    <<"23505">>,
-    <<"duplicate key value violates unique constraint \"account_pkey\"">>,
-    [{detail,<<"Key (id)=(1) already exists.">>}]
-}
+-include_lib("epgsql/include/epgsql.hrl").
+epgsql:squery(C, "SELECT * FROM _nowhere_").
+> {error,
+   #error{severity = error,code = <<"42P01">>,
+          codename = undefined_table,
+          message = <<"relation \"_nowhere_\" does not exist">>,
+          extra = [{file,<<"parse_relation.c">>},
+                   {line,<<"1160">>},
+                   {position,<<"15">>},
+                   {routine,<<"parserOpenTable">>}]}}
 ```
 
 The simple query protocol returns all columns as binary strings
@@ -190,7 +182,7 @@ and does not support parameters binding.
 Several queries separated by semicolon can be executed by squery.
 
 ```erlang
-  [{ok, _, [{<<"1">>}]}, {ok, _, [{<<"2">>}]}] = epgsql:squery(C, "select 1; select 2").
+[{ok, _, [{<<"1">>}]}, {ok, _, [{<<"2">>}]}] = epgsql:squery(C, "select 1; select 2").
 ```
 
 `epgsqla:squery/2` returns result as a single message:
@@ -246,11 +238,8 @@ the unnamed prepared statement and portal. A `select` statement returns
 an error occurs, all statements result in `{error, #error{}}`.
 
 ```erlang
-SelectRes = epgsql:equery(C, "select id from account where name = $1", ["alice"]),
-io:format("~p~n", [SelectRes]).
-```
-> ```
-{ok,
+epgsql:equery(C, "select id from account where name = $1", ["alice"]),
+> {ok,
     [{column,<<"id">>,int4,4,-1,1}],
     [{1}]
 }
@@ -400,13 +389,17 @@ example:
 - `{C, Ref, done}` - execution of all queries from Batch has finished
 
 ## Data Representation
+
+Data representation may be configured using [pluggable datatype codecs](pluggable_types.md),
+so following is just default mapping:
+
 PG type       | Representation
 --------------|-------------------------------------
   null        | `null`
   bool        | `true` | `false`
   char        | `$A` | `binary`
   intX        | `1`
-  floatX      | `1.0`
+  floatX      | `1.0` | `nan` | `minus_infinity` | `plus_infinity`
   date        | `{Year, Month, Day}`
   time        | `{Hour, Minute, Second.Microsecond}`
   timetz      | `{time, Timezone}`
@@ -420,13 +413,18 @@ PG type       | Representation
   record      | `{int2, time, text, ...}` (decode only)
   point       |  `{10.2, 100.12}`
   int4range   | `[1,5)`
-  hstore      | `{list({binary(), binary() | null})}`
+  hstore      | `{[ {binary(), binary() \| null} ]}`
   json/jsonb  | `<<"{ \"key\": [ 1, 1.0, true, \"string\" ] }">>`
+  uuid        | `<<"123e4567-e89b-12d3-a456-426655440000">>`
+  inet        | `inet:ip_address()`
+  cidr        | `{ip_address(), Mask :: 0..32}`
+  macaddr(8)  | tuple of 6 or 8 `byte()`
+  geometry    | `ewkb:geometry()`
 
 
   `timestamp` and `timestamptz` parameters can take `erlang:now()` format: `{MegaSeconds, Seconds, MicroSeconds}`
 
-  `int4range` is a range type for ints (bigint not supported yet) that obeys inclusive/exclusive semantics,
+  `int4range` is a range type for ints that obeys inclusive/exclusive semantics,
   bracket and parentheses respectively. Additionally, infinities are represented by the atoms `minus_infinity`
   and `plus_infinity`
 
@@ -485,6 +483,33 @@ Message formats:
 
 ## Utility functions
 
+### Transaction helpers
+
+```erlang
+with_transaction(connection(), fun((connection()) -> Result :: any()), Opts) ->
+    Result | {rollback, Reason :: any()} when
+Opts :: [{reraise, boolean()},
+         {ensure_committed, boolean()},
+         {begin_opts, iodata()}] | map().
+```
+
+Executes a function in a PostgreSQL transaction. It executes `BEGIN` prior to executing the function,
+`ROLLBACK` if the function raises an exception and `COMMIT` if the function returns without an error.
+If it is successful, it returns the result of the function. The failure case may differ, depending on
+the options passed.
+Options (proplist or map):
+- `reraise` (default `true`): when set to true, the original exception will be re-thrown after rollback,
+  otherwise `{rollback, ErrorReason}` will be returned
+- `ensure_committed` (default `false`): even when the callback returns without exception,
+  check that transaction was committed by checking the `CommandComplete` status
+  of the `COMMIT` command. If the transaction was rolled back, the status will be
+  `rollback` instead of `commit` and an `ensure_committed_failed` error will be generated.
+- `begin_opts` (default `""`): append extra options to `BEGIN` command (see
+  https://www.postgresql.org/docs/current/static/sql-begin.html) as a string by just
+  appending them to `"BEGIN "` string. Eg `{begin_opts, "ISOLATION LEVEL SERIALIZABLE"}`.
+  Beware of SQL injection! The value of `begin_opts` is not escaped!
+
+
 ### Command status
 
 `epgsql{a,i}:get_cmd_status(C) -> undefined | atom() | {atom(), integer()}`
@@ -516,6 +541,13 @@ Parameter's value may change during connection's lifetime.
 
 See [streaming.md](streaming.md).
 
+## Pluggable commands
+
+See [pluggable_commands.md](pluggable_commands.md)
+
+## Pluggable datatype codecs
+
+See [pluggable_types.md](pluggable_types.md)
 
 ## Mailing list
 

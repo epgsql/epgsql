@@ -22,15 +22,20 @@
          update_type_cache/1,
          update_type_cache/2,
          with_transaction/2,
+         with_transaction/3,
          sync_on_error/2,
          standby_status_update/3,
          start_replication/5,
          start_replication/6,
          to_proplist/1]).
+-export([handle_x_log_data/5]).                 % private
 
 -export_type([connection/0, connect_option/0, connect_opts/0,
-              connect_error/0, query_error/0,
-              sql_query/0, bind_param/0, typed_param/0,
+              connect_error/0, query_error/0, sql_query/0, column/0,
+              type_name/0, epgsql_type/0, statement/0]).
+
+%% Deprecated types
+-export_type([bind_param/0, typed_param/0,
               squery_row/0, equery_row/0, reply/1,
               pg_time/0, pg_date/0, pg_datetime/0, pg_interval/0]).
 
@@ -46,9 +51,10 @@
     {database, DBName     :: string()}             |
     {port,     PortNum    :: inet:port_number()}   |
     {ssl,      IsEnabled  :: boolean() | required} |
-    {ssl_opts, SslOptions :: [ssl:ssl_option()]}   | % @see OTP ssl app, ssl_api.hrl
+    {ssl_opts, SslOptions :: [ssl:ssl_option()]}   | % see OTP ssl app, ssl_api.hrl
     {timeout,  TimeoutMs  :: timeout()}            | % default: 5000 ms
     {async,    Receiver   :: pid() | atom()}       | % process to receive LISTEN/NOTIFY msgs
+    {codecs,   Codecs     :: [{epgsql_codec:codec_mod(), any()}]} |
     {replication, Replication :: string()}. % Pass "database" to connect in replication mode
 
 -ifdef(have_maps).
@@ -63,53 +69,43 @@
           ssl_opts => [ssl:ssl_option()],
           timeout => timeout(),
           async => pid(),
+          codecs => [{epgsql_codec:codec_mod(), any()}],
           replication => string()}.
 -else.
 -type connect_opts() :: [connect_option()].
 -endif.
 
--type connect_error() ::
-        #error{}
-      | {unsupported_auth_method, atom()}
-      | invalid_authorization_specification
-      | invalid_password.
+-type connect_error() :: epgsql_cmd_connect:connect_error().
 -type query_error() :: #error{}.
 
-%% Ranges are from https://www.postgresql.org/docs/current/static/datatype-datetime.html
--type pg_date() ::
-        {Year :: -4712..294276,
-         Month :: 1..12,
-         Day :: 1..31}.
--type pg_time() ::
-        {Hour :: 0..24,  % Max value is 24:00:00
-         Minute :: 0..59,
-         Second :: 0..59 | float()}.
--type pg_datetime() :: {pg_date(), pg_time()}.
--type pg_interval() :: {pg_time(), Days :: integer(), Months :: integer()}.
 
--type bind_param() ::
-        null
-        | boolean()
-        | string()
-        | binary()
-        | integer()
-        | float()
-        | pg_date()
-        | pg_time()
-        | pg_datetime()
-        | pg_interval()
-        | {list({binary(), binary() | null})}   % hstore
-        | [bind_param()].                       %array (maybe nested)
+-type type_name() :: atom().
+-type epgsql_type() :: type_name()
+                     | {array, type_name()}
+                     | {unknown_oid, integer()}.
 
--type typed_param() ::
-    {epgsql_type(), bind_param()}.
+%% Deprecated
+-type pg_date() :: epgsql_codec_datetime:pg_date().
+-type pg_time() :: epgsql_codec_datetime:pg_time().
+-type pg_datetime() :: epgsql_codec_datetime:pg_datetime().
+-type pg_interval() :: epgsql_codec_datetime:pg_interval().
 
+%% Deprecated
+-type bind_param() :: any().
+
+-type typed_param() :: {epgsql_type(), bind_param()}.
+
+-type column() :: #column{}.
+-type statement() :: #statement{}.
 -type squery_row() :: tuple(). % tuple of binary().
 -type equery_row() :: tuple(). % tuple of bind_param().
 -type ok_reply(RowType) ::
-    {ok, ColumnsDescription :: [#column{}], RowsValues :: [RowType]} |                            % select
-    {ok, Count :: non_neg_integer()} |                                                            % update/insert/delete
-    {ok, Count :: non_neg_integer(), ColumnsDescription :: [#column{}], RowsValues :: [RowType]}. % update/insert/delete + returning
+        %% select
+    {ok, ColumnsDescription :: [column()], RowsValues :: [RowType]} |
+        %% update/insert/delete
+    {ok, Count :: non_neg_integer()} |
+        %% update/insert/delete + returning
+    {ok, Count :: non_neg_integer(), ColumnsDescription :: [column()], RowsValues :: [RowType]}.
 -type error_reply() :: {error, query_error()}.
 -type reply(RowType) :: ok_reply(RowType) | error_reply().
 -type lsn() :: integer().
@@ -127,10 +123,10 @@
         -> {ok, Connection :: connection()} | {error, Reason :: connect_error()}.
 connect(Settings0) ->
     Settings = to_proplist(Settings0),
-	Host = proplists:get_value(host, Settings, "localhost"),
-	Username = proplists:get_value(username, Settings, os:getenv("USER")),
-	Password = proplists:get_value(password, Settings, ""),
-	connect(Host, Username, Password, Settings).
+    Host = proplists:get_value(host, Settings, "localhost"),
+    Username = proplists:get_value(username, Settings, os:getenv("USER")),
+    Password = proplists:get_value(password, Settings, ""),
+    connect(Host, Username, Password, Settings).
 
 connect(Host, Opts) ->
     connect(Host, os:getenv("USER"), "", Opts).
@@ -156,39 +152,44 @@ connect(Host, Username, Password, Opts) ->
 connect(C, Host, Username, Password, Opts0) ->
     Opts = to_proplist(Opts0),
     %% TODO connect timeout
-    case gen_server:call(C,
-                         {connect, Host, Username, Password, Opts},
-                         infinity) of
+    case epgsql_sock:sync_command(
+           C, epgsql_cmd_connect, {Host, Username, Password, Opts}) of
         connected ->
-            case proplists:get_value(replication, Opts, undefined) of
-                undefined ->
-                    update_type_cache(C),
-                    {ok, C};
-                _ -> {ok, C} %% do not update update_type_cache if connection is in replication mode
-            end;
+            %% If following call fails for you, try to add {codecs, []} connect option
+            {ok, _} = maybe_update_typecache(C, Opts),
+            {ok, C};
         Error = {error, _} ->
             Error
     end.
 
--spec update_type_cache(connection()) -> ok.
+maybe_update_typecache(C, Opts) ->
+    maybe_update_typecache(C, proplists:get_value(replication, Opts), proplists:get_value(codecs, Opts)).
+
+maybe_update_typecache(C, undefined, undefined) ->
+    %% TODO: don't execute 'update_type_cache' when `codecs` is undefined.
+    %% This will break backward compatibility
+    update_type_cache(C);
+maybe_update_typecache(C, undefined, [_ | _] = Codecs) ->
+    update_type_cache(C, Codecs);
+maybe_update_typecache(_, _, _) ->
+    {ok, []}.
+
 update_type_cache(C) ->
-    update_type_cache(C, [<<"hstore">>,<<"geometry">>]).
+    update_type_cache(C, [{epgsql_codec_hstore, []},
+                          {epgsql_codec_postgis, []}]).
 
--spec update_type_cache(connection(), [binary()]) -> ok.
-update_type_cache(C, DynamicTypes) ->
-    Query = "SELECT typname, oid::int4, typarray::int4"
-            " FROM pg_type"
-            " WHERE typname = ANY($1::varchar[])",
-    case equery(C, Query, [DynamicTypes]) of
-        {ok, _, TypeInfos} ->
-            ok = gen_server:call(C, {update_type_cache, TypeInfos});
-        {error, {error, error, _, _,
-                 <<"column \"typarray\" does not exist in pg_type">>, _}} ->
-            %% Do not fail connect if pg_type table in not in the expected
-            %% format. Known to happen for Redshift which is based on PG v8.0.2
-            ok
-    end.
+-spec update_type_cache(connection(), [{epgsql_codec:codec_mod(), Opts :: any()}]) ->
+                               epgsql_cmd_update_type_cache:response() | {error, empty}.
+update_type_cache(_C, []) ->
+    {error, empty};
+update_type_cache(C, Codecs) ->
+    %% {error, #error{severity = error,
+    %%                message = <<"column \"typarray\" does not exist in pg_type">>}}
+    %% Do not fail connect if pg_type table in not in the expected
+    %% format. Known to happen for Redshift which is based on PG v8.0.2
+    epgsql_sock:sync_command(C, epgsql_cmd_update_type_cache, Codecs).
 
+%% @doc close connection
 -spec close(connection()) -> ok.
 close(C) ->
     epgsql_sock:close(C).
@@ -212,10 +213,10 @@ set_notice_receiver(C, PidOrName) ->
 get_cmd_status(C) ->
     epgsql_sock:get_cmd_status(C).
 
--spec squery(connection(), sql_query()) -> reply(squery_row()) | [reply(squery_row())].
+-spec squery(connection(), sql_query()) -> epgsql_cmd_squery:response().
 %% @doc runs simple `SqlQuery' via given `Connection'
 squery(Connection, SqlQuery) ->
-    gen_server:call(Connection, {squery, SqlQuery}, infinity).
+    epgsql_sock:sync_command(Connection, epgsql_cmd_squery, SqlQuery).
 
 equery(C, Sql) ->
     equery(C, Sql, []).
@@ -224,28 +225,30 @@ equery(C, Sql) ->
 equery(C, Sql, Parameters) ->
     case parse(C, "", Sql, []) of
         {ok, #statement{types = Types} = S} ->
-            Typed_Parameters = lists:zip(Types, Parameters),
-            gen_server:call(C, {equery, S, Typed_Parameters}, infinity);
+            TypedParameters = lists:zip(Types, Parameters),
+            epgsql_sock:sync_command(C, epgsql_cmd_equery, {S, TypedParameters});
         Error ->
             Error
     end.
 
--spec equery(connection(), string(), sql_query(), [bind_param()]) -> reply(equery_row()).
+-spec equery(connection(), string(), sql_query(), [bind_param()]) ->
+                    epgsql_cmd_equery:response().
 equery(C, Name, Sql, Parameters) ->
     case parse(C, Name, Sql, []) of
         {ok, #statement{types = Types} = S} ->
-            Typed_Parameters = lists:zip(Types, Parameters),
-            gen_server:call(C, {equery, S, Typed_Parameters}, infinity);
+            TypedParameters = lists:zip(Types, Parameters),
+            epgsql_sock:sync_command(C, epgsql_cmd_equery, {S, TypedParameters});
         Error ->
             Error
     end.
 
--spec prepared_query(C::connection(), Name::string(), Parameters::[bind_param()]) -> reply(equery_row()).
+-spec prepared_query(C::connection(), Name::string(), Parameters::[bind_param()]) ->
+                            epgsql_cmd_prepared_query:response().
 prepared_query(C, Name, Parameters) ->
     case describe(C, statement, Name) of
         {ok, #statement{types = Types} = S} ->
-            Typed_Parameters = lists:zip(Types, Parameters),
-            gen_server:call(C, {prepared_query, S, Typed_Parameters}, infinity);
+            TypedParameters = lists:zip(Types, Parameters),
+            epgsql_sock:sync_command(C, epgsql_cmd_prepared_query, {S, TypedParameters});
         Error ->
             Error
     end.
@@ -260,21 +263,24 @@ parse(C, Sql, Types) ->
     parse(C, "", Sql, Types).
 
 -spec parse(connection(), iolist(), sql_query(), [epgsql_type()]) ->
-                   {ok, #statement{}} | {error, query_error()}.
+                   epgsql_cmd_parse:response().
 parse(C, Name, Sql, Types) ->
-    sync_on_error(C, gen_server:call(C, {parse, Name, Sql, Types}, infinity)).
+    sync_on_error(
+      C, epgsql_sock:sync_command(
+           C, epgsql_cmd_parse, {Name, Sql, Types})).
 
 %% bind
 
 bind(C, Statement, Parameters) ->
     bind(C, Statement, "", Parameters).
 
--spec bind(connection(), #statement{}, string(), [bind_param()]) ->
-                  ok | {error, query_error()}.
+-spec bind(connection(), statement(), string(), [bind_param()]) ->
+                  epgsql_cmd_bind:response().
 bind(C, Statement, PortalName, Parameters) ->
     sync_on_error(
       C,
-      gen_server:call(C, {bind, Statement, PortalName, Parameters}, infinity)).
+      epgsql_sock:sync_command(
+        C, epgsql_cmd_bind, {Statement, PortalName, Parameters})).
 
 %% execute
 
@@ -284,39 +290,45 @@ execute(C, S) ->
 execute(C, S, N) ->
     execute(C, S, "", N).
 
--spec execute(connection(), #statement{}, string(), non_neg_integer()) -> Reply
-                                                                              when
-      Reply :: {ok | partial, [equery_row()]}
-             | {ok, non_neg_integer()}
-             | {ok, non_neg_integer(), [equery_row()]}
-             | {error, query_error()}.
+-spec execute(connection(), statement(), string(), non_neg_integer()) -> Reply when
+      Reply :: epgsql_cmd_execute:response().
 execute(C, S, PortalName, N) ->
-    gen_server:call(C, {execute, S, PortalName, N}, infinity).
+    epgsql_sock:sync_command(C, epgsql_cmd_execute, {S, PortalName, N}).
 
--spec execute_batch(connection(), [{#statement{}, [bind_param()]}]) -> [reply(equery_row())].
+-spec execute_batch(connection(), [{statement(), [bind_param()]}]) ->
+                           epgsql_cmd_batch:response().
 execute_batch(C, Batch) ->
-    gen_server:call(C, {execute_batch, Batch}, infinity).
+    epgsql_sock:sync_command(C, epgsql_cmd_batch, Batch).
 
 %% statement/portal functions
-
+-spec describe(connection(), statement()) -> epgsql_cmd_describe_statement:response().
 describe(C, #statement{name = Name}) ->
     describe(C, statement, Name).
 
+-spec describe(connection(), portal, iodata()) -> epgsql_cmd_describe_portal:response();
+              (connection(), statement, iodata()) -> epgsql_cmd_describe_statement:response().
 describe(C, statement, Name) ->
-    sync_on_error(C, gen_server:call(C, {describe_statement, Name}, infinity));
+    sync_on_error(
+      C, epgsql_sock:sync_command(
+           C, epgsql_cmd_describe_statement, Name));
 
-%% TODO unknown result format of Describe portal
 describe(C, portal, Name) ->
-    sync_on_error(C, gen_server:call(C, {describe_portal, Name}, infinity)).
+    sync_on_error(
+      C, epgsql_sock:sync_command(
+           C, epgsql_cmd_describe_portal, Name)).
 
+%% @doc close statement
+-spec close(connection(), statement()) -> epgsql_cmd_close:response().
 close(C, #statement{name = Name}) ->
     close(C, statement, Name).
 
+-spec close(connection(), statement | portal, iodata()) -> epgsql_cmd_close:response().
 close(C, Type, Name) ->
-    gen_server:call(C, {close, Type, Name}).
+    epgsql_sock:sync_command(C, epgsql_cmd_close, {Type, Name}).
 
+-spec sync(connection()) -> epgsql_cmd_sync:response().
 sync(C) ->
-    gen_server:call(C, sync).
+    epgsql_sock:sync_command(C, epgsql_cmd_sync, []).
 
 -spec cancel(connection()) -> ok.
 cancel(C) ->
@@ -328,16 +340,54 @@ cancel(C) ->
                                   when
       Reply :: any().
 with_transaction(C, F) ->
-    try {ok, [], []} = squery(C, "BEGIN"),
+    with_transaction(C, F, [{reraise, false}]).
+
+%% @doc Execute callback function with connection in a transaction.
+%% Transaction will be rolled back in case of exception.
+%% Options (proplist or map):
+%% - reraise (true): when set to true, exception will be re-thrown, otherwise
+%%   {rollback, ErrorReason} will be returned
+%% - ensure_comitted (false): even when callback returns without exception,
+%%   check that transaction was comitted by checking CommandComplete status
+%%   of "COMMIT" command. In case when transaction was rolled back, status will be
+%%   "rollback" instead of "commit".
+%% - begin_opts (""): append extra options to "BEGIN" command (see
+%%   https://www.postgresql.org/docs/current/static/sql-begin.html)
+%%   Beware of SQL injections! No escaping is made on begin_opts!
+-spec with_transaction(
+        connection(), fun((connection()) -> Reply), Opts) -> Reply | {rollback, any()} | no_return() when
+      Reply :: any(),
+      Opts :: [{reraise, boolean()} |
+               {ensure_committed, boolean()} |
+               {begin_opts, iodata()}].
+with_transaction(C, F, Opts0) ->
+    Opts = to_proplist(Opts0),
+    Begin = case proplists:get_value(begin_opts, Opts) of
+                undefined -> <<"BEGIN">>;
+                BeginOpts ->
+                    [<<"BEGIN ">> | BeginOpts]
+            end,
+    try
+        {ok, [], []} = squery(C, Begin),
         R = F(C),
-        {ok, [], []} = squery(C, "COMMIT"),
+        {ok, [], []} = squery(C, <<"COMMIT">>),
+        case proplists:get_value(ensure_committed, Opts, false) of
+            true ->
+                {ok, CmdStatus} = get_cmd_status(C),
+                (commit == CmdStatus) orelse error({ensure_committed_failed, CmdStatus});
+            false -> ok
+        end,
         R
     catch
-        _:Why ->
+        Type:Reason ->
             squery(C, "ROLLBACK"),
-            %% TODO hides error stacktrace
-            {rollback, Why}
+            handle_error(Type, Reason, proplists:get_value(reraise, Opts, true))
     end.
+
+handle_error(_, Reason, false) ->
+    {rollback, Reason};
+handle_error(Type, Reason, true) ->
+    erlang:raise(Type, Reason, erlang:get_stacktrace()).
 
 sync_on_error(C, Error = {error, _}) ->
     ok = sync(C),
@@ -346,13 +396,18 @@ sync_on_error(C, Error = {error, _}) ->
 sync_on_error(_C, R) ->
     R.
 
--spec standby_status_update(connection(), lsn(), lsn()) -> ok | error_reply().
-%% @doc sends last flushed and applied WAL positions to the server in a standby status update message via given `Connection'
+-spec standby_status_update(connection(), lsn(), lsn()) -> ok.
+%% @doc sends last flushed and applied WAL positions to the server in a standby status update message via
+%% given `Connection'
 standby_status_update(Connection, FlushedLSN, AppliedLSN) ->
     gen_server:call(Connection, {standby_status_update, FlushedLSN, AppliedLSN}).
 
--spec start_replication(connection(), string(), Callback, cb_state(), string(), string()) -> ok | error_reply() when
-    Callback :: module() | pid().
+handle_x_log_data(Mod, StartLSN, EndLSN, WALRecord, Repl) ->
+    Mod:handle_x_log_data(StartLSN, EndLSN, WALRecord, Repl).
+
+-spec start_replication(connection(), string(), Callback, cb_state(), string(), string()) -> Response when
+      Response :: epgsql_cmd_start_replication:response(),
+      Callback :: module() | pid().
 %% @doc instructs Postgres server to start streaming WAL for logical replication
 %% where
 %% `Connection'      - connection in replication mode
@@ -366,7 +421,9 @@ standby_status_update(Connection, FlushedLSN, AppliedLSN) ->
 %%                      For example: "option_name1 'value1', option_name2 'value2'"
 %% returns `ok' otherwise `{error, Reason}'
 start_replication(Connection, ReplicationSlot, Callback, CbInitState, WALPosition, PluginOpts) ->
-    gen_server:call(Connection, {start_replication, ReplicationSlot, Callback, CbInitState, WALPosition, PluginOpts}).
+    Command = {ReplicationSlot, Callback, CbInitState, WALPosition, PluginOpts},
+    epgsql_sock:sync_command(Connection, epgsql_cmd_start_replication, Command).
+
 start_replication(Connection, ReplicationSlot, Callback, CbInitState, WALPosition) ->
     start_replication(Connection, ReplicationSlot, Callback, CbInitState, WALPosition, []).
 

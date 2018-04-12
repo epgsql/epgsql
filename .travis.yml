@@ -20,3 +20,4 @@ otp_release:
 script:
   - make test
   - make dialyzer
+  - make elvis
