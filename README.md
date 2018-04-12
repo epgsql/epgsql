@@ -413,7 +413,7 @@ PG type       | Representation
   record      | `{int2, time, text, ...}` (decode only)
   point       |  `{10.2, 100.12}`
   int4range   | `[1,5)`
-  hstore      | `{list({binary(), binary() | null})}`
+  hstore      | `{[ {binary(), binary() \| null} ]}`
   json/jsonb  | `<<"{ \"key\": [ 1, 1.0, true, \"string\" ] }">>`
   uuid        | `<<"123e4567-e89b-12d3-a456-426655440000">>`
   inet        | `inet:ip_address()`
