@@ -699,7 +699,10 @@ character_type(Config) ->
                            Module:equery(C, "SELECT $1::varchar", [12345])),
               FloatBin = erlang:float_to_binary(1.2345),
               ?assertMatch({ok, _, [{FloatBin}]},
-                           Module:equery(C, "SELECT $1::varchar", [1.2345]))
+                           Module:equery(C, "SELECT $1::varchar", [1.2345])),
+              %% String bpchar
+              ?assertMatch({ok, _, [{<<"hello world">>}]},
+                           Module:equery(C, "SELECT $1::bpchar", ["hello world"]))
       end).
 
 uuid_type(Config) ->

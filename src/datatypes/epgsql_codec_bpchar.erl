@@ -24,7 +24,14 @@ names() ->
 encode(C, _, _) when is_integer(C), C =< 255 ->
     <<C:1/big-unsigned-unit:8>>;
 encode(Bin, bpchar, _) when is_binary(Bin) ->
-    Bin.
+    Bin;
+encode(Str, bpchar, _) when is_list(Str) ->
+    %% See epgsql_codec_text:encode/3
+    try iolist_size(Str) of
+        _ -> Str
+    catch error:badarg ->
+            unicode:characters_to_binary(Str)
+    end.
 
 decode(<<C:1/big-unsigned-unit:8>>, _, _) -> C;
 decode(Bin, bpchar, _) -> Bin.
