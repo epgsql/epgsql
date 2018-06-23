@@ -4,9 +4,6 @@ addons:
     packages:
       - postgresql-9.6-postgis-2.3
       - postgresql-contrib-9.6
-before_script:
-  - wget https://s3.amazonaws.com/rebar3/rebar3
-  - chmod u+x ./rebar3
 env:
   - PATH=".:/usr/lib/postgresql/9.6/bin:$PATH"
 install: "true"
