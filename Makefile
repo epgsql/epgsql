@@ -1,12 +1,23 @@
-REBAR = rebar3
+REBAR = ./rebar3
 ERL_VSN = $(shell erl -eval 'erlang:display(erlang:system_info(otp_release)), halt().'  -noshell)
 
 all: compile
 
-compile: src/epgsql_errcodes.erl
+$(REBAR):
+	@case "$(ERL_VSN)" in\
+		"R16"*)\
+			wget https://github.com/erlang/rebar3/releases/download/3.5.2/rebar3 \
+			;;\
+		*)\
+			wget https://s3.amazonaws.com/rebar3/rebar3 \
+			;;\
+	esac
+	chmod +x rebar3
+
+compile: src/epgsql_errcodes.erl $(REBAR)
 	@$(REBAR) compile
 
-clean:
+clean: $(REBAR)
 	@$(REBAR) clean
 
 src/epgsql_errcodes.erl:
@@ -18,7 +29,7 @@ test: compile
 dialyzer: compile
 	@$(REBAR) dialyzer
 
-elvis:
+elvis: $(REBAR)
 	@case "$(ERL_VSN)" in\
 		"R16"*)\
 			echo "Elvis is disabled on erl 16"\
