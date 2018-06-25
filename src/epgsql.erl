@@ -111,6 +111,13 @@
 -type lsn() :: integer().
 -type cb_state() :: term().
 
+%% See https://github.com/erlang/rebar3/pull/1773
+-ifdef(FUN_STACKTRACE).
+-define(WITH_STACKTRACE(T, R, S), T:R -> S = erlang:get_stacktrace(), ).
+-else.
+-define(WITH_STACKTRACE(T, R, S), T:R:S ->).
+-endif.
+
 %% -- behaviour callbacks --
 
 %% Handles a XLogData Message (StartLSN, EndLSN, WALRecord, CbState).
@@ -379,15 +386,15 @@ with_transaction(C, F, Opts0) ->
         end,
         R
     catch
-        Type:Reason ->
+        ?WITH_STACKTRACE(Type, Reason, Stack)
             squery(C, "ROLLBACK"),
-            handle_error(Type, Reason, proplists:get_value(reraise, Opts, true))
+            case proplists:get_value(reraise, Opts, true) of
+                true ->
+                    erlang:raise(Type, Reason, Stack);
+                false ->
+                    {rollback, Reason}
+            end
     end.
-
-handle_error(_, Reason, false) ->
-    {rollback, Reason};
-handle_error(Type, Reason, true) ->
-    erlang:raise(Type, Reason, erlang:get_stacktrace()).
 
 sync_on_error(C, Error = {error, _}) ->
     ok = sync(C),
