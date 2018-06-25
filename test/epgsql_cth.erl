@@ -51,8 +51,8 @@ start_postgres() ->
     ok = application:start(erlexec),
     pipe([
         fun find_utils/1,
-        fun get_version/1,
         fun init_database/1,
+        fun get_version/1,
         fun write_postgresql_config/1,
         fun copy_certs/1,
         fun write_pg_hba_config/1,
@@ -155,14 +155,12 @@ init_database(Config) ->
     [{datadir, PgDataDir}|Config].
 
 get_version(Config) ->
-    %% XXX: maybe use datadir/PG_VERSION after initdb?
-    Utils = ?config(utils, Config),
-    Postgres = ?config(postgres, Utils),
-
-    VersionStdout = list_to_binary(string:strip(os:cmd(Postgres ++ " -V"), both, $\n)),
-    VersionBin = lists:last(binary:split(VersionStdout, <<" ">>, [global])),
+    Datadir = ?config(datadir, Config),
+    VersionFile = filename:join(Datadir, "PG_VERSION"),
+    {ok, VersionFileData} = file:read_file(VersionFile),
+    VersionBin = list_to_binary(string:strip(binary_to_list(VersionFileData), both, $\n)),
     Version = lists:map(fun erlang:binary_to_integer/1,
-                        binary:split(VersionBin, <<".">>, [global])),
+                         binary:split(VersionBin, <<".">>, [global])),
     [{version, Version} | Config].
 
 write_postgresql_config(Config) ->
@@ -213,7 +211,7 @@ write_pg_hba_config(Config) ->
         "host    epgsql_test_db1 epgsql_test_md5         127.0.0.1/32    md5\n",
         "host    epgsql_test_db1 epgsql_test_cleartext   127.0.0.1/32    password\n",
         "hostssl epgsql_test_db1 epgsql_test_cert        127.0.0.1/32    cert clientcert=1\n" |
-        case Version >= [10, 0] of
+        case Version >= [10] of
             true ->
                 %% See
                 %% https://www.postgresql.org/docs/10/static/release-10.html
