@@ -113,7 +113,7 @@
 
 %% See https://github.com/erlang/rebar3/pull/1773
 -ifdef(FUN_STACKTRACE).
--define(WITH_STACKTRACE(T, R, S), T:R -> S = erlang:get_stacktrace(),).
+-define(WITH_STACKTRACE(T, R, S), T:R -> S = erlang:get_stacktrace(), ).
 -else.
 -define(WITH_STACKTRACE(T, R, S), T:R:S ->).
 -endif.
