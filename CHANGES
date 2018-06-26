@@ -1,3 +1,13 @@
+In 4.1.0
+
+* Fix Erlang 21 `get_stacktrace/0` warnings
+* Fix broken backward-compatibility in `bpchar` datatype
+* Fix compatibility issues between the newest rebar3 and Erlang R16
+
+In 4.0.1
+
+* Minor build bug fixed
+
 In 4.0.0
 
 Changes:
