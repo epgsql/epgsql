@@ -33,8 +33,8 @@ connect(Host, Username, Password, Opts) ->
     await_connect(Ref, Opts).
 
 await_connect(Ref, Opts0) ->
-    Opts = epgsql_cth:to_proplist(Opts0),
-    Timeout = proplists:get_value(timeout, Opts, 5000),
+    Opts = epgsql:to_map(Opts0),
+    Timeout = maps:get(timeout, Opts, 5000),
     receive
         {C, Ref, connected} ->
             {ok, C};

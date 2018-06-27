@@ -30,14 +30,6 @@ init_per_suite(Config) ->
 all() ->
     [{group, M} || M <- modules()].
 
--ifdef(have_maps).
--define(MAPS_TESTS, [
-    connect_map
-]).
--else.
--define(MAPS_TESTS, []).
--endif.
-
 groups() ->
     Groups = [
         {connect, [parrallel], [
@@ -51,8 +43,8 @@ groups() ->
             connect_with_invalid_password,
             connect_with_ssl,
             connect_with_client_cert,
-            connect_to_closed_port
-            | ?MAPS_TESTS
+            connect_to_closed_port,
+            connect_map
         ]},
         {types, [parallel], [
             numeric_type,
@@ -263,7 +255,6 @@ connect_with_client_cert(Config) ->
         [{ssl, true}, {ssl_opts, [{keyfile, File("epgsql.key")},
                                   {certfile, File("epgsql.crt")}]}]).
 
--ifdef(have_maps).
 connect_map(Config) ->
     {Host, Port} = epgsql_ct:connection_data(Config),
     Module = ?config(module, Config),
@@ -279,7 +270,6 @@ connect_map(Config) ->
     Module:close(C),
     epgsql_ct:flush(),
     ok.
--endif.
 
 connect_to_closed_port(Config) ->
     {Host, Port} = epgsql_ct:connection_data(Config),

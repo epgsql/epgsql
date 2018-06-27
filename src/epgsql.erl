@@ -27,7 +27,7 @@
          standby_status_update/3,
          start_replication/5,
          start_replication/6,
-         to_proplist/1]).
+         to_map/1]).
 -export([handle_x_log_data/5]).                 % private
 
 -export_type([connection/0, connect_option/0, connect_opts/0,
@@ -57,7 +57,6 @@
     {codecs,   Codecs     :: [{epgsql_codec:codec_mod(), any()}]} |
     {replication, Replication :: string()}. % Pass "database" to connect in replication mode
 
--ifdef(have_maps).
 -type connect_opts() ::
         [connect_option()]
       | #{host => host(),
@@ -68,12 +67,9 @@
           ssl => boolean() | required,
           ssl_opts => [ssl:ssl_option()],
           timeout => timeout(),
-          async => pid(),
+          async => pid() | atom(),
           codecs => [{epgsql_codec:codec_mod(), any()}],
           replication => string()}.
--else.
--type connect_opts() :: [connect_option()].
--endif.
 
 -type connect_error() :: epgsql_cmd_connect:connect_error().
 -type query_error() :: #error{}.
@@ -129,10 +125,10 @@
 -spec connect(connect_opts())
         -> {ok, Connection :: connection()} | {error, Reason :: connect_error()}.
 connect(Settings0) ->
-    Settings = to_proplist(Settings0),
-    Host = proplists:get_value(host, Settings, "localhost"),
-    Username = proplists:get_value(username, Settings, os:getenv("USER")),
-    Password = proplists:get_value(password, Settings, ""),
+    Settings = to_map(Settings0),
+    Host = maps:get(host, Settings, "localhost"),
+    Username = maps:get(username, Settings, os:getenv("USER")),
+    Password = maps:get(password, Settings, ""),
     connect(Host, Username, Password, Settings).
 
 connect(Host, Opts) ->
@@ -148,7 +144,7 @@ connect(Host, Username, Opts) ->
 %% `Host'     - host to connect to
 %% `Username' - username to connect as, defaults to `$USER'
 %% `Password' - optional password to authenticate with
-%% `Opts'     - proplist of extra options
+%% `Opts'     - proplist or map of extra options
 %% returns `{ok, Connection}' otherwise `{error, Reason}'
 connect(Host, Username, Password, Opts) ->
     {ok, C} = epgsql_sock:start_link(),
@@ -157,7 +153,7 @@ connect(Host, Username, Password, Opts) ->
 -spec connect(connection(), host(), string(), string(), connect_opts())
         -> {ok, Connection :: connection()} | {error, Reason :: connect_error()}.
 connect(C, Host, Username, Password, Opts0) ->
-    Opts = to_proplist(Opts0),
+    Opts = to_map(Opts0),
     %% TODO connect timeout
     case epgsql_sock:sync_command(
            C, epgsql_cmd_connect, {Host, Username, Password, Opts}) of
@@ -170,7 +166,7 @@ connect(C, Host, Username, Password, Opts0) ->
     end.
 
 maybe_update_typecache(C, Opts) ->
-    maybe_update_typecache(C, proplists:get_value(replication, Opts), proplists:get_value(codecs, Opts)).
+    maybe_update_typecache(C, maps:get(replication, Opts, undefined), maps:get(codecs, Opts, undefined)).
 
 maybe_update_typecache(C, undefined, undefined) ->
     %% TODO: don't execute 'update_type_cache' when `codecs` is undefined.
@@ -368,27 +364,27 @@ with_transaction(C, F) ->
                {ensure_committed, boolean()} |
                {begin_opts, iodata()}].
 with_transaction(C, F, Opts0) ->
-    Opts = to_proplist(Opts0),
-    Begin = case proplists:get_value(begin_opts, Opts) of
-                undefined -> <<"BEGIN">>;
-                BeginOpts ->
-                    [<<"BEGIN ">> | BeginOpts]
+    Opts = to_map(Opts0),
+    Begin = case Opts of
+                #{begin_opts := BeginOpts} ->
+                    [<<"BEGIN ">> | BeginOpts];
+                _ -> <<"BEGIN">>
             end,
     try
         {ok, [], []} = squery(C, Begin),
         R = F(C),
         {ok, [], []} = squery(C, <<"COMMIT">>),
-        case proplists:get_value(ensure_committed, Opts, false) of
-            true ->
+        case Opts of
+            #{ensure_committed := true} ->
                 {ok, CmdStatus} = get_cmd_status(C),
                 (commit == CmdStatus) orelse error({ensure_committed_failed, CmdStatus});
-            false -> ok
+            _ -> ok
         end,
         R
     catch
         ?WITH_STACKTRACE(Type, Reason, Stack)
             squery(C, "ROLLBACK"),
-            case proplists:get_value(reraise, Opts, true) of
+            case maps:get(reraise, Opts, true) of
                 true ->
                     erlang:raise(Type, Reason, Stack);
                 false ->
@@ -435,7 +431,8 @@ start_replication(Connection, ReplicationSlot, Callback, CbInitState, WALPositio
     start_replication(Connection, ReplicationSlot, Callback, CbInitState, WALPosition, []).
 
 %% @private
-to_proplist(List) when is_list(List) ->
-    List;
-to_proplist(Map) ->
-    maps:to_list(Map).
+-spec to_map([{any(), any()}] | map()) -> map().
+to_map(Map) when is_map(Map) ->
+    Map;
+to_map(List) when is_list(List) ->
+    maps:from_list(List).

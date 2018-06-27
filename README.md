@@ -57,52 +57,57 @@ see `CHANGES` for full list.
   (thousands of messages).
 
 ## Usage
+
 ### Connect
 
 ```erlang
--type host() :: inet:ip_address() | inet:hostname().
+connect(Opts) -> {ok, Connection :: epgsql:connection()} | {error, Reason :: epgsql:connect_error()}
+    when
+  Opts ::
+    #{host :=     inet:ip_address() | inet:hostname(),
+      username := iodata(),
+      password => iodata(),
+      database => iodata(),
+      port =>     inet:port_number(),
+      ssl =>      boolean() | required,
+      ssl_opts => [ssl:ssl_option()],    % @see OTP ssl app, ssl_api.hrl
+      timeout =>  timeout(),             % socket connect timeout, default: 5000 ms
+      async =>    pid() | atom(),        % process to receive LISTEN/NOTIFY msgs
+      codecs =>   [{epgsql_codec:codec_mod(), any()}]}
+      replication => Replication :: string()} % Pass "database" to connect in replication mode
+    | list().
 
--type connect_option() ::
-    {database, DBName     :: string()}             |
-    {port,     PortNum    :: inet:port_number()}   |
-    {ssl,      IsEnabled  :: boolean() | required} |
-    {ssl_opts, SslOptions :: [ssl:ssl_option()]}   | % @see OTP ssl app, ssl_api.hrl
-    {timeout,  TimeoutMs  :: timeout()}            | % default: 5000 ms
-    {async,    Receiver   :: pid() | atom()}       | % process to receive LISTEN/NOTIFY msgs
-    {codecs,   Codecs     :: [{epgsql_codec:codec_mod(), any()}]} |
-    {replication, Replication :: string()}. % Pass "database" to connect in replication mode
-    
--spec connect(host(), string(), string(), [connect_option()] | map())
-        -> {ok, Connection :: connection()} | {error, Reason :: connect_error()}.    
-%% @doc connects to Postgres
-%% where
-%% `Host'     - host to connect to
-%% `Username' - username to connect as, defaults to `$USER'
-%% `Password' - optional password to authenticate with
-%% `Opts'     - proplist or map of extra options
-%% returns `{ok, Connection}' otherwise `{error, Reason}'
-connect(Host, Username, Password, Opts) -> ...
+connect(Host, Username, Password, Opts) -> {ok, C} | {error, Reason}.
 ```
 example:
 ```erlang
-{ok, C} = epgsql:connect("localhost", "username", "psss", [
-    {database, "test_db"},
-    {timeout, 4000}
-]),
+{ok, C} = epgsql:connect("localhost", "username", "psss", #{
+    database => "test_db",
+    timeout => 4000
+}),
 ...
 ok = epgsql:close(C).
 ```
 
-The `{timeout, TimeoutMs}` parameter will trigger an `{error, timeout}` result when the
-socket fails to connect within `TimeoutMs` milliseconds.
+Only `host` and `username` are mandatory, but most likely you would need `database` and `password`.
 
-Options may be passed as map with the same key names, if your VM version supports maps.
+- `{timeout, TimeoutMs}` parameter will trigger an `{error, timeout}` result when the
+   socket fails to connect within `TimeoutMs` milliseconds.
+- `ssl` if set to `true`, perform an attempt to connect in ssl mode, but continue unencrypted
+  if encryption isn't supported by server. if set to `required` connection will fail if encryption
+  is not available.
+- `ssl_opts` will be passed as is to `ssl:connect/3`
+- `async` see [Server notifications](#server-notifications)
+- `codecs` see [Pluggable datatype codecs](#pluggable-datatype-codecs)
+- `replication` see [Streaming replication protocol](#streaming-replication-protocol)
+
+Options may be passed as proplist or as map with the same key names.
 
 Asynchronous connect example (applies to **epgsqli** too):
 
 ```erlang
   {ok, C} = epgsqla:start_link(),
-  Ref = epgsqla:connect(C, "localhost", "username", "psss", [{database, "test_db"}]),
+  Ref = epgsqla:connect(C, "localhost", "username", "psss", #{database => "test_db"}),
   receive
     {C, Ref, connected} ->
         {ok, C};
@@ -221,7 +226,7 @@ receive
 end.
 ```
 
-## Extended Query
+### Extended Query
 
 ```erlang
 {ok, Columns, Rows}        = epgsql:equery(C, "select ...", [Parameters]).
@@ -267,7 +272,7 @@ end.
 `epgsqli:equery(C, Statement, [TypedParameters])` sends same set of messages as
 squery including final `{C, Ref, done}`.
 
-## Prepared Query
+### Prepared Query
 ```erlang
 {ok, Columns, Rows}        = epgsql:prepared_query(C, StatementName, [Parameters]).
 {ok, Count}                = epgsql:prepared_query(C, StatementName, [Parameters]).
@@ -302,7 +307,7 @@ end.
 `epgsqli:prepared_query(C, Statement, [TypedParameters])` sends same set of messages as
 squery including final `{C, Ref, done}`.
 
-## Parse/Bind/Execute
+### Parse/Bind/Execute
 
 ```erlang
 {ok, Statement} = epgsql:parse(C, [StatementName], Sql, [ParameterTypes]).
@@ -360,7 +365,7 @@ All epgsql functions return `{error, Error}` when an error occurs.
 `epgsqla`/`epgsqli` modules' `close` and `sync` functions send `{C, Ref, ok}`.
 
 
-## Batch execution
+### Batch execution
 
 Batch execution is `bind` + `execute` for several prepared statements.
 It uses unnamed portals and `MaxRows = 0`.
