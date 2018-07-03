@@ -29,10 +29,10 @@ start_link() ->
     epgsql_sock:start_link().
 
 connect(Opts) ->
-    Settings = epgsql:to_proplist(Opts),
-    Host = proplists:get_value(host, Settings, "localhost"),
-    Username = proplists:get_value(username, Settings, os:getenv("USER")),
-    Password = proplists:get_value(password, Settings, ""),
+    Settings = epgsql:to_map(Opts),
+    Host = maps:get(host, Settings, "localhost"),
+    Username = maps:get(username, Settings, os:getenv("USER")),
+    Password = maps:get(password, Settings, ""),
     connect(Host, Username, Password, Settings).
 
 connect(Host, Opts) ->
@@ -46,9 +46,9 @@ connect(Host, Username, Password, Opts) ->
     connect(C, Host, Username, Password, Opts).
 
 -spec connect(epgsql:connection(), inet:ip_address() | inet:hostname(),
-              string(), string(), [epgsql:connect_option()]) -> reference().
+              string(), string(), epgsql:connect_opts()) -> reference().
 connect(C, Host, Username, Password, Opts) ->
-    Opts1 = epgsql:to_proplist(Opts),
+    Opts1 = epgsql:to_map(Opts),
     complete_connect(
       C, cast(C, epgsql_cmd_connect, {Host, Username, Password, Opts1}), Opts1).
 
@@ -149,7 +149,7 @@ complete_connect(C, Ref, Opts) ->
         %% If we connect, then try and update the type cache.  When
         %% all is said and done, pass the result along as a message.
         {C, Ref, connected} ->
-            case proplists:get_value(codecs, Opts) of
+            case maps:get(codecs, Opts, undefined) of
                 undefined ->
                     {ok, _} = epgsql:update_type_cache(C);
                 [_|_] = Codecs ->
