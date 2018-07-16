@@ -209,7 +209,15 @@ write_pg_hba_config(Config) ->
         "host    epgsql_test_db1 epgsql_test             127.0.0.1/32    trust\n",
         "host    epgsql_test_db1 epgsql_test_md5         127.0.0.1/32    md5\n",
         "host    epgsql_test_db1 epgsql_test_cleartext   127.0.0.1/32    password\n",
-        "hostssl epgsql_test_db1 epgsql_test_cert        127.0.0.1/32    cert clientcert=1\n" |
+        "hostssl epgsql_test_db1 epgsql_test_cert        127.0.0.1/32    cert clientcert=1\n",
+        "host    template1       ", User, "              ::1/128    trust\n",
+        "host    ", User, "      ", User, "              ::1/128    trust\n",
+        "hostssl postgres        ", User, "              ::1/128    trust\n",
+        "host    epgsql_test_db1 ", User, "              ::1/128    trust\n",
+        "host    epgsql_test_db1 epgsql_test             ::1/128    trust\n",
+        "host    epgsql_test_db1 epgsql_test_md5         ::1/128    md5\n",
+        "host    epgsql_test_db1 epgsql_test_cleartext   ::1/128    password\n",
+        "hostssl epgsql_test_db1 epgsql_test_cert        ::1/128    cert clientcert=1\n" |
         case Version >= [10] of
             true ->
                 %% See
