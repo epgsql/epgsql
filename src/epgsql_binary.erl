@@ -281,8 +281,8 @@ default_codecs() ->
      {epgsql_codec_net, []},
      %% {epgsql_codec_postgis,[]},
      {epgsql_codec_text, []},
-     {epgsql_codec_uuid, []},
-     {epgsql_codec_timerange, []}
+     {epgsql_codec_timerange, []},
+     {epgsql_codec_uuid, []}
     ].
 
 -spec default_oids() -> [epgsql_oid_db:oid_entry()].
@@ -293,6 +293,7 @@ default_oids() ->
      {char, 18, 1002},
      {cidr, 650, 651},
      {date, 1082, 1182},
+     {daterange, 3912, 3913},
      {float4, 700, 1021},
      {float8, 701, 1022},
      %% {geometry, 17063, 17071},
@@ -314,9 +315,8 @@ default_oids() ->
      {timestamp, 1114, 1115},
      {timestamptz, 1184, 1185},
      {timetz, 1266, 1270},
-     {uuid, 2950, 2951},
-     {varchar, 1043, 1015},
      {tsrange, 3908, 3909},
      {tstzrange, 3910, 3911},
-     {daterange, 3912, 3913}
+     {uuid, 2950, 2951},
+     {varchar, 1043, 1015}
     ].
