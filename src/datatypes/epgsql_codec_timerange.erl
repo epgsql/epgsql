@@ -29,9 +29,15 @@ names() ->
 
 encode(empty, _T, _CM) ->
     <<1>>;
-encode({From, To}, Type, CoderMod) ->
-    FromBin = CoderMod:encode(member_type(Type), From),
-    ToBin = CoderMod:encode(member_type(Type), To),
+encode({From, To}, Type, epgsql_idatetime) ->
+    FromBin = epgsql_idatetime:encode(member_type(Type), From),
+    ToBin = epgsql_idatetime:encode(member_type(Type), To),
+    <<2:1/big-signed-unit:8,
+      (byte_size(FromBin)):?int32, FromBin/binary,
+      (byte_size(ToBin)):?int32, ToBin/binary>>;
+encode({From, To}, Type, epgsql_fdatetime) ->
+    FromBin = epgsql_fdatetime:encode(member_type(Type), From),
+    ToBin = epgsql_fdatetime:encode(member_type(Type), To),
     <<2:1/big-signed-unit:8,
       (byte_size(FromBin)):?int32, FromBin/binary,
       (byte_size(ToBin)):?int32, ToBin/binary>>.
@@ -41,8 +47,13 @@ decode(<<1>>, _, _) ->
 decode(<<2:1/big-signed-unit:8,
          FromLen:?int32, FromBin:FromLen/binary,
          ToLen:?int32, ToBin:ToLen/binary>>,
-       Type, CoderMod) ->
-    {CoderMod:decode(member_type(Type), FromBin), CoderMod:decode(member_type(Type), ToBin)}.
+       Type, epgsql_idatetime) ->
+    {epgsql_idatetime:decode(member_type(Type), FromBin), epgsql_idatetime:decode(member_type(Type), ToBin)};
+decode(<<2:1/big-signed-unit:8,
+         FromLen:?int32, FromBin:FromLen/binary,
+         ToLen:?int32, ToBin:ToLen/binary>>,
+       Type, epgsql_fdatetime) ->
+    {epgsql_fdatetime:decode(member_type(Type), FromBin), epgsql_fdatetime:decode(member_type(Type), ToBin)}.
 
 decode_text(V, _, _) -> V.
 
