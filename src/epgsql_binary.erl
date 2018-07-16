@@ -281,7 +281,9 @@ default_codecs() ->
      {epgsql_codec_net, []},
      %% {epgsql_codec_postgis,[]},
      {epgsql_codec_text, []},
-     {epgsql_codec_uuid, []}].
+     {epgsql_codec_uuid, []},
+     {epgsql_codec_timerange, []}
+    ].
 
 -spec default_oids() -> [epgsql_oid_db:oid_entry()].
 default_oids() ->
@@ -313,4 +315,8 @@ default_oids() ->
      {timestamptz, 1184, 1185},
      {timetz, 1266, 1270},
      {uuid, 2950, 2951},
-     {varchar, 1043, 1015}].
+     {varchar, 1043, 1015},
+     {tsrange, 3908, 3909},
+     {tstzrange, 3910, 3911},
+     {daterange, 3912, 3913}
+    ].
