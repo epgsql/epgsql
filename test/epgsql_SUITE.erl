@@ -61,6 +61,7 @@ groups() ->
             array_type,
             range_type,
             range8_type,
+            date_time_range_type,
             custom_types
         ]},
         {generic, [parallel], [
@@ -1096,6 +1097,16 @@ range8_type(Config) ->
         ])
     end, []).
 
+date_time_range_type(Config) ->
+    epgsql_ct:with_min_version(Config, [9, 2], fun(_C) ->
+        check_type(Config, tsrange, "tsrange('2008-01-02 03:04:05', '2008-02-02 03:04:05')", {{{2008,1,2},{3,4,5.0}}, {{2008,2,2},{3,4,5.0}}}, []),
+       check_type(Config, tsrange, "tsrange('2008-01-02 03:04:05', '2008-01-02 03:04:05')", empty, []),
+
+       check_type(Config, daterange, "daterange('2008-01-02', '2008-02-02')", {{2008,1,2}, {2008, 2, 2}}, [{{-4712,1,1}, {5874897,1,1}}
+]),
+      check_type(Config, tstzrange, "tstzrange('2011-01-02 03:04:05+3', '2011-01-02 04:04:05+3')", {{{2011, 1, 2}, {0, 4, 5.0}}, {{2011, 1, 2}, {1, 4, 5.0}}}, [{{{2011, 1, 2}, {0, 4, 5.0}}, {{2011, 1, 2}, {1, 4, 5.0}}}])
+
+   end, []).
 
 with_transaction(Config) ->
     Module = ?config(module, Config),
