@@ -425,13 +425,18 @@ PG type       | Representation
   cidr        | `{ip_address(), Mask :: 0..32}`
   macaddr(8)  | tuple of 6 or 8 `byte()`
   geometry    | `ewkb:geometry()`
-
+  tsrange     | `{{Hour, Minute, Second.Microsecond}, {Hour, Minute, Second.Microsecond}}`
+  tstzrange   | `{{Hour, Minute, Second.Microsecond}, {Hour, Minute, Second.Microsecond}}`
+  daterange   | `{{Year, Month, Day}, {Year, Month, Day}}`
 
   `timestamp` and `timestamptz` parameters can take `erlang:now()` format: `{MegaSeconds, Seconds, MicroSeconds}`
 
   `int4range` is a range type for ints that obeys inclusive/exclusive semantics,
   bracket and parentheses respectively. Additionally, infinities are represented by the atoms `minus_infinity`
   and `plus_infinity`
+
+  `tsrange`, `tstzrange`, `daterange` are range types for `timestamp`, `timestamptz` and `date`
+  respectively. They can return `empty` atom as the result from a database if bounds are equal
 
 ## Errors
 

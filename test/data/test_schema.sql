@@ -68,7 +68,11 @@ CREATE TABLE test_table2 (
   c_int4range int4range,
   c_int8range int8range,
   c_json json,
-  c_jsonb jsonb);
+  c_jsonb jsonb,
+  c_tsrange tsrange,
+  c_tstzrange tstzrange,
+  c_daterange daterange
+  );
 
 -- CREATE LANGUAGE plpgsql;
 
