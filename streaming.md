@@ -61,7 +61,7 @@ only special commands accepted in this mode
 
     ```erlang
     ok = epgsql:start_replication(Connection, ReplicationSlot, Callback, CbInitState, 
-            WALPosition, PluginOpts).
+            WALPosition, PluginOpts, Opts).
     ```
     - `Connection`           - connection in replication mode
     - `ReplicationSlot`      - the name of the replication slot to stream changes from
@@ -70,7 +70,10 @@ only special commands accepted in this mode
     - `CbInitState`          - initial state of callback module. 
     - `WALPosition`          - the WAL position XXX/XXX to begin streaming at.
                                "0/0" to let the server determine the start point.
-    - `PluginOpts`           - optional options passed to the slot's logical decoding plugin. 
+    - `PluginOpts`           - optional options passed to the slot's logical decoding plugin.
+    - `Opts`                 - options of logical replication. If decoding plugin filter some WAL records
+                                align_lsn = True must be set, otherwise it will not be possible 
+                                to stop PostgreSql DB correctly when logical replication is running.
     For example: "option_name1 'value1', option_name2 'value2'"
 
     On success, PostgreSQL server responds with a CopyBothResponse message, and then starts to stream WAL records.

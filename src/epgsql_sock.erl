@@ -89,7 +89,8 @@
                 repl_feedback_required,
                 repl_cbmodule,
                 repl_cbstate,
-                repl_receiver}).
+                repl_receiver,
+                repl_align_lsn}).
 
 %% -- client interface --
 
@@ -353,7 +354,7 @@ command(sync, State) ->
     send(State, ?SYNC, []),
     {noreply, State#state{sync_required = false}};
 
-command({start_replication, ReplicationSlot, Callback, CbInitState, WALPosition, PluginOpts}, State) ->
+command({start_replication, ReplicationSlot, Callback, CbInitState, WALPosition, PluginOpts, Opts}, State) ->
     Sql1 = ["START_REPLICATION SLOT """, ReplicationSlot, """ LOGICAL ", WALPosition],
     Sql2 =
         case PluginOpts of
@@ -369,8 +370,8 @@ command({start_replication, ReplicationSlot, Callback, CbInitState, WALPosition,
 
     Hex = [H || H <- WALPosition, H =/= $/],
     {ok, [LSN], _} = io_lib:fread("~16u", Hex),
-
-    State3 = State2#state{repl_last_flushed_lsn = LSN, repl_last_applied_lsn = LSN},
+    AlignLsn = proplists:get_value(align_lsn, Opts, false),
+    State3 = State2#state{repl_last_flushed_lsn = LSN, repl_last_applied_lsn = LSN, repl_align_lsn = AlignLsn},
 
     send(State3, ?SIMPLEQUERY, [Sql2, 0]),
     {noreply, State3}.
@@ -835,9 +836,17 @@ on_message({?COPY_DATA, _Data}, #state{repl_cbmodule = undefined, repl_receiver 
 
 %% CopyData for Replication mode
 on_message({?COPY_DATA, <<?PRIMARY_KEEPALIVE_MESSAGE:8, LSN:?int64, _Timestamp:?int64, ReplyRequired:8>>},
-    #state{repl_last_flushed_lsn = LastFlushedLSN, repl_last_applied_lsn = LastAppliedLSN} = State) ->
+    #state{repl_last_flushed_lsn = LastFlushedLSN, repl_last_applied_lsn = LastAppliedLSN,
+        repl_align_lsn = AlignLsn} = State) ->
     case ReplyRequired of
-        1 ->
+        1 when AlignLsn ->
+            send(State, ?COPY_DATA,
+                epgsql_wire:encode_standby_status_update(LSN, LSN, LSN)),
+            {noreply, State#state{repl_feedback_required = false,
+                repl_last_received_lsn = LSN,
+                repl_last_applied_lsn = LSN,
+                repl_last_flushed_lsn = LSN}};
+        1 when not AlignLsn ->
             send(State, ?COPY_DATA,
                 epgsql_wire:encode_standby_status_update(LSN, LastFlushedLSN, LastAppliedLSN)),
             {noreply, State#state{repl_feedback_required = false, repl_last_received_lsn = LSN}};

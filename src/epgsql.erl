@@ -26,6 +26,7 @@
          standby_status_update/3,
          start_replication/5,
          start_replication/6,
+         start_replication/7,
          to_proplist/1]).
 
 -export_type([connection/0, connect_option/0, connect_opts/0,
@@ -351,7 +352,20 @@ sync_on_error(_C, R) ->
 standby_status_update(Connection, FlushedLSN, AppliedLSN) ->
     gen_server:call(Connection, {standby_status_update, FlushedLSN, AppliedLSN}).
 
--spec start_replication(connection(), string(), Callback, cb_state(), string(), string()) -> ok | error_reply() when
+-type replication_option() ::
+    {align_lsn, boolean()}. %% Align last applied and flushed LSN with last received LSN
+                            %%  after Primary keepalive message with ReplyRequired flag
+
+-ifdef(have_maps).
+-type replication_opts() ::
+    [replication_option()]
+    | #{align_lsn => boolean()}.
+-else.
+    -type replication_opts() :: [replication_option()].
+-endif.
+
+-spec start_replication(connection(), string(), Callback, cb_state(), string(), string(), replication_opts()) ->
+    ok | error_reply() when
     Callback :: module() | pid().
 %% @doc instructs Postgres server to start streaming WAL for logical replication
 %% where
@@ -364,11 +378,16 @@ standby_status_update(Connection, FlushedLSN, AppliedLSN) ->
 %%                      "0/0" to let the server determine the start point.
 %% `PluginOpts'      - optional options passed to the slot's logical decoding plugin.
 %%                      For example: "option_name1 'value1', option_name2 'value2'"
+%% `Opts'            - options of logical replication
 %% returns `ok' otherwise `{error, Reason}'
+start_replication(Connection, ReplicationSlot, Callback, CbInitState, WALPosition, PluginOpts, Opts0) ->
+    Opts = to_proplist(Opts0),
+    gen_server:call(Connection,
+        {start_replication, ReplicationSlot, Callback, CbInitState, WALPosition, PluginOpts, Opts}).
 start_replication(Connection, ReplicationSlot, Callback, CbInitState, WALPosition, PluginOpts) ->
-    gen_server:call(Connection, {start_replication, ReplicationSlot, Callback, CbInitState, WALPosition, PluginOpts}).
+    start_replication(Connection, ReplicationSlot, Callback, CbInitState, WALPosition, PluginOpts, []).
 start_replication(Connection, ReplicationSlot, Callback, CbInitState, WALPosition) ->
-    start_replication(Connection, ReplicationSlot, Callback, CbInitState, WALPosition, []).
+    start_replication(Connection, ReplicationSlot, Callback, CbInitState, WALPosition, [], []).
 
 %% @private
 to_proplist(List) when is_list(List) ->
