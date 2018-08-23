@@ -200,14 +200,8 @@ decode_record(<<Size:?int32, Bin/binary>>, record, Codec) ->
 decode_record1(<<>>, 0, _Codec) -> [];
 decode_record1(<<_Type:?int32, -1:?int32, Rest/binary>>, Size, Codec) ->
     [null | decode_record1(Rest, Size - 1, Codec)];
-decode_record1(<<Oid:?int32, Len:?int32, ValueBin:Len/binary, Rest/binary>>, Size, #codec{oid_db = Db} = Codec) ->
-    Value =
-        case epgsql_oid_db:find_by_oid(Oid, Db) of
-            undefined -> ValueBin;
-            Type ->
-                {Name, Mod, State} = epgsql_oid_db:type_to_codec_entry(Type),
-                epgsql_codec:decode(Mod, ValueBin, Name, State)
-        end,
+decode_record1(<<Oid:?int32, Len:?int32, ValueBin:Len/binary, Rest/binary>>, Size, Codec) ->
+    Value = decode(ValueBin, oid_to_decoder(Oid, binary, Codec)),
     [Value | decode_record1(Rest, Size - 1, Codec)].
 
 
