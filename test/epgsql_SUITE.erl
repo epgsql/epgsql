@@ -59,6 +59,7 @@ groups() ->
             hstore_type,
             net_type,
             array_type,
+            record_type,
             range_type,
             range8_type,
             date_time_range_type,
@@ -836,6 +837,27 @@ array_type(Config) ->
         Select(inet, [{127,0,0,1}, {0,0,0,0,0,0,0,1}]),
         Select(json, [<<"{}">>, <<"[]">>, <<"1">>, <<"1.0">>, <<"true">>, <<"\"string\"">>, <<"{\"key\": []}">>]),
         Select(jsonb, [<<"{}">>, <<"[]">>, <<"1">>, <<"1.0">>, <<"true">>, <<"\"string\"">>, <<"{\"key\": []}">>])
+    end).
+
+record_type(Config) ->
+    Module = ?config(module, Config),
+    epgsql_ct:with_connection(Config, fun(C) ->
+        Select = fun(Sql, Expected) ->
+            {ok, _Columns, [Row]} = Module:equery(C, Sql, []),
+            ?assertMatch(Expected, Row)
+        end,
+
+        %% Simple record
+        Select("select (1,2)", {{1, 2}}),
+
+        %% Record inside other record
+        Select("select (1, (select (2,3)))", {{1, {2, 3}}}),
+
+        %% Array inside record
+        Select("select (1, '{2,3}'::int[])", {{1, [2, 3]}}),
+
+        %% Array of records inside record
+        Select("select (0, ARRAY(select (id, value) from test_table1))", {{0,[{1,<<"one">>},{2,<<"two">>}]}})
     end).
 
 custom_types(Config) ->
