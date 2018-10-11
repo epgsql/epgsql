@@ -134,7 +134,7 @@ bin_xor(B1, B2) ->
     crypto:exor(B1, B2).
 
 
--ifdef(FAST_MAPS).
+-ifndef(SLOW_MAPS).
 unique() ->
     erlang:unique_integer([positive]).
 -else.

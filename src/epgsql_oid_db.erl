@@ -151,7 +151,7 @@ join_prepend(Sep, [H | T]) -> [Sep, H | join_prepend(Sep, T)].
 %% K-V storage
 %% In Erlang 17 map access time is O(n), so, it's faster to use dicts.
 %% In Erlang >=18 maps are the most eficient choice
--ifdef(FAST_MAPS).
+-ifndef(SLOW_MAPS).
 
 -type kv(K, V) :: #{K => V}.
 
