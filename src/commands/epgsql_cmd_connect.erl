@@ -4,6 +4,7 @@
 %%%
 -module(epgsql_cmd_connect).
 -behaviour(epgsql_command).
+-export([hide_password/1]).
 -export([init/1, execute/2, handle_message/4]).
 -export_type([response/0, connect_error/0]).
 
@@ -97,6 +98,18 @@ execute(PgSock, #connect{stage = auth, auth_send = {PacketId, Data}} = St) ->
     {ok, PgSock, St#connect{auth_send = undefined}}.
 
 
+%% @doc this function wraps plaintext password to a lambda function, so, if
+%% epgsql_sock process crashes when executing `connect` command, password will
+%% not appear in a crash log
+hide_password(Password) when is_list(Password);
+                             is_binary(Password) ->
+    fun() ->
+            Password
+    end;
+hide_password(PasswordFun) when is_function(PasswordFun, 0) ->
+    PasswordFun.
+
+
 maybe_ssl(S, false, _, PgSock) ->
     epgsql_sock:set_net_socket(gen_tcp, S, PgSock);
 maybe_ssl(S, Flag, Opts, PgSock) ->
@@ -164,14 +177,14 @@ auth_handle(Data, PgSock, #connect{auth_fun = Fun, auth_state = AuthSt} = St) ->
 
 %% AuthenticationCleartextPassword
 auth_cleartext(init, _AuthState, #connect{opts = Opts}) ->
-    Password = maps:get(password, Opts),
+    Password = get_password(Opts),
     {send, ?PASSWORD, [Password, 0], undefined};
 auth_cleartext(_, _, _) -> unknown.
 
 %% AuthenticationMD5Password
 auth_md5(init, Salt, #connect{opts = Opts}) ->
     User = maps:get(username, Opts),
-    Password = maps:get(password, Opts),
+    Password = get_password(Opts),
     Digest1 = hex(erlang:md5([Password, User])),
     Str = ["md5", hex(erlang:md5([Digest1, Salt])), 0],
     {send, ?PASSWORD, Str, undefined};
@@ -186,7 +199,7 @@ auth_scram(init, undefined, #connect{opts = Opts}) ->
     {send, ?SASL_ANY_RESPONSE, SaslInitialResponse, {auth_request, Nonce}};
 auth_scram(<<?AUTH_SASL_CONTINUE:?int32, ServerFirst/binary>>, {auth_request, Nonce}, #connect{opts = Opts}) ->
     User = maps:get(username, Opts),
-    Password = maps:get(password, Opts),
+    Password = get_password(Opts),
     ServerFirstParts = epgsql_scram:parse_server_first(ServerFirst, Nonce),
     {ClientFinalMessage, ServerProof} = epgsql_scram:get_client_final(ServerFirstParts, Nonce, User, Password),
     {send, ?SASL_ANY_RESPONSE, ClientFinalMessage, {server_final, ServerProof}};
@@ -238,6 +251,12 @@ handle_message(?ERROR, Err, Sock, #connect{stage = Stage} = _State) when Stage =
     {stop, normal, {error, Why}, Sock};
 handle_message(_, _, _, _) ->
     unknown.
+
+
+get_password(Opts) ->
+    PasswordFun = maps:get(password, Opts),
+    PasswordFun().
+
 
 hex(Bin) ->
     HChar = fun(N) when N < 10 -> $0 + N;

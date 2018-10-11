@@ -49,8 +49,10 @@ connect(Host, Username, Password, Opts) ->
               string(), string(), epgsql:connect_opts()) -> reference().
 connect(C, Host, Username, Password, Opts) ->
     Opts1 = epgsql:to_map(Opts),
+    Opts2 = maps:remove(password, Opts1),
+    Password1 = epgsql_cmd_connect:hide_password(Password),
     complete_connect(
-      C, cast(C, epgsql_cmd_connect, {Host, Username, Password, Opts1}), Opts1).
+      C, cast(C, epgsql_cmd_connect, {Host, Username, Password1, Opts2}), Opts2).
 
 -spec close(epgsql:connection()) -> ok.
 close(C) ->

@@ -154,9 +154,11 @@ connect(Host, Username, Password, Opts) ->
         -> {ok, Connection :: connection()} | {error, Reason :: connect_error()}.
 connect(C, Host, Username, Password, Opts0) ->
     Opts = to_map(Opts0),
+    Opts1 = maps:remove(password, Opts),
+    Password1 = epgsql_cmd_connect:hide_password(Password),
     %% TODO connect timeout
     case epgsql_sock:sync_command(
-           C, epgsql_cmd_connect, {Host, Username, Password, Opts}) of
+           C, epgsql_cmd_connect, {Host, Username, Password1, Opts1}) of
         connected ->
             %% If following call fails for you, try to add {codecs, []} connect option
             {ok, _} = maybe_update_typecache(C, Opts),
