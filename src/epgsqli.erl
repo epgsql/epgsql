@@ -28,11 +28,8 @@ start_link() ->
     epgsql_sock:start_link().
 
 connect(Opts) ->
-    Settings = epgsql:to_map(Opts),
-    Host = maps:get(host, Settings, "localhost"),
-    Username = maps:get(username, Settings, os:getenv("USER")),
-    Password = maps:get(password, Settings, ""),
-    connect(Host, Username, Password, Settings).
+    {ok, C} = epgsql_sock:start_link(),
+    call_connect(C, Opts).
 
 connect(Host, Opts) ->
     connect(Host, os:getenv("USER"), "", Opts).
@@ -47,9 +44,17 @@ connect(Host, Username, Password, Opts) ->
 -spec connect(epgsql:connection(), inet:ip_address() | inet:hostname(),
               string(), string(), epgsql:connect_opts()) -> reference().
 connect(C, Host, Username, Password, Opts) ->
-    Opts1 = epgsql:to_map(Opts),
+    Opts1 = maps:merge(epgsql:to_map(Opts),
+                       #{host => Host,
+                         username => Username,
+                         password => Password}),
+    call_connect(C, Opts1).
+
+call_connect(C, Opts) ->
+    Opts1 = epgsql_cmd_connect:opts_hide_password(Opts),
     epgsqla:complete_connect(
-      C, incremental(C, epgsql_cmd_connect, {Host, Username, Password, Opts1}), Opts1).
+      C, incremental(C, epgsql_cmd_connect, Opts1), Opts1).
+
 
 -spec close(epgsql:connection()) -> ok.
 close(C) ->
