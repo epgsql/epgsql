@@ -4,7 +4,7 @@
 %%%
 -module(epgsql_cmd_connect).
 -behaviour(epgsql_command).
--export([hide_password/1]).
+-export([hide_password/1, opts_hide_password/1]).
 -export([init/1, execute/2, handle_message/4]).
 -export_type([response/0, connect_error/0]).
 
@@ -42,12 +42,8 @@
 -define(AUTH_SASL_CONTINUE, 11).
 -define(AUTH_SASL_FINAL, 12).
 
-init({Host, Username, Password, Opts}) ->
-    Opts1 = maps:merge(Opts,
-                       #{host => Host,
-                         username => Username,
-                         password => Password}),
-    #connect{opts = Opts1}.
+init(#{host := _, username := _} = Opts) ->
+    #connect{opts = Opts}.
 
 execute(PgSock, #connect{opts = Opts, stage = connect} = State) ->
     #{host := Host,
@@ -98,9 +94,17 @@ execute(PgSock, #connect{stage = auth, auth_send = {PacketId, Data}} = St) ->
     {ok, PgSock, St#connect{auth_send = undefined}}.
 
 
+%% @doc Replace `password' in Opts map with obfuscated one
+opts_hide_password(#{password := Password} = Opts) ->
+    HiddenPassword = hide_password(Password),
+    Opts#{password => HiddenPassword};
+opts_hide_password(Opts) -> Opts.
+
+
 %% @doc this function wraps plaintext password to a lambda function, so, if
 %% epgsql_sock process crashes when executing `connect` command, password will
 %% not appear in a crash log
+-spec hide_password(iodata()) -> fun( () -> iodata() ).
 hide_password(Password) when is_list(Password);
                              is_binary(Password) ->
     fun() ->

@@ -61,7 +61,7 @@
         [connect_option()]
       | #{host => host(),
           username => string(),
-          password => string(),
+          password => iodata() | fun( () -> iodata() ),
           database => string(),
           port => inet:port_number(),
           ssl => boolean() | required,
@@ -124,12 +124,9 @@
 %% -- client interface --
 -spec connect(connect_opts())
         -> {ok, Connection :: connection()} | {error, Reason :: connect_error()}.
-connect(Settings0) ->
-    Settings = to_map(Settings0),
-    Host = maps:get(host, Settings, "localhost"),
-    Username = maps:get(username, Settings, os:getenv("USER")),
-    Password = maps:get(password, Settings, ""),
-    connect(Host, Username, Password, Settings).
+connect(Opts) ->
+    {ok, C} = epgsql_sock:start_link(),
+    call_connect(C, Opts).
 
 connect(Host, Opts) ->
     connect(Host, os:getenv("USER"), "", Opts).
@@ -152,13 +149,17 @@ connect(Host, Username, Password, Opts) ->
 
 -spec connect(connection(), host(), string(), string(), connect_opts())
         -> {ok, Connection :: connection()} | {error, Reason :: connect_error()}.
-connect(C, Host, Username, Password, Opts0) ->
-    Opts = to_map(Opts0),
-    Opts1 = maps:remove(password, Opts),
-    Password1 = epgsql_cmd_connect:hide_password(Password),
-    %% TODO connect timeout
+connect(C, Host, Username, Password, Opts) ->
+    Opts1 = maps:merge(epgsql:to_map(Opts),
+                       #{host => Host,
+                         username => Username,
+                         password => Password}),
+    call_connect(C, Opts1).
+
+call_connect(C, Opts) ->
+    Opts1 = epgsql_cmd_connect:opts_hide_password(Opts),
     case epgsql_sock:sync_command(
-           C, epgsql_cmd_connect, {Host, Username, Password1, Opts1}) of
+           C, epgsql_cmd_connect, Opts1) of
         connected ->
             %% If following call fails for you, try to add {codecs, []} connect option
             {ok, _} = maybe_update_typecache(C, Opts),
@@ -166,6 +167,7 @@ connect(C, Host, Username, Password, Opts0) ->
         Error = {error, _} ->
             Error
     end.
+
 
 maybe_update_typecache(C, Opts) ->
     maybe_update_typecache(C, maps:get(replication, Opts, undefined), maps:get(codecs, Opts, undefined)).

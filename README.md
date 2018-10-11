@@ -66,7 +66,7 @@ connect(Opts) -> {ok, Connection :: epgsql:connection()} | {error, Reason :: epg
   Opts ::
     #{host :=     inet:ip_address() | inet:hostname(),
       username := iodata(),
-      password => iodata(),
+      password => iodata() | fun( () -> iodata() ),
       database => iodata(),
       port =>     inet:port_number(),
       ssl =>      boolean() | required,
@@ -91,6 +91,9 @@ ok = epgsql:close(C).
 
 Only `host` and `username` are mandatory, but most likely you would need `database` and `password`.
 
+- `password` - DB user password. It might be provided as string / binary or as a fun that returns
+   string / binary. Internally, plain password is wrapped to anonymous fun before it is sent to connection
+   process, so, if `connect` command crashes, plain password will not appear in crash logs.
 - `{timeout, TimeoutMs}` parameter will trigger an `{error, timeout}` result when the
    socket fails to connect within `TimeoutMs` milliseconds.
 - `ssl` if set to `true`, perform an attempt to connect in ssl mode, but continue unencrypted
