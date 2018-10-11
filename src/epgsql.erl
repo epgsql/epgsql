@@ -108,7 +108,7 @@
 -type cb_state() :: term().
 
 %% See https://github.com/erlang/rebar3/pull/1773
--ifdef(FUN_STACKTRACE).
+-ifndef(OTP_RELEASE).                           % pre-OTP21
 -define(WITH_STACKTRACE(T, R, S), T:R -> S = erlang:get_stacktrace(), ).
 -else.
 -define(WITH_STACKTRACE(T, R, S), T:R:S ->).
