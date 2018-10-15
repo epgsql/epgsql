@@ -1,3 +1,14 @@
+In 4.2.0
+
+* Support for R16 was completely dropped. Maps are now used internally instead of proplists
+* Nested `record` datatype decoding bug, introduced in 4.0.0, was fixed
+* Added tsrange, tstzrange, daterange types
+* Passwords are obfuscated before they sent to connection process. This is to avoid plain
+  DB passwords to be dumped to SASL crash log
+* Password can be provided as a fun: `fun ( () -> iodata() )`
+* `platform_define` macroses were simplified. It's now possible to build epgsql even without
+  rebar on all supported OTP versions
+
 In 4.1.0
 
 * Fix Erlang 21 `get_stacktrace/0` warnings
