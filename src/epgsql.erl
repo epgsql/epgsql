@@ -150,14 +150,16 @@ connect(Host, Username, Password, Opts) ->
 -spec connect(connection(), host(), string(), string(), connect_opts())
         -> {ok, Connection :: connection()} | {error, Reason :: connect_error()}.
 connect(C, Host, Username, Password, Opts) ->
-    Opts1 = maps:merge(epgsql:to_map(Opts),
+    Opts1 = maps:merge(to_map(Opts),
                        #{host => Host,
                          username => Username,
                          password => Password}),
     call_connect(C, Opts1).
 
+-spec call_connect(connection(), connect_opts())
+       -> {ok, Connection :: connection()} | {error, Reason :: connect_error()}.
 call_connect(C, Opts) ->
-    Opts1 = epgsql_cmd_connect:opts_hide_password(Opts),
+    Opts1 = epgsql_cmd_connect:opts_hide_password(to_map(Opts)),
     case epgsql_sock:sync_command(
            C, epgsql_cmd_connect, Opts1) of
         connected ->
