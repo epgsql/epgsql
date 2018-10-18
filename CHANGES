@@ -1,3 +1,7 @@
+In 4.2.1
+
+* Bug fix for `epgsql:connect(proplist())`
+
 In 4.2.0
 
 * Support for R16 was completely dropped. Maps are now used internally instead of proplists
