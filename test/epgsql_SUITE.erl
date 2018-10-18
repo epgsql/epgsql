@@ -44,7 +44,8 @@ groups() ->
             connect_with_ssl,
             connect_with_client_cert,
             connect_to_closed_port,
-            connect_map
+            connect_map,
+            connect_proplist
         ]},
         {types, [parallel], [
             numeric_type,
@@ -268,6 +269,22 @@ connect_map(Config) ->
         username => "epgsql_test_md5",
         password => "epgsql_test_md5"
     },
+    {ok, C} = Module:connect(Opts),
+    Module:close(C),
+    epgsql_ct:flush(),
+    ok.
+
+connect_proplist(Config) ->
+    {Host, Port} = epgsql_ct:connection_data(Config),
+    Module = ?config(module, Config),
+
+    Opts = [
+        {host, Host},
+        {port, Port},
+        {database, "epgsql_test_db1"},
+        {username, "epgsql_test_md5"},
+        {password, "epgsql_test_md5"}
+    ],
     {ok, C} = Module:connect(Opts),
     Module:close(C),
     epgsql_ct:flush(),

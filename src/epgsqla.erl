@@ -52,8 +52,8 @@ connect(C, Host, Username, Password, Opts) ->
     call_connect(C, Opts1).
 
 -spec call_connect(epgsql:connection(), epgsql:connect_opts()) -> reference().
-call_connect(C, Opts) when is_map(Opts) ->
-    Opts1 = epgsql_cmd_connect:opts_hide_password(Opts),
+call_connect(C, Opts) ->
+    Opts1 = epgsql_cmd_connect:opts_hide_password(epgsql:to_map(Opts)),
     complete_connect(
       C, cast(C, epgsql_cmd_connect, Opts1), Opts1).
 
