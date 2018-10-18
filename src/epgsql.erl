@@ -164,7 +164,7 @@ call_connect(C, Opts) ->
            C, epgsql_cmd_connect, Opts1) of
         connected ->
             %% If following call fails for you, try to add {codecs, []} connect option
-            {ok, _} = maybe_update_typecache(C, Opts),
+            {ok, _} = maybe_update_typecache(C, Opts1),
             {ok, C};
         Error = {error, _} ->
             Error
