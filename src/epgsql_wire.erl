@@ -45,8 +45,13 @@ decode_string(Bin) ->
 %% @doc decode multiple null-terminated string
 -spec decode_strings(binary()) -> [binary(), ...].
 decode_strings(Bin) ->
-    [<<>> | T] = lists:reverse(binary:split(Bin, <<0>>, [global])),
-    lists:reverse(T).
+    %% Assert the last byte is what we want it to be
+    %% Remove that byte from the Binary, so the zero
+    %% terminators are separators. Then apply
+    %% binary:split/3 directly on the remaining Subj
+    Sz = byte_size(Bin) - 1,
+    <<Subj:Sz/binary, 0>> = Bin,
+    binary:split(Subj, <<0>>, [global]).
 
 %% @doc decode error's field
 -spec decode_fields(binary()) -> [{byte(), binary()}].
