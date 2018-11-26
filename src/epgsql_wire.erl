@@ -138,15 +138,15 @@ build_decoder(Columns, Codec) ->
 
 %% @doc decode row data
 -spec decode_data(binary(), row_decoder()) -> tuple().
-decode_data(Bin, {Decoders, Columns, Codec}) ->
-    list_to_tuple(decode_data(Bin, Decoders, Columns, Codec)).
+decode_data(Bin, {Decoders, _Columns, Codec}) ->
+    list_to_tuple(decode_data(Bin, Decoders, Codec)).
 
-decode_data(_, [], [], _) -> [];
-decode_data(<<-1:?int32, Rest/binary>>, [_Dec | Decs], [_Col | Cols], Codec) ->
-    [null | decode_data(Rest, Decs, Cols, Codec)];
-decode_data(<<Len:?int32, Value:Len/binary, Rest/binary>>, [Decoder | Decs], [_Col | Cols], Codec) ->
+decode_data(_, [], _) -> [];
+decode_data(<<-1:?int32, Rest/binary>>, [_Dec | Decs], Codec) ->
+    [null | decode_data(Rest, Decs, Codec)];
+decode_data(<<Len:?int32, Value:Len/binary, Rest/binary>>, [Decoder | Decs], Codec) ->
     [epgsql_binary:decode(Value, Decoder)
-     | decode_data(Rest, Decs, Cols, Codec)].
+     | decode_data(Rest, Decs, Codec)].
 
 %% @doc decode column information
 -spec decode_columns(non_neg_integer(), binary(), epgsql_binary:codec()) -> [epgsql:column()].
