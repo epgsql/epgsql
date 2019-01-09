@@ -11,7 +11,6 @@
 -export([parse/2, parse/3, parse/4, describe/2, describe/3]).
 -export([bind/3, bind/4, execute/2, execute/3, execute/4, execute_batch/2]).
 -export([close/2, close/3, sync/1]).
--export([with_transaction/2]).
 
 -include("epgsql.hrl").
 
@@ -19,28 +18,30 @@
 
 connect(Opts) ->
     Ref = epgsqli:connect(Opts),
-    await_connect(Ref).
+    await_connect(Ref, Opts).
 
 connect(Host, Opts) ->
     Ref = epgsqli:connect(Host, Opts),
-    await_connect(Ref).
+    await_connect(Ref, Opts).
 
 connect(Host, Username, Opts) ->
     Ref = epgsqli:connect(Host, Username, Opts),
-    await_connect(Ref).
+    await_connect(Ref, Opts).
 
 connect(Host, Username, Password, Opts) ->
     Ref = epgsqli:connect(Host, Username, Password, Opts),
-    await_connect(Ref).
+    await_connect(Ref, Opts).
 
-await_connect(Ref) ->
+await_connect(Ref, Opts0) ->
+    Opts = epgsql:to_map(Opts0),
+    Timeout = maps:get(timeout, Opts, 5000),
     receive
         {C, Ref, connected} ->
             {ok, C};
         {_C, Ref, Error = {error, _}} ->
-            Error;
-        {'EXIT', _C, _Reason} ->
-            {error, closed}
+            Error
+    after Timeout ->
+            error(timeout)
     end.
 
 close(C) ->
@@ -147,19 +148,6 @@ sync(C) ->
     Ref = epgsqli:sync(C),
     receive_atom(C, Ref, ok, ok).
 
-%% misc helper functions
-with_transaction(C, F) ->
-    try {ok, [], []} = squery(C, "BEGIN"),
-        R = F(C),
-        {ok, [], []} = squery(C, "COMMIT"),
-        R
-    catch
-        _:Why ->
-            squery(C, "ROLLBACK"),
-            %% TODO hides error stacktrace
-            {rollback, Why}
-    end.
-
 %% -- internal functions --
 
 receive_result(C, Ref, Result) ->
@@ -233,8 +221,7 @@ receive_describe(C, Ref, Statement = #statement{}) ->
         {C, Ref, {types, Types}} ->
             receive_describe(C, Ref, Statement#statement{types = Types});
         {C, Ref, {columns, Columns}} ->
-            Columns2 = [Col#column{format = epgsql_wire:format(Col#column.type)} || Col <- Columns],
-            {ok, Statement#statement{columns = Columns2}};
+            {ok, Statement#statement{columns = Columns}};
         {C, Ref, no_data} ->
             {ok, Statement#statement{columns = []}};
         {C, Ref, Error = {error, _}} ->

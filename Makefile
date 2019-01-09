@@ -1,11 +1,15 @@
-REBAR = rebar3
+REBAR = ./rebar3
 
 all: compile
 
-compile: src/epgsql_errcodes.erl
+$(REBAR):
+	wget https://s3.amazonaws.com/rebar3/rebar3
+	chmod +x rebar3
+
+compile: src/epgsql_errcodes.erl $(REBAR)
 	@$(REBAR) compile
 
-clean:
+clean: $(REBAR)
 	@$(REBAR) clean
 
 src/epgsql_errcodes.erl:
@@ -17,4 +21,7 @@ test: compile
 dialyzer: compile
 	@$(REBAR) dialyzer
 
-.PHONY: all compile clean test dialyzer
+elvis: $(REBAR)
+	@$(REBAR) as lint lint
+
+.PHONY: all compile clean test dialyzer elvis

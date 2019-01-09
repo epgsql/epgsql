@@ -30,14 +30,6 @@ init_per_suite(Config) ->
 all() ->
     [{group, M} || M <- modules()].
 
--ifdef(have_maps).
--define(MAPS_TESTS, [
-    connect_map
-]).
--else.
--define(MAPS_TESTS, []).
--endif.
-
 groups() ->
     Groups = [
         {connect, [parrallel], [
@@ -46,11 +38,14 @@ groups() ->
             connect_as,
             connect_with_cleartext,
             connect_with_md5,
+            connect_with_scram,
             connect_with_invalid_user,
             connect_with_invalid_password,
             connect_with_ssl,
-            connect_with_client_cert
-            | ?MAPS_TESTS
+            connect_with_client_cert,
+            connect_to_closed_port,
+            connect_map,
+            connect_proplist
         ]},
         {types, [parallel], [
             numeric_type,
@@ -65,9 +60,14 @@ groups() ->
             hstore_type,
             net_type,
             array_type,
+            record_type,
             range_type,
             range8_type,
+            date_time_range_type,
             custom_types
+        ]},
+        {generic, [parallel], [
+            with_transaction
         ]}
     ],
 
@@ -125,7 +125,12 @@ groups() ->
         set_notice_receiver,
         get_cmd_status
     ],
-    Groups ++ [{Module, [], Tests} || Module <- modules()].
+    Groups ++ [case Module of
+                   epgsql ->
+                       {Module, [], [{group, generic} | Tests]};
+                   _ ->
+                       {Module, [], Tests}
+               end || Module <- modules()].
 
 end_per_suite(_Config) ->
     ok.
@@ -158,10 +163,10 @@ end_per_group(_GroupName, _Config) ->
         }}).
 
 %% From uuid.erl in http://gitorious.org/avtobiff/erlang-uuid
-uuid_to_string(<<U0:32, U1:16, U2:16, U3:16, U4:48>>) ->
-    lists:flatten(io_lib:format(
-                    "~8.16.0b-~4.16.0b-~4.16.0b-~4.16.0b-~12.16.0b",
-                    [U0, U1, U2, U3, U4])).
+uuid_to_bin_string(<<U0:32, U1:16, U2:16, U3:16, U4:48>>) ->
+    iolist_to_binary(io_lib:format(
+                       "~8.16.0b-~4.16.0b-~4.16.0b-~4.16.0b-~12.16.0b",
+                       [U0, U1, U2, U3, U4])).
 
 connect(Config) ->
     epgsql_ct:connect_only(Config, []).
@@ -185,6 +190,19 @@ connect_with_md5(Config) ->
         "epgsql_test_md5",
         [{database, "epgsql_test_db1"}]
     ]).
+
+connect_with_scram(Config) ->
+    PgConf = ?config(pg_config, Config),
+    Ver = ?config(version, PgConf),
+    (Ver >= [10, 0])
+        andalso
+        epgsql_ct:connect_only(
+          Config,
+          [
+           "epgsql_test_scram",
+           "epgsql_test_scram",
+           [{database, "epgsql_test_db1"}]
+          ]).
 
 connect_with_invalid_user(Config) ->
     {Host, Port} = epgsql_ct:connection_data(Config),
@@ -240,7 +258,6 @@ connect_with_client_cert(Config) ->
         [{ssl, true}, {ssl_opts, [{keyfile, File("epgsql.key")},
                                   {certfile, File("epgsql.crt")}]}]).
 
--ifdef(have_maps).
 connect_map(Config) ->
     {Host, Port} = epgsql_ct:connection_data(Config),
     Module = ?config(module, Config),
@@ -256,7 +273,35 @@ connect_map(Config) ->
     Module:close(C),
     epgsql_ct:flush(),
     ok.
--endif.
+
+connect_proplist(Config) ->
+    {Host, Port} = epgsql_ct:connection_data(Config),
+    Module = ?config(module, Config),
+
+    Opts = [
+        {host, Host},
+        {port, Port},
+        {database, "epgsql_test_db1"},
+        {username, "epgsql_test_md5"},
+        {password, "epgsql_test_md5"}
+    ],
+    {ok, C} = Module:connect(Opts),
+    Module:close(C),
+    epgsql_ct:flush(),
+    ok.
+
+connect_to_closed_port(Config) ->
+    {Host, Port} = epgsql_ct:connection_data(Config),
+    Module = ?config(module, Config),
+    Trap = process_flag(trap_exit, true),
+    ?assertEqual({error, econnrefused},
+                 Module:connect(
+                   Host,
+                   "epgsql_test",
+                   "epgsql_test",
+                   [{port, Port + 1}, {database, "epgsql_test_db1"}])),
+    ?assertMatch({'EXIT', _, econnrefused}, receive Stop -> Stop end),
+    process_flag(trap_exit, Trap).
 
 prepared_query(Config) ->
     Module = ?config(module, Config),
@@ -532,8 +577,8 @@ describe_with_param(Config) ->
     Module = ?config(module, Config),
     epgsql_ct:with_connection(Config, fun(C) ->
         {ok, S} = Module:parse(C, "select id from test_table1 where id = $1"),
-        [int4] = S#statement.types,
-        [#column{name = <<"id">>}] = S#statement.columns,
+        ?assertEqual([int4], S#statement.types),
+        ?assertMatch([#column{name = <<"id">>}], S#statement.columns),
         {ok, S} = Module:describe(C, S),
         ok = Module:close(C, S),
         ok = Module:sync(C)
@@ -637,7 +682,9 @@ numeric_type(Config) ->
     check_type(Config, int4, "1", 1, [0, 512, -2147483648, +2147483647]),
     check_type(Config, int8, "1", 1, [0, 1024, -9223372036854775808, +9223372036854775807]),
     check_type(Config, float4, "1.0", 1.0, [0.0, 1.23456, -1.23456]),
-    check_type(Config, float8, "1.0", 1.0, [0.0, 1.23456789012345, -1.23456789012345]).
+    check_type(Config, float4, "'-Infinity'", minus_infinity, [minus_infinity, plus_infinity, nan]),
+    check_type(Config, float8, "1.0", 1.0, [0.0, 1.23456789012345, -1.23456789012345]),
+    check_type(Config, float8, "'nan'", nan, [minus_infinity, plus_infinity, nan]).
 
 character_type(Config) ->
     Alpha = unicode:characters_to_binary([16#03B1]),
@@ -645,12 +692,32 @@ character_type(Config) ->
     One   = unicode:characters_to_binary([16#10D360]),
     check_type(Config, bpchar, "'A'", $A, [1, $1, 16#7F, Alpha, Ka, One], "c_char"),
     check_type(Config, text, "'hi'", <<"hi">>, [<<"">>, <<"hi">>]),
-    check_type(Config, varchar, "'hi'", <<"hi">>, [<<"">>, <<"hi">>]).
+    check_type(Config, varchar, "'hi'", <<"hi">>, [<<"">>, <<"hi">>]),
+    epgsql_ct:with_connection(
+      Config,
+      fun(C) ->
+              Module = ?config(module, Config),
+              %% IOlists
+              ?assertMatch({ok, _, [{<<1087/utf8, 1088/utf8, 1080/utf8,
+                                        1074/utf8, 1077/utf8, 1090/utf8>>}]},
+                           Module:equery(C, "SELECT $1::text", [[1087,1088,1080,1074,1077,1090]])),
+              %% Deprecated casts
+              ?assertMatch({ok, _, [{<<"my_atom">>}]},
+                           Module:equery(C, "SELECT $1::varchar", [my_atom])),
+              ?assertMatch({ok, _, [{<<"12345">>}]},
+                           Module:equery(C, "SELECT $1::varchar", [12345])),
+              FloatBin = erlang:float_to_binary(1.2345),
+              ?assertMatch({ok, _, [{FloatBin}]},
+                           Module:equery(C, "SELECT $1::varchar", [1.2345])),
+              %% String bpchar
+              ?assertMatch({ok, _, [{<<"hello world">>}]},
+                           Module:equery(C, "SELECT $1::bpchar", ["hello world"]))
+      end).
 
 uuid_type(Config) ->
     check_type(Config, uuid,
-        io_lib:format("'~s'", [uuid_to_string(?UUID1)]),
-        list_to_binary(uuid_to_string(?UUID1)), []).
+               io_lib:format("'~s'", [uuid_to_bin_string(?UUID1)]),
+               uuid_to_bin_string(?UUID1), []).
 
 point_type(Config) ->
     check_type(Config, point, "'(23.15, 100)'", {23.15, 100.0}, []).
@@ -672,9 +739,9 @@ geometry_type(Config) ->
 uuid_select(Config) ->
     Module = ?config(module, Config),
     epgsql_ct:with_rollback(Config, fun(C) ->
-        U1 = uuid_to_string(?UUID1),
-        U2 = uuid_to_string(?UUID2),
-        U3 = uuid_to_string(?UUID3),
+        U1 = uuid_to_bin_string(?UUID1),
+        U2 = uuid_to_bin_string(?UUID2),
+        U3 = uuid_to_bin_string(?UUID3),
         {ok, 1} =
             Module:equery(C, "insert into test_table2 (c_varchar, c_uuid) values ('UUID1', $1)",
                    [U1]),
@@ -686,12 +753,11 @@ uuid_select(Config) ->
                    [U3]),
         Res = Module:equery(C, "select c_varchar, c_uuid from test_table2 where c_uuid = any($1)",
                     [[U1, U2]]),
-        U1Bin = list_to_binary(U1),
-        U2Bin = list_to_binary(U2),
-        {ok,[{column,<<"c_varchar">>,varchar,_,_,_},
-             {column,<<"c_uuid">>,uuid,_,_,_}],
-         [{<<"UUID1">>, U1Bin},
-          {<<"UUID2">>, U2Bin}]} = Res
+        ?assertMatch(
+           {ok,[#column{name = <<"c_varchar">>, type = varchar},
+                #column{name = <<"c_uuid">>, type = uuid}],
+            [{<<"UUID1">>, U1},
+             {<<"UUID2">>, U2}]}, Res)
     end).
 
 date_time_type(Config) ->
@@ -739,11 +805,16 @@ hstore_type(Config) ->
     check_type(Config, hstore, "''", {[]}, []),
     check_type(Config, hstore,
                "'a => 1, b => 2.0, c => null'",
-               {[{<<"c">>, null}, {<<"b">>, <<"2.0">>}, {<<"a">>, <<"1">>}]}, Values).
+               {[{<<"a">>, <<"1">>}, {<<"b">>, <<"2.0">>}, {<<"c">>, null}]}, Values).
 
 net_type(Config) ->
     check_type(Config, cidr, "'127.0.0.1/32'", {{127,0,0,1}, 32}, [{{127,0,0,1}, 32}, {{0,0,0,0,0,0,0,1}, 128}]),
-    check_type(Config, inet, "'127.0.0.1'", {127,0,0,1}, [{127,0,0,1}, {0,0,0,0,0,0,0,1}]).
+    check_type(Config, inet, "'127.0.0.1'", {127,0,0,1}, [{127,0,0,1}, {0,0,0,0,0,0,0,1}]),
+    %% macaddr8 available only on PG>=10
+    check_type(Config, macaddr,
+               "'FF:FF:FF:FF:FF:FF'", {255, 255, 255, 255, 255, 255},
+               [{255, 255, 255, 255, 255, 255},
+                {6, 0, 0, 0, 0, 0}]).
 
 array_type(Config) ->
     Module = ?config(module, Config),
@@ -785,17 +856,39 @@ array_type(Config) ->
         Select(jsonb, [<<"{}">>, <<"[]">>, <<"1">>, <<"1.0">>, <<"true">>, <<"\"string\"">>, <<"{\"key\": []}">>])
     end).
 
+record_type(Config) ->
+    Module = ?config(module, Config),
+    epgsql_ct:with_connection(Config, fun(C) ->
+        Select = fun(Sql, Expected) ->
+            {ok, _Columns, [Row]} = Module:equery(C, Sql, []),
+            ?assertMatch(Expected, Row)
+        end,
+
+        %% Simple record
+        Select("select (1,2)", {{1, 2}}),
+
+        %% Record inside other record
+        Select("select (1, (select (2,3)))", {{1, {2, 3}}}),
+
+        %% Array inside record
+        Select("select (1, '{2,3}'::int[])", {{1, [2, 3]}}),
+
+        %% Array of records inside record
+        Select("select (0, ARRAY(select (id, value) from test_table1))", {{0,[{1,<<"one">>},{2,<<"two">>}]}})
+    end).
+
 custom_types(Config) ->
     Module = ?config(module, Config),
     epgsql_ct:with_connection(Config, fun(C) ->
         Module:squery(C, "drop table if exists t_foo;"),
-        Module:squery(C, "drop type foo;"),
-        {ok, [], []} = Module:squery(C, "create type foo as enum('foo', 'bar');"),
-        ok = epgsql:update_type_cache(C, [<<"foo">>]),
-        {ok, [], []} = Module:squery(C, "create table t_foo (col foo);"),
-        {ok, S} = Module:parse(C, "insert_foo", "insert into t_foo values ($1)", [foo]),
-        ok = Module:bind(C, S, ["bar"]),
-        {ok, 1} = Module:execute(C, S)
+        Module:squery(C, "drop type if exists my_type;"),
+        {ok, [], []} = Module:squery(C, "create type my_type as enum('foo', 'bar');"),
+        {ok, [my_type]} = epgsql:update_type_cache(C, [{epgsql_codec_test_enum, [foo, bar]}]),
+        {ok, [], []} = Module:squery(C, "create table t_foo (col my_type);"),
+        {ok, S} = Module:parse(C, "insert_foo", "insert into t_foo values ($1)", [my_type]),
+        ok = Module:bind(C, S, [bar]),
+        {ok, 1} = Module:execute(C, S),
+        ?assertMatch({ok, _, [{bar}]}, Module:equery(C, "SELECT col FROM t_foo"))
     end).
 
 text_format(Config) ->
@@ -804,8 +897,8 @@ text_format(Config) ->
         Select = fun(Type, V) ->
             V2 = list_to_binary(V),
             Query = "select $1::" ++ Type,
-            {ok, _Cols, [{V2}]} = Module:equery(C, Query, [V]),
-            {ok, _Cols, [{V2}]} = Module:equery(C, Query, [V2])
+            ?assertMatch({ok, _Cols, [{V2}]}, Module:equery(C, Query, [V])),
+            ?assertMatch({ok, _Cols, [{V2}]}, Module:equery(C, Query, [V2]))
         end,
         Select("numeric", "123456")
     end).
@@ -814,8 +907,8 @@ query_timeout(Config) ->
     Module = ?config(module, Config),
     epgsql_ct:with_connection(Config, fun(C) ->
         {ok, _, _} = Module:squery(C, "SET statement_timeout = 500"),
-        ?TIMEOUT_ERROR = Module:squery(C, "SELECT pg_sleep(1)"),
-        ?TIMEOUT_ERROR = Module:equery(C, "SELECT pg_sleep(2)"),
+        ?assertMatch(?TIMEOUT_ERROR, Module:squery(C, "SELECT pg_sleep(1)")),
+        ?assertMatch(?TIMEOUT_ERROR, Module:equery(C, "SELECT pg_sleep(2)")),
         {ok, _Cols, [{1}]} = Module:equery(C, "SELECT 1")
     end, []).
 
@@ -825,7 +918,7 @@ execute_timeout(Config) ->
         {ok, _, _} = Module:squery(C, "SET statement_timeout = 500"),
         {ok, S} = Module:parse(C, "select pg_sleep($1)"),
         ok = Module:bind(C, S, [2]),
-        ?TIMEOUT_ERROR = Module:execute(C, S, 0),
+        ?assertMatch(?TIMEOUT_ERROR, Module:execute(C, S, 0)),
         ok = Module:sync(C),
         ok = Module:bind(C, S, [0]),
         {ok, [{<<>>}]} = Module:execute(C, S, 0),
@@ -936,7 +1029,7 @@ listen_notify(Config) ->
 
 listen_notify_payload(Config) ->
     Module = ?config(module, Config),
-    epgsql_ct:with_min_version(Config, 9.0, fun(C) ->
+    epgsql_ct:with_min_version(Config, [9, 0], fun(C) ->
         {ok, [], []}     = Module:squery(C, "listen epgsql_test"),
         {ok, _, [{Pid}]} = Module:equery(C, "select pg_backend_pid()"),
         {ok, [], []}     = Module:squery(C, "notify epgsql_test, 'test!'"),
@@ -949,7 +1042,7 @@ listen_notify_payload(Config) ->
 
 set_notice_receiver(Config) ->
     Module = ?config(module, Config),
-    epgsql_ct:with_min_version(Config, 9.0, fun(C) ->
+    epgsql_ct:with_min_version(Config, [9, 0], fun(C) ->
         {ok, [], []}     = Module:squery(C, "listen epgsql_test"),
         {ok, _, [{Pid}]} = Module:equery(C, "select pg_backend_pid()"),
 
@@ -1016,7 +1109,7 @@ get_cmd_status(Config) ->
         {ok, 1} = Module:squery(C, "UPDATE cmd_status_t SET col=3 WHERE col=1"),
         ?assertEqual({ok, {'update', 1}}, Module:get_cmd_status(C)),
         %% Failed queries have no status
-        {error, _} = Module:squery(C, "UPDATE cmd_status_t SET col='text' WHERE col=2"),
+        {error, _} = Module:squery(C, "DELETE FROM cmd_status_t WHERE not_col=2"),
         ?assertEqual({ok, undefined}, Module:get_cmd_status(C)),
         %% if COMMIT failed, status will be 'rollback'
         {ok, [], []} = Module:squery(C, "COMMIT"),
@@ -1027,7 +1120,7 @@ get_cmd_status(Config) ->
     end).
 
 range_type(Config) ->
-    epgsql_ct:with_min_version(Config, 9.2, fun(_C) ->
+    epgsql_ct:with_min_version(Config, [9, 2], fun(_C) ->
         check_type(Config, int4range, "int4range(10, 20)", {10, 20}, [
             {1, 58}, {-1, 12}, {-985521, 5412687}, {minus_infinity, 0},
             {984655, plus_infinity}, {minus_infinity, plus_infinity}
@@ -1035,13 +1128,66 @@ range_type(Config) ->
    end, []).
 
 range8_type(Config) ->
-    epgsql_ct:with_min_version(Config, 9.2, fun(_C) ->
+    epgsql_ct:with_min_version(Config, [9, 2], fun(_C) ->
         check_type(Config, int8range, "int8range(10, 20)", {10, 20}, [
             {1, 58}, {-1, 12}, {-9223372036854775808, 5412687},
             {minus_infinity, 9223372036854775807},
             {984655, plus_infinity}, {minus_infinity, plus_infinity}
         ])
     end, []).
+
+date_time_range_type(Config) ->
+    epgsql_ct:with_min_version(Config, [9, 2], fun(_C) ->
+        check_type(Config, tsrange, "tsrange('2008-01-02 03:04:05', '2008-02-02 03:04:05')", {{{2008,1,2},{3,4,5.0}}, {{2008,2,2},{3,4,5.0}}}, []),
+       check_type(Config, tsrange, "tsrange('2008-01-02 03:04:05', '2008-01-02 03:04:05')", empty, []),
+
+       check_type(Config, daterange, "daterange('2008-01-02', '2008-02-02')", {{2008,1,2}, {2008, 2, 2}}, [{{-4712,1,1}, {5874897,1,1}}
+]),
+      check_type(Config, tstzrange, "tstzrange('2011-01-02 03:04:05+3', '2011-01-02 04:04:05+3')", {{{2011, 1, 2}, {0, 4, 5.0}}, {{2011, 1, 2}, {1, 4, 5.0}}}, [{{{2011, 1, 2}, {0, 4, 5.0}}, {{2011, 1, 2}, {1, 4, 5.0}}}])
+
+   end, []).
+
+with_transaction(Config) ->
+    Module = ?config(module, Config),
+    epgsql_ct:with_connection(
+      Config,
+      fun(C) ->
+              %% Success case
+              ?assertEqual(
+                 success, Module:with_transaction(C, fun(_) -> success end)),
+              ?assertEqual(
+                 success, Module:with_transaction(C, fun(_) -> success end,
+                                                  [{ensure_committed, true}])),
+              %% begin_opts
+              ?assertMatch(
+                 [{ok, _, [{<<"serializable">>}]},
+                  {ok, _, [{<<"on">>}]}],
+                 Module:with_transaction(
+                   C, fun(C1) ->
+                              Module:squery(C1, ("SHOW transaction_isolation; "
+                                                 "SHOW transaction_read_only"))
+                      end,
+                   [{begin_opts, "READ ONLY ISOLATION LEVEL SERIALIZABLE"}])),
+              %% ensure_committed failure
+              ?assertError(
+                 {ensure_committed_failed, rollback},
+                 Module:with_transaction(
+                   C, fun(C1) ->
+                              {error, _} = Module:squery(C1, "SELECT col FROM _nowhere_"),
+                              ok
+                      end,
+                   [{ensure_committed, true}])),
+              %% reraise
+              ?assertEqual(
+                 {rollback, my_err},
+                 Module:with_transaction(
+                   C, fun(_) -> error(my_err) end,
+                   [{reraise, false}])),
+              ?assertError(
+                 my_err,
+                 Module:with_transaction(
+                   C, fun(_) -> error(my_err) end, []))
+      end, []).
 
 %% =============================================================================
 %% Internal functions
@@ -1056,7 +1202,7 @@ check_type(Config, Type, In, Out, Values, Column) ->
     epgsql_ct:with_connection(Config, fun(C) ->
         Select = io_lib:format("select ~s::~w", [In, Type]),
         Res = Module:equery(C, Select),
-        {ok, [#column{type = Type}], [{Out}]} = Res,
+        ?assertMatch({ok, [#column{type = Type}], [{Out}]}, Res),
         Sql = io_lib:format("insert into test_table2 (~s) values ($1) returning ~s", [Column, Column]),
         {ok, #statement{columns = [#column{type = Type}]} = S} = Module:parse(C, Sql),
         Insert = fun(V) ->
@@ -1064,7 +1210,10 @@ check_type(Config, Type, In, Out, Values, Column) ->
             {ok, 1, [{V2}]} = Module:execute(C, S),
             case compare(Type, V, V2) of
                 true  -> ok;
-                false -> ?debugFmt("~p =/= ~p~n", [V, V2]), ?assert(false)
+                false ->
+                    error({write_read_compare_failed,
+                           iolist_to_binary(
+                             io_lib:format("~p =/= ~p~n", [V, V2]))})
             end,
             ok = Module:sync(C)
         end,
@@ -1073,8 +1222,8 @@ check_type(Config, Type, In, Out, Values, Column) ->
 
 compare(_Type, null, null)      -> true;
 compare(_Type, undefined, null) -> true;
-compare(float4, V1, V2)         -> abs(V2 - V1) < 0.000001;
-compare(float8, V1, V2)         -> abs(V2 - V1) < 0.000000000000001;
+compare(float4, V1, V2) when is_float(V1) -> abs(V2 - V1) < 0.000001;
+compare(float8, V1, V2) when is_float(V1) -> abs(V2 - V1) < 0.000000000000001;
 compare(hstore, {V1}, V2)       -> compare(hstore, V1, V2);
 compare(hstore, V1, {V2})       -> compare(hstore, V1, V2);
 compare(hstore, V1, V2)         ->

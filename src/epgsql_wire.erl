@@ -7,46 +7,54 @@
          decode_error/1,
          decode_strings/1,
          decode_columns/3,
-         encode/1,
-         encode/2,
-         decode_data/3,
+         decode_parameters/2,
+         encode_command/1,
+         encode_command/2,
+         build_decoder/2,
+         decode_data/2,
          decode_complete/1,
          encode_types/2,
          encode_formats/1,
-         format/1,
+         format/2,
          encode_parameters/2,
          encode_standby_status_update/3]).
+-export_type([row_decoder/0]).
 
 -include("epgsql.hrl").
--include("epgsql_binary.hrl").
+-include("protocol.hrl").
 
+-opaque row_decoder() :: {[epgsql_binary:decoder()], [epgsql:column()], epgsql_binary:codec()}.
+
+-spec decode_message(binary()) -> {byte(), binary(), binary()} | binary().
 decode_message(<<Type:8, Len:?int32, Rest/binary>> = Bin) ->
     Len2 = Len - 4,
     case Rest of
         <<Data:Len2/binary, Tail/binary>> ->
-            case Type of
-                $E ->
-                    {{error, decode_error(Data)}, Tail};
-                _ ->
-                    {{Type, Data}, Tail}
-            end;
+            {Type, Data, Tail};
         _Other ->
             Bin
     end;
-
 decode_message(Bin) ->
     Bin.
 
-%% decode a single null-terminated string
+%% @doc decode a single null-terminated string
+-spec decode_string(binary()) -> [binary(), ...].
 decode_string(Bin) ->
     binary:split(Bin, <<0>>).
 
-%% decode multiple null-terminated string
+%% @doc decode multiple null-terminated string
+-spec decode_strings(binary()) -> [binary(), ...].
 decode_strings(Bin) ->
-    [<<>> | T] = lists:reverse(binary:split(Bin, <<0>>, [global])),
-    lists:reverse(T).
+    %% Assert the last byte is what we want it to be
+    %% Remove that byte from the Binary, so the zero
+    %% terminators are separators. Then apply
+    %% binary:split/3 directly on the remaining Subj
+    Sz = byte_size(Bin) - 1,
+    <<Subj:Sz/binary, 0>> = Bin,
+    binary:split(Subj, <<0>>, [global]).
 
-%% decode field
+%% @doc decode error's field
+-spec decode_fields(binary()) -> [{byte(), binary()}].
 decode_fields(Bin) ->
     decode_fields(Bin, []).
 
@@ -56,8 +64,9 @@ decode_fields(<<Type:8, Rest/binary>>, Acc) ->
     [Str, Rest2] = decode_string(Rest),
     decode_fields(Rest2, [{Type, Str} | Acc]).
 
-%% decode ErrorResponse
+%% @doc decode ErrorResponse
 %% See http://www.postgresql.org/docs/current/interactive/protocol-error-fields.html
+-spec decode_error(binary()) -> epgsql:query_error().
 decode_error(Bin) ->
     Fields = decode_fields(Bin),
     ErrCode = proplists:get_value($C, Fields),
@@ -113,50 +122,60 @@ lower_atom(Str) when is_binary(Str) ->
 lower_atom(Str) when is_list(Str) ->
     list_to_atom(string:to_lower(Str)).
 
-encode(Data) ->
-    Bin = iolist_to_binary(Data),
-    <<(byte_size(Bin) + 4):?int32, Bin/binary>>.
 
-encode(Type, Data) ->
-    Bin = iolist_to_binary(Data),
-    <<Type:8, (byte_size(Bin) + 4):?int32, Bin/binary>>.
+%% @doc Build decoder for DataRow
+-spec build_decoder([epgsql:column()], epgsql_binary:codec()) -> row_decoder().
+build_decoder(Columns, Codec) ->
+    Decoders = lists:map(
+                 fun(#column{oid = Oid, format = Format}) ->
+                         Fmt = case Format of
+                                   1 -> binary;
+                                   0 -> text
+                               end,
+                         epgsql_binary:oid_to_decoder(Oid, Fmt, Codec)
+                 end, Columns),
+    {Decoders, Columns, Codec}.
 
-%% decode data
-decode_data(Columns, Bin, Codec) ->
-    decode_data(Columns, Bin, [], Codec).
+%% @doc decode row data
+-spec decode_data(binary(), row_decoder()) -> tuple().
+decode_data(Bin, {Decoders, _Columns, Codec}) ->
+    list_to_tuple(decode_data(Bin, Decoders, Codec)).
 
-decode_data([], _Bin, Acc, _Codec) ->
-    list_to_tuple(lists:reverse(Acc));
-decode_data([_C | T], <<-1:?int32, Rest/binary>>, Acc, Codec) ->
-    decode_data(T, Rest, [null | Acc], Codec);
-decode_data([C | T], <<Len:?int32, Value:Len/binary, Rest/binary>>, Acc, Codec) ->
-    Value2 = case C of
-        #column{type = Type, format = 1} ->
-            epgsql_binary:decode(Type, Value, Codec);
-        #column{} ->
-            Value
-    end,
-    decode_data(T, Rest, [Value2 | Acc], Codec).
+decode_data(_, [], _) -> [];
+decode_data(<<-1:?int32, Rest/binary>>, [_Dec | Decs], Codec) ->
+    [null | decode_data(Rest, Decs, Codec)];
+decode_data(<<Len:?int32, Value:Len/binary, Rest/binary>>, [Decoder | Decs], Codec) ->
+    [epgsql_binary:decode(Value, Decoder)
+     | decode_data(Rest, Decs, Codec)].
 
-%% decode column information
+%% @doc decode column information
+-spec decode_columns(non_neg_integer(), binary(), epgsql_binary:codec()) -> [epgsql:column()].
+decode_columns(0, _Bin, _Codec) -> [];
 decode_columns(Count, Bin, Codec) ->
-    decode_columns(Count, Bin, [], Codec).
-
-decode_columns(0, _Bin, Acc, _Codec) ->
-    lists:reverse(Acc);
-decode_columns(N, Bin, Acc, Codec) ->
     [Name, Rest] = decode_string(Bin),
-    <<_Table_Oid:?int32, _Attrib_Num:?int16, Type_Oid:?int32,
-     Size:?int16, Modifier:?int32, Format:?int16, Rest2/binary>> = Rest,
+    <<_TableOid:?int32, _AttribNum:?int16, TypeOid:?int32,
+      Size:?int16, Modifier:?int32, Format:?int16, Rest2/binary>> = Rest,
+    %% TODO: get rid of this 'type' (extra oid_db lookup)
+    Type = epgsql_binary:oid_to_name(TypeOid, Codec),
     Desc = #column{
       name     = Name,
-      type     = epgsql_binary:oid2type(Type_Oid, Codec),
+      type     = Type,
+      oid      = TypeOid,
       size     = Size,
       modifier = Modifier,
       format   = Format},
-    decode_columns(N - 1, Rest2, [Desc | Acc], Codec).
+    [Desc | decode_columns(Count - 1, Rest2, Codec)].
 
-%% decode command complete msg
+%% @doc decode ParameterDescription
+-spec decode_parameters(binary(), epgsql_binary:codec()) ->
+                               [epgsql_oid_db:type_info() | {unknown_oid, epgsql_oid_db:oid()}].
+decode_parameters(<<_Count:?int16, Bin/binary>>, Codec) ->
+    [case epgsql_binary:oid_to_info(Oid, Codec)  of
+         undefined -> {unknown_oid, Oid};
+         TypeInfo -> TypeInfo
+     end || <<Oid:?int32>> <= Bin].
+
+%% @doc decode command complete msg
 decode_complete(<<"SELECT", 0>>)        -> select;
 decode_complete(<<"SELECT", _/binary>>) -> select;
 decode_complete(<<"BEGIN", 0>>)         -> 'begin';
@@ -172,7 +191,8 @@ decode_complete(Bin) ->
         [Type | _Rest]         -> lower_atom(Type)
     end.
 
-%% encode types
+
+%% @doc encode types
 encode_types(Types, Codec) ->
     encode_types(Types, 0, <<>>, Codec).
 
@@ -181,12 +201,13 @@ encode_types([], Count, Acc, _Codec) ->
 
 encode_types([Type | T], Count, Acc, Codec) ->
     Oid = case Type of
-        undefined -> 0;
-        _Any      -> epgsql_binary:type2oid(Type, Codec)
+              undefined -> 0;
+              _Any -> epgsql_binary:type_to_oid(Type, Codec)
     end,
     encode_types(T, Count + 1, <<Acc/binary, Oid:?int32>>, Codec).
 
-%% encode column formats
+%% @doc encode expected column formats
+-spec encode_formats([epgsql:column()]) -> binary().
 encode_formats(Columns) ->
     encode_formats(Columns, 0, <<>>).
 
@@ -196,45 +217,66 @@ encode_formats([], Count, Acc) ->
 encode_formats([#column{format = Format} | T], Count, Acc) ->
     encode_formats(T, Count + 1, <<Acc/binary, Format:?int16>>).
 
-format(Type) ->
-    case epgsql_binary:supports(Type) of
-        true  -> 1;
-        false -> 0
+format({unknown_oid, _}, _) -> 0;
+format(#column{oid = Oid}, Codec) ->
+    case epgsql_binary:supports(Oid, Codec) of
+        true  -> 1;                             %binary
+        false -> 0                              %text
     end.
 
-%% encode parameters
+%% @doc encode parameters for 'Bind'
+-spec encode_parameters([], epgsql_binary:codec()) -> iolist().
 encode_parameters(Parameters, Codec) ->
-    encode_parameters(Parameters, 0, <<>>, <<>>, Codec).
+    encode_parameters(Parameters, 0, <<>>, [], Codec).
 
 encode_parameters([], Count, Formats, Values, _Codec) ->
-    <<Count:?int16, Formats/binary, Count:?int16, Values/binary>>;
+    [<<Count:?int16>>, Formats, <<Count:?int16>> | lists:reverse(Values)];
 
 encode_parameters([P | T], Count, Formats, Values, Codec) ->
     {Format, Value} = encode_parameter(P, Codec),
     Formats2 = <<Formats/binary, Format:?int16>>,
-    Values2 = <<Values/binary, Value/binary>>,
+    Values2 = [Value | Values],
     encode_parameters(T, Count + 1, Formats2, Values2, Codec).
 
-%% encode parameter
-
+%% @doc encode single 'typed' parameter
+-spec encode_parameter({Type, Val :: any()},
+                       epgsql_binary:codec()) -> {0..1, iolist()} when
+      Type :: epgsql:type_name()
+            | {array, epgsql:type_name()}
+            | {unknown_oid, epgsql_oid_db:oid()}.
+encode_parameter({T, undefined}, Codec) ->
+    encode_parameter({T, null}, Codec);
+encode_parameter({_, null}, _Codec) ->
+    {1, <<-1:?int32>>};
+encode_parameter({{unknown_oid, _Oid}, Value}, _Codec) ->
+    {0, encode_text(Value)};
 encode_parameter({Type, Value}, Codec) ->
-    case epgsql_binary:encode(Type, Value, Codec) of
-        Bin when is_binary(Bin) -> {1, Bin};
-        {error, unsupported}    -> encode_parameter(Value)
-    end;
-encode_parameter(Value, _Codec) -> encode_parameter(Value).
+    {1, epgsql_binary:encode(Type, Value, Codec)};
+encode_parameter(Value, _Codec) ->
+    {0, encode_text(Value)}.
 
-encode_parameter(A) when is_atom(A)    -> {0, encode_list(atom_to_list(A))};
-encode_parameter(B) when is_binary(B)  -> {0, <<(byte_size(B)):?int32, B/binary>>};
-encode_parameter(I) when is_integer(I) -> {0, encode_list(integer_to_list(I))};
-encode_parameter(F) when is_float(F)   -> {0, encode_list(float_to_list(F))};
-encode_parameter(L) when is_list(L)    -> {0, encode_list(L)}.
+encode_text(B) when is_binary(B)  -> encode_bin(B);
+encode_text(A) when is_atom(A)    -> encode_bin(atom_to_binary(A, utf8));
+encode_text(I) when is_integer(I) -> encode_bin(integer_to_binary(I));
+encode_text(F) when is_float(F)   -> encode_bin(float_to_binary(F));
+encode_text(L) when is_list(L)    -> encode_bin(list_to_binary(L)).
 
-encode_list(L) ->
-    Bin = list_to_binary(L),
+encode_bin(Bin) ->
     <<(byte_size(Bin)):?int32, Bin/binary>>.
 
+%% @doc Encode iodata with size-prefix (used for `StartupMessage' and `SSLRequest' packets)
+encode_command(Data) ->
+    Size = iolist_size(Data),
+    [<<(Size + 4):?int32>> | Data].
+
+%% @doc Encode PG command with type and size prefix
+encode_command(Type, Data) ->
+    Size = iolist_size(Data),
+    [<<Type:8, (Size + 4):?int32>> | Data].
+
+%% @doc encode replication status message
 encode_standby_status_update(ReceivedLSN, FlushedLSN, AppliedLSN) ->
     {MegaSecs, Secs, MicroSecs} = os:timestamp(),
-    Timestamp = ((MegaSecs * 1000000 + Secs) * 1000000 + MicroSecs) - 946684800*1000000, %% microseconds since midnight on 2000-01-01
+    %% microseconds since midnight on 2000-01-01
+    Timestamp = ((MegaSecs * 1000000 + Secs) * 1000000 + MicroSecs) - 946684800*1000000,
     <<$r:8, ReceivedLSN:?int64, FlushedLSN:?int64, AppliedLSN:?int64, Timestamp:?int64, 0:8>>.

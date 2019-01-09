@@ -4,19 +4,17 @@ addons:
     packages:
       - postgresql-9.6-postgis-2.3
       - postgresql-contrib-9.6
-before_script:
-  - wget https://s3.amazonaws.com/rebar3/rebar3
-  - chmod u+x ./rebar3
 env:
   - PATH=".:/usr/lib/postgresql/9.6/bin:$PATH"
 install: "true"
 language: erlang
 otp_release:
-  - 20.0
-  - 19.1
+  - 21.0
+  - 20.3
+  - 19.3
   - 18.3
-  - 17.4
-  - R16B03-1
+  - 17.5
 script:
+  - make elvis
   - make test
   - make dialyzer

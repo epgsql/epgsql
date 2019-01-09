@@ -51,6 +51,7 @@ start_postgres() ->
     pipe([
         fun find_utils/1,
         fun init_database/1,
+        fun get_version/1,
         fun write_postgresql_config/1,
         fun copy_certs/1,
         fun write_pg_hba_config/1,
@@ -101,7 +102,8 @@ start_postgresql(Config) ->
             [{stderr,
               fun(_, _, Msg) ->
                   ct:pal(info, "postgres: ~s", [Msg])
-              end}]),
+              end},
+             {env, [{"LANGUAGE", "en"}]}]),
         loop(I)
     end),
     ConfigR = [
@@ -151,6 +153,15 @@ init_database(Config) ->
     {ok, _} = exec:run(Initdb ++ " --locale en_US.UTF8 " ++ PgDataDir, [sync,stdout,stderr]),
     [{datadir, PgDataDir}|Config].
 
+get_version(Config) ->
+    Datadir = ?config(datadir, Config),
+    VersionFile = filename:join(Datadir, "PG_VERSION"),
+    {ok, VersionFileData} = file:read_file(VersionFile),
+    VersionBin = list_to_binary(string:strip(binary_to_list(VersionFileData), both, $\n)),
+    Version = lists:map(fun erlang:binary_to_integer/1,
+                         binary:split(VersionBin, <<".">>, [global])),
+    [{version, Version} | Config].
+
 write_postgresql_config(Config) ->
     PgDataDir = ?config(datadir, Config),
 
@@ -158,6 +169,7 @@ write_postgresql_config(Config) ->
         "ssl = on\n",
         "ssl_ca_file = 'root.crt'\n",
         "lc_messages = 'en_US.UTF-8'\n",
+        "fsync = off\n",
         "wal_level = 'logical'\n",
         "max_replication_slots = 15\n",
         "max_wal_senders = 15"
@@ -185,6 +197,7 @@ copy_certs(Config) ->
 
 write_pg_hba_config(Config) ->
     PgDataDir = ?config(datadir, Config),
+    Version = ?config(version, Config),
 
     User = os:getenv("USER"),
     PGConfig = [
@@ -197,7 +210,25 @@ write_pg_hba_config(Config) ->
         "host    epgsql_test_db1 epgsql_test_md5         127.0.0.1/32    md5\n",
         "host    epgsql_test_db1 epgsql_test_cleartext   127.0.0.1/32    password\n",
         "hostssl epgsql_test_db1 epgsql_test_cert        127.0.0.1/32    cert clientcert=1\n",
-        "host    replication     epgsql_test_replication 127.0.0.1/32    trust"
+        "host    template1       ", User, "              ::1/128    trust\n",
+        "host    ", User, "      ", User, "              ::1/128    trust\n",
+        "hostssl postgres        ", User, "              ::1/128    trust\n",
+        "host    epgsql_test_db1 ", User, "              ::1/128    trust\n",
+        "host    epgsql_test_db1 epgsql_test             ::1/128    trust\n",
+        "host    epgsql_test_db1 epgsql_test_md5         ::1/128    md5\n",
+        "host    epgsql_test_db1 epgsql_test_cleartext   ::1/128    password\n",
+        "hostssl epgsql_test_db1 epgsql_test_cert        ::1/128    cert clientcert=1\n" |
+        case Version >= [10] of
+            true ->
+                %% See
+                %% https://www.postgresql.org/docs/10/static/release-10.html
+                %% "Change how logical replication uses pg_hba.conf"
+                ["host    epgsql_test_db1 epgsql_test_replication 127.0.0.1/32    trust\n",
+                 %% scram auth method only available on PG >= 10
+                 "host    epgsql_test_db1 epgsql_test_scram       127.0.0.1/32    scram-sha-256\n"];
+            false ->
+                ["host    replication     epgsql_test_replication 127.0.0.1/32    trust\n"]
+        end
     ],
     FilePath = filename:join(PgDataDir, "pg_hba.conf"),
     ok = file:write_file(FilePath, PGConfig),

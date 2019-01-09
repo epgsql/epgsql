@@ -12,12 +12,16 @@ CREATE USER epgsql_test_md5 WITH PASSWORD 'epgsql_test_md5';
 CREATE USER epgsql_test_cleartext WITH PASSWORD 'epgsql_test_cleartext';
 CREATE USER epgsql_test_cert;
 CREATE USER epgsql_test_replication WITH REPLICATION PASSWORD 'epgsql_test_replication';
+SET password_encryption TO 'scram-sha-256';
+CREATE USER epgsql_test_scram WITH PASSWORD 'epgsql_test_scram';
+SET password_encryption TO 'md5';
 
 CREATE DATABASE epgsql_test_db1 WITH ENCODING 'UTF8';
 CREATE DATABASE epgsql_test_db2 WITH ENCODING 'UTF8';
 
 GRANT ALL ON DATABASE epgsql_test_db1 to epgsql_test;
 GRANT ALL ON DATABASE epgsql_test_db1 to epgsql_test_md5;
+GRANT ALL ON DATABASE epgsql_test_db1 to epgsql_test_scram;
 GRANT ALL ON DATABASE epgsql_test_db1 to epgsql_test_cleartext;
 GRANT ALL ON DATABASE epgsql_test_db2 to epgsql_test;
 
@@ -60,10 +64,15 @@ CREATE TABLE test_table2 (
   c_geometry geometry,
   c_cidr cidr,
   c_inet inet,
+  c_macaddr macaddr,
   c_int4range int4range,
   c_int8range int8range,
   c_json json,
-  c_jsonb jsonb);
+  c_jsonb jsonb,
+  c_tsrange tsrange,
+  c_tstzrange tstzrange,
+  c_daterange daterange
+  );
 
 -- CREATE LANGUAGE plpgsql;
 

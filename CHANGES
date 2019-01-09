@@ -1,3 +1,76 @@
+In 4.2.1
+
+* Bug fix for `epgsql:connect(proplist())`
+
+In 4.2.0
+
+* Support for R16 was completely dropped. Maps are now used internally instead of proplists
+* Nested `record` datatype decoding bug, introduced in 4.0.0, was fixed
+* Added tsrange, tstzrange, daterange types
+* Passwords are obfuscated before they sent to connection process. This is to avoid plain
+  DB passwords to be dumped to SASL crash log
+* Password can be provided as a fun: `fun ( () -> iodata() )`
+* `platform_define` macroses were simplified. It's now possible to build epgsql even without
+  rebar on all supported OTP versions
+
+In 4.1.0
+
+* Fix Erlang 21 `get_stacktrace/0` warnings
+* Fix broken backward-compatibility in `bpchar` datatype
+* Fix compatibility issues between the newest rebar3 and Erlang R16
+
+In 4.0.1
+
+* Minor build bug fixed
+
+In 4.0.0
+
+Changes:
+
+* Make epgsql commands pluggable  (see pluggable_commands.md).
+  Now we are not limited only by API functions provided by epgsql (equery/squery/prepared_query etc),
+  but may create own commands as a plugins. Still, understanding of PostgreSQL network protocol needed
+  to be able to do so.
+* Make epgsql datatype encoding/decdoding pluggable (see pluggable_types.md).
+  Now we are able to add or tweak codecs for existing as well as custom PostgreSQL
+  datatypes (like datetime, varchar, enum, arrays etc).
+  XXX: Highly recommend to add `{codecs, []}` option to your epgsql:connect/X calls if you don't use
+  PostGIS and hstore datatypes: this will reduce connection setup time.
+* epgsql internals had a huge refactoring (4,000 additions and 1,750 deletions for ~5500 LOC project).
+  Code now is much more modular, documented and have a lot of internal typespecs. Performance
+  improvements are also expected.
+* Now we try to use iolists as much as possible and avoid binary and string concatenations when ever possible.
+  Expect noticeable performance improvements for large BYTEA / TEXT / VARCHAR / JSON / JSONB etc fields.
+* Extended and documented epgsql:with_transaction/3.
+  Now it's possible to preserve original exception's stacktrace, finally!
+* macaddr and macaddr8 datatypes support added
+* Float datatype support was extended with `nan`, `minus_infinity`, `plus_infinity`
+* elvis code style check was added to our travis pipeline
+* Brand-new PostgreSQL 10 scram-sha-256 auth method added
+  (see https://www.postgresql.org/docs/10/static/auth-methods.html#AUTH-PASSWORD and
+  https://www.postgresql.org/docs/current/static/sasl-authentication.html)
+* A lot of typespecs were rewritten and lots of internal typespecs were added
+
+Incompatibilities:
+
+* Some unexpected performance issues may appear, but we expect performance improvements, especially
+  for a large result sets (when a lot of rows are returned by a query) and for large string/json/blob
+  query parameters
+* Undocumented epgsql:update_type_cache/2 API was changed
+* A lot of typespecs were updated. Some typespecs were deprecated or moved from epgsql.erl to other
+  modules. So, some new dialyzer warnings might pop-up
+* Some new error messages might be returned, especially from epgsql:connect/X functions
+* Memory consumption per-connection might slightly grow because we maintain per-connection OID<->codec
+  mapping table, which might be quite big in some cases. This also may produce bigger error_logger
+  reports in case of epgsql connection process crashes.
+* Some exported .hrl files have been changed. #column{} and #statement{} record definitions were extended.
+* PostGIS users might be affected by cleanup of ewkb.erl and epgsql_geometry.hrl
+* Streaming replication users should pay extra attention. No tests were broken, but a lot of
+  modifications were made to this code.
+* Passing integer / atom / float as a value of a text / varchar / bytea query parameter is now
+  deprecated (so, `epgsql:equery(C, "SELECT $1::text", [my_atom])` will still work but is not recommended)
+* Redshift and CockroachDB users might expirience some problems. Please, report bugs!
+
 In 3.4.0
 
 * Use rebar3 as default build and test tool

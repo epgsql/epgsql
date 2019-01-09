@@ -69,8 +69,7 @@ replication_test_run(Config, Callback) ->
                 fun(C2) ->
                     [{ok, 1},{ok, 1}] = Module:squery(C2,
                         "insert into test_table1 (id, value) values (5, 'five');delete from test_table1 where id = 5;")
-                end,
-                "epgsql_test_db1"),
+                end),
 
             Module:start_replication(C, "epgsql_test", Callback, {C, self()}, "0/0"),
             ok = receive_replication_msgs(

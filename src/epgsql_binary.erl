@@ -1,337 +1,316 @@
 %%% Copyright (C) 2008 - Will Glozer.  All rights reserved.
-
+%% XXX: maybe merge this module into epgsql_codec?
 -module(epgsql_binary).
 
--export([new_codec/1,
-         update_type_cache/2,
-         type2oid/2, oid2type/2,
-         encode/3, decode/3, supports/1]).
+-export([new_codec/2,
+         update_codec/2,
+         type_to_oid/2,
+         typeinfo_to_name_array/2,
+         typeinfo_to_oid_info/2,
+         oid_to_name/2,
+         oid_to_info/2,
+         oid_to_decoder/3,
+         decode/2, encode/3, supports/2]).
+%% Composite type decoders
+-export([decode_record/3, decode_array/3]).
 
--record(codec, {
-    type2oid = [],
-    oid2type = []
-}).
+-export_type([codec/0, decoder/0]).
 
--include("epgsql_binary.hrl").
+-include("protocol.hrl").
 
--define(datetime, (get(datetime_mod))).
+-record(codec,
+        {opts = [] :: list(),                   % not used yet
+         oid_db :: epgsql_oid_db:db()}).
 
--define(INET, 2).
--define(INET6, 3).
--define(IP_SIZE, 4).
--define(IP6_SIZE, 16).
--define(MAX_IP_MASK, 32).
--define(MAX_IP6_MASK, 128).
--define(JSONB_VERSION_1, 1).
+-opaque codec() :: #codec{}.
+-opaque decoder() :: {fun((binary(), epgsql:type_name(), epgsql_codec:codec_state()) -> any()),
+                      epgsql:type_name(),
+                      epgsql_codec:codec_state()}.
 
-new_codec([]) -> #codec{}.
+-type type() :: epgsql:type_name() | {array, epgsql:type_name()}.
+-type maybe_unknown_type() :: type() | {unknown_oid, epgsql_oid_db:oid()}.
 
-update_type_cache(TypeInfos, Codec) ->
-    Type2Oid = lists:flatmap(
-        fun({NameBin, ElementOid, ArrayOid}) ->
-            Name = erlang:binary_to_atom(NameBin, utf8),
-            [{Name, ElementOid}, {{array, Name}, ArrayOid}]
-        end,
-        TypeInfos),
-    Oid2Type = [{Oid, Type} || {Type, Oid} <- Type2Oid],
-    Codec#codec{type2oid = Type2Oid, oid2type = Oid2Type}.
+-define(RECORD_OID, 2249).
+-define(RECORD_ARRAY_OID, 2287).
 
-oid2type(Oid, #codec{oid2type = Oid2Type}) ->
-    case epgsql_types:oid2type(Oid) of
-        {unknown_oid, _} ->
-            proplists:get_value(Oid, Oid2Type, {unknown_oid, Oid});
-        Type -> Type
+%% Codec is used to convert data (result rows and query parameters) between Erlang and postgresql formats
+%% It uses mappings between OID, type names and `epgsql_codec_*' modules (epgsql_oid_db)
+
+-spec new_codec(epgsql_sock:pg_sock(), list()) -> codec().
+new_codec(PgSock, Opts) ->
+    Codecs = default_codecs(),
+    Oids = default_oids(),
+    new_codec(PgSock, Codecs, Oids, Opts).
+
+new_codec(PgSock, Codecs, Oids, Opts) ->
+    CodecEntries = epgsql_codec:init_mods(Codecs, PgSock),
+    Types = epgsql_oid_db:join_codecs_oids(Oids, CodecEntries),
+    #codec{oid_db = epgsql_oid_db:from_list(Types), opts = Opts}.
+
+-spec update_codec([epgsql_oid_db:type_info()], codec()) -> codec().
+update_codec(TypeInfos, #codec{oid_db = Db} = Codec) ->
+    Codec#codec{oid_db = epgsql_oid_db:update(TypeInfos, Db)}.
+
+-spec oid_to_name(epgsql_oid_db:oid(), codec()) -> maybe_unknown_type().
+oid_to_name(Oid, Codec) ->
+    case oid_to_info(Oid, Codec) of
+        undefined ->
+            {unknown_oid, Oid};
+        Type ->
+            case epgsql_oid_db:type_to_oid_info(Type) of
+                {_, Name, true} -> {array, Name};
+                {_, Name, false} -> Name
+            end
     end.
 
-type2oid(Type, #codec{type2oid = Type2Oid}) ->
-    case epgsql_types:type2oid(Type) of
-        {unknown_type, _} ->
-            proplists:get_value(Type, Type2Oid, {unknown_type, Type});
-        Oid -> Oid
+-spec type_to_oid(type(), codec()) -> epgsql_oid_db:oid().
+type_to_oid({array, Name}, Codec) ->
+    type_to_oid(Name, true, Codec);
+type_to_oid(Name, Codec) ->
+    type_to_oid(Name, false, Codec).
+
+-spec type_to_oid(epgsql:type_name(), boolean(), codec()) -> epgsql_oid_db:oid().
+type_to_oid(TypeName, IsArray, #codec{oid_db = Db}) ->
+    epgsql_oid_db:oid_by_name(TypeName, IsArray, Db).
+
+-spec type_to_type_info(type(), codec()) -> epgsql_oid_db:type_info() | undefined.
+type_to_type_info({array, Name}, Codec) ->
+    type_to_info(Name, true, Codec);
+type_to_type_info(Name, Codec) ->
+    type_to_info(Name, false, Codec).
+
+-spec oid_to_info(epgsql_oid_db:oid(), codec()) -> epgsql_oid_db:type_info() | undefined.
+oid_to_info(Oid, #codec{oid_db = Db}) ->
+    epgsql_oid_db:find_by_oid(Oid, Db).
+
+-spec type_to_info(epgsql:type_name(), boolean(), codec()) -> epgsql_oid_db:type_info().
+type_to_info(TypeName, IsArray, #codec{oid_db = Db}) ->
+    epgsql_oid_db:find_by_name(TypeName, IsArray, Db).
+
+-spec typeinfo_to_name_array(Unknown | epgsql_oid_db:type_info(), _) -> Unknown | type() when
+      Unknown :: {unknown_oid, epgsql_oid_db:oid()}.
+typeinfo_to_name_array({unknown_oid, _} = Unknown, _) -> Unknown;
+typeinfo_to_name_array(TypeInfo, _) ->
+    case epgsql_oid_db:type_to_oid_info(TypeInfo) of
+        {_, Name, false} -> Name;
+        {_, Name, true} -> {array, Name}
     end.
 
-encode(_Any, null, _)                       -> <<-1:?int32>>;
-encode(_Any, undefined, _)                  -> <<-1:?int32>>;
-encode(bool, true, _)                       -> <<1:?int32, 1:1/big-signed-unit:8>>;
-encode(bool, false, _)                      -> <<1:?int32, 0:1/big-signed-unit:8>>;
-encode(int2, N, _)                          -> <<2:?int32, N:1/big-signed-unit:16>>;
-encode(int4, N, _)                          -> <<4:?int32, N:1/big-signed-unit:32>>;
-encode(int8, N, _)                          -> <<8:?int32, N:1/big-signed-unit:64>>;
-encode(float4, N, _)                        -> <<4:?int32, N:1/big-float-unit:32>>;
-encode(float8, N, _)                        -> <<8:?int32, N:1/big-float-unit:64>>;
-encode(bpchar, C, _) when is_integer(C)     -> <<1:?int32, C:1/big-unsigned-unit:8>>;
-encode(bpchar, B, _) when is_binary(B)      -> <<(byte_size(B)):?int32, B/binary>>;
-encode(time = Type, B, _)                   -> ?datetime:encode(Type, B);
-encode(timetz = Type, B, _)                 -> ?datetime:encode(Type, B);
-encode(date = Type, B, _)                   -> ?datetime:encode(Type, B);
-encode(timestamp = Type, B, _)              -> ?datetime:encode(Type, B);
-encode(timestamptz = Type, B, _)            -> ?datetime:encode(Type, B);
-encode(interval = Type, B, _)               -> ?datetime:encode(Type, B);
-encode(bytea, B, _) when is_binary(B)       -> <<(byte_size(B)):?int32, B/binary>>;
-encode(text, B, _) when is_binary(B)        -> <<(byte_size(B)):?int32, B/binary>>;
-encode(varchar, B, _) when is_binary(B)     -> <<(byte_size(B)):?int32, B/binary>>;
-encode(json, B, _) when is_binary(B)        -> <<(byte_size(B)):?int32, B/binary>>;
-encode(jsonb, B, _) when is_binary(B)       -> <<(byte_size(B) + 1):?int32, ?JSONB_VERSION_1:8, B/binary>>;
-encode(uuid, B, _) when is_binary(B)        -> encode_uuid(B);
-encode({array, char}, L, Codec) when is_list(L) -> encode_array(bpchar, type2oid(bpchar, Codec), L, Codec);
-encode({array, Type}, L, Codec) when is_list(L) -> encode_array(Type, type2oid(Type, Codec), L, Codec);
-encode(hstore, {L}, _) when is_list(L)      -> encode_hstore(L);
-encode(point, {X,Y}, _)                     -> encode_point({X,Y});
-encode(geometry, Data, _)                   -> encode_geometry(Data);
-encode(cidr, B, Codec)                      -> encode(bytea, encode_net(B), Codec);
-encode(inet, B, Codec)                      -> encode(bytea, encode_net(B), Codec);
-encode(int4range, R, _) when is_tuple(R)    -> encode_int4range(R);
-encode(int8range, R, _) when is_tuple(R)    -> encode_int8range(R);
-encode(Type, L, Codec) when is_list(L)      -> encode(Type, list_to_binary(L), Codec);
-encode(_Type, _Value, _)                    -> {error, unsupported}.
+-spec typeinfo_to_oid_info(Unknown | epgsql_oid_db:type_info(), _) ->
+                                  Unknown | epgsql_oid_db:oid_info() when
+      Unknown :: {unknown_oid, epgsql_oid_db:oid()}.
+typeinfo_to_oid_info({unknown_oid, _} = Unknown, _) -> Unknown;
+typeinfo_to_oid_info(TypeInfo, _) ->
+    epgsql_oid_db:type_to_oid_info(TypeInfo).
 
-decode(bool, <<1:1/big-signed-unit:8>>, _)     -> true;
-decode(bool, <<0:1/big-signed-unit:8>>, _)     -> false;
-decode(bpchar, <<C:1/big-unsigned-unit:8>>, _) -> C;
-decode(int2, <<N:1/big-signed-unit:16>>, _)    -> N;
-decode(int4, <<N:1/big-signed-unit:32>>, _)    -> N;
-decode(int8, <<N:1/big-signed-unit:64>>, _)    -> N;
-decode(float4, <<N:1/big-float-unit:32>>, _)   -> N;
-decode(float8, <<N:1/big-float-unit:64>>, _)   -> N;
-decode(record, <<_:?int32, Rest/binary>>, Codec) -> list_to_tuple(decode_record(Rest, [], Codec));
-decode(jsonb, <<?JSONB_VERSION_1:8, Value/binary>>, _) -> Value;
-decode(time = Type, B, _)                      -> ?datetime:decode(Type, B);
-decode(timetz = Type, B, _)                    -> ?datetime:decode(Type, B);
-decode(date = Type, B, _)                      -> ?datetime:decode(Type, B);
-decode(timestamp = Type, B, _)                 -> ?datetime:decode(Type, B);
-decode(timestamptz = Type, B, _)               -> ?datetime:decode(Type, B);
-decode(interval = Type, B, _)                  -> ?datetime:decode(Type, B);
-decode(uuid, B, _)                             -> decode_uuid(B);
-decode(hstore, Hstore, _)                      -> decode_hstore(Hstore);
-decode(inet, B, _)                             -> decode_net(B);
-decode(cidr, B, _)                             -> decode_net(B);
-decode({array, _Type}, B, Codec)               -> decode_array(B, Codec);
-decode(point, B, _)                            -> decode_point(B);
-decode(geometry, B, _)                         -> ewkb:decode_geometry(B);
-decode(int4range, B, _)                        -> decode_int4range(B);
-decode(int8range, B, _)                        -> decode_int8range(B);
-decode(_Other, Bin, _)                         -> Bin.
+%%
+%% Decode
+%%
 
-encode_array(Type, Oid, A, Codec) ->
-    {Data, {NDims, Lengths}} = encode_array(Type, A, 0, [], Codec),
+%% @doc decode single cell
+-spec decode(binary(), decoder()) -> any().
+decode(Bin, {Fun, TypeName, State}) ->
+    Fun(Bin, TypeName, State).
+
+%% @doc generate decoder to decode PG binary of datatype specified as OID
+-spec oid_to_decoder(epgsql_oid_db:oid(), binary | text, codec()) -> decoder().
+oid_to_decoder(?RECORD_OID, binary, Codec) ->
+    {fun ?MODULE:decode_record/3, record, Codec};
+oid_to_decoder(?RECORD_ARRAY_OID, binary, Codec) ->
+    %% See `make_array_decoder/3'
+    {fun ?MODULE:decode_array/3, [], oid_to_decoder(?RECORD_OID, binary, Codec)};
+oid_to_decoder(Oid, Format, #codec{oid_db = Db}) ->
+    case epgsql_oid_db:find_by_oid(Oid, Db) of
+        undefined when Format == binary ->
+            {fun epgsql_codec_noop:decode/3, undefined, []};
+        undefined when Format == text ->
+            {fun epgsql_codec_noop:decode_text/3, undefined, []};
+        Type ->
+            make_decoder(Type, Format)
+    end.
+
+-spec make_decoder(epgsql_oid_db:type_info(), binary | text) -> decoder().
+make_decoder(Type, Format) ->
+    {Name, Mod, State} = epgsql_oid_db:type_to_codec_entry(Type),
+    {_Oid, Name, IsArray} = epgsql_oid_db:type_to_oid_info(Type),
+    make_decoder(Name, Mod, State, Format, IsArray).
+
+make_decoder(_Name, _Mod, _State, text, true) ->
+    %% Don't try to decode text arrays
+    {fun epgsql_codec_noop:decode_text/3, undefined, []};
+make_decoder(Name, Mod, State, text, false) ->
+    %% decode_text/3 is optional callback. If it's not defined, do NOOP.
+    case erlang:function_exported(Mod, decode_text, 3) of
+        true ->
+            {fun Mod:decode_text/3, Name, State};
+        false ->
+            {fun epgsql_codec_noop:decode_text/3, undefined, []}
+    end;
+make_decoder(Name, Mod, State, binary, true) ->
+    make_array_decoder(Name, Mod, State);
+make_decoder(Name, Mod, State, binary, false) ->
+    {fun Mod:decode/3, Name, State}.
+
+
+%% Array decoding
+%%% $PG$/src/backend/utils/adt/arrayfuncs.c
+make_array_decoder(Name, Mod, State) ->
+    {fun ?MODULE:decode_array/3, [], {fun Mod:decode/3, Name, State}}.
+
+decode_array(<<NDims:?int32, _HasNull:?int32, _Oid:?int32, Rest/binary>>, _, ElemDecoder) ->
+    %% 4b: n_dimensions;
+    %% 4b: flags;
+    %% 4b: Oid // should be the same as in column spec;
+    %%   (4b: n_elements;
+    %%    4b: lower_bound) * n_dimensions
+    %% (dynamic-size data)
+    %% Lower bound - eg, zero-bound or 1-bound or N-bound array. We ignore it, see
+    %% https://www.postgresql.org/docs/current/static/arrays.html#arrays-io
+    {Dims, Data} = erlang:split_binary(Rest, NDims * 2 * 4),
+    Lengths = [Len || <<Len:?int32, _LBound:?int32>> <= Dims],
+    {Array, <<>>} = decode_array1(Data, Lengths, ElemDecoder),
+    Array.
+
+decode_array1(Data, [], _)  ->
+    %% zero-dimensional array
+    {[], Data};
+decode_array1(Data, [Len], ElemDecoder) ->
+    %% 1-dimensional array
+    decode_elements(Data, [], Len, ElemDecoder);
+decode_array1(Data, [Len | T], ElemDecoder) ->
+    %% multidimensional array
+    F = fun(_N, Rest) -> decode_array1(Rest, T, ElemDecoder) end,
+    lists:mapfoldl(F, Data, lists:seq(1, Len)).
+
+decode_elements(Rest, Acc, 0, _ElDec) ->
+    {lists:reverse(Acc), Rest};
+decode_elements(<<-1:?int32, Rest/binary>>, Acc, N, ElDec) ->
+    decode_elements(Rest, [null | Acc], N - 1, ElDec);
+decode_elements(<<Len:?int32, Value:Len/binary, Rest/binary>>, Acc, N, ElemDecoder) ->
+    Value2 = decode(Value, ElemDecoder),
+    decode_elements(Rest, [Value2 | Acc], N - 1, ElemDecoder).
+
+
+
+%% Record decoding
+%% $PG$/src/backend/utils/adt/rowtypes.c
+decode_record(<<Size:?int32, Bin/binary>>, record, Codec) ->
+    list_to_tuple(decode_record1(Bin, Size, Codec)).
+
+decode_record1(<<>>, 0, _Codec) -> [];
+decode_record1(<<_Type:?int32, -1:?int32, Rest/binary>>, Size, Codec) ->
+    [null | decode_record1(Rest, Size - 1, Codec)];
+decode_record1(<<Oid:?int32, Len:?int32, ValueBin:Len/binary, Rest/binary>>, Size, Codec) ->
+    Value = decode(ValueBin, oid_to_decoder(Oid, binary, Codec)),
+    [Value | decode_record1(Rest, Size - 1, Codec)].
+
+
+%%
+%% Encode
+%%
+
+%% Convert erlang value to PG binary of type, specified by type name
+-spec encode(epgsql:type_name() | {array, epgsql:type_name()}, any(), codec()) -> iolist().
+encode(TypeName, Value, Codec) ->
+    Type = type_to_type_info(TypeName, Codec),
+    encode_with_type(Type, Value).
+
+encode_with_type(Type, Value) ->
+    {Name, Mod, State} = epgsql_oid_db:type_to_codec_entry(Type),
+    case epgsql_oid_db:type_to_oid_info(Type) of
+        {_ArrayOid, _, true} ->
+            %FIXME: check if this OID is the same as was returned by 'Describe'
+            ElementOid = epgsql_oid_db:type_to_element_oid(Type),
+            encode_array(Value, ElementOid, {Mod, Name, State});
+        {_Oid, _, false} ->
+            encode_value(Value, {Mod, Name, State})
+    end.
+
+encode_value(Value, {Mod, Name, State}) ->
+    Payload = epgsql_codec:encode(Mod, Value, Name, State),
+    [<<(iolist_size(Payload)):?int32>> | Payload].
+
+
+%% Number of dimensions determined at encode-time by introspection of data, so,
+%% we can't encode array of lists (eg. strings).
+encode_array(Array, Oid, ValueEncoder) ->
+    {Data, {NDims, Lengths}} = encode_array(Array, 0, [], ValueEncoder),
     Lens = [<<N:?int32, 1:?int32>> || N <- lists:reverse(Lengths)],
     Hdr  = <<NDims:?int32, 0:?int32, Oid:?int32>>,
-    Bin  = iolist_to_binary([Hdr, Lens, Data]),
-    <<(byte_size(Bin)):?int32, Bin/binary>>.
+    Payload  = [Hdr, Lens, Data],
+    [<<(iolist_size(Payload)):?int32>> | Payload].
 
-encode_array(_Type, [], NDims, Lengths, _Codec) ->
-    {<<>>, {NDims, Lengths}};
-encode_array(Type, [H | _] = Array, NDims, Lengths, Codec) when not is_list(H) ->
-    F = fun(E, Len) -> {encode(Type, E, Codec), Len + 1} end,
+encode_array([], NDims, Lengths, _Codec) ->
+    {[], {NDims, Lengths}};
+encode_array([H | _] = Array, NDims, Lengths, ValueEncoder) when not is_list(H) ->
+    F = fun(E, Len) -> {encode_value(E, ValueEncoder), Len + 1} end,
     {Data, Len} = lists:mapfoldl(F, 0, Array),
     {Data, {NDims + 1, [Len | Lengths]}};
-encode_array(uuid, [_H | _] = Array, NDims, Lengths, Codec) ->
-    F = fun(E, Len) -> {encode(uuid, E, Codec), Len + 1} end,
-    {Data, Len} = lists:mapfoldl(F, 0, Array),
-    {Data, {NDims + 1, [Len | Lengths]}};
-encode_array(Type, Array, NDims, Lengths, Codec) ->
+encode_array(Array, NDims, Lengths, Codec) ->
     Lengths2 = [length(Array) | Lengths],
-    F = fun(A2, {_NDims, _Lengths}) -> encode_array(Type, A2, NDims, Lengths2, Codec) end,
+    F = fun(A2, {_NDims, _Lengths}) -> encode_array(A2, NDims, Lengths2, Codec) end,
     {Data, {NDims2, Lengths3}} = lists:mapfoldl(F, {NDims, Lengths2}, Array),
     {Data, {NDims2 + 1, Lengths3}}.
 
-encode_uuid(U) when is_binary(U) ->
-    encode_uuid(binary_to_list(U));
-encode_uuid(U) ->
-    Hex = [H || H <- U, H =/= $-],
-    {ok, [Int], _} = io_lib:fread("~16u", Hex),
-    <<16:?int32,Int:128>>.
 
-encode_hstore(HstoreEntries) ->
-    Body = << <<(encode_hstore_entry(Entry))/binary>> || Entry <- HstoreEntries >>,
-    <<(byte_size(Body) + 4):?int32, (length(HstoreEntries)):?int32, Body/binary>>.
+%% Supports
+supports(RecOid, _) when RecOid == ?RECORD_OID; RecOid == ?RECORD_ARRAY_OID ->
+    true;
+supports(Oid, #codec{oid_db = Db}) ->
+    epgsql_oid_db:find_by_oid(Oid, Db) =/= undefined.
 
-encode_hstore_entry({Key, Value}) ->
-    <<(encode_hstore_key(Key))/binary, (encode_hstore_value(Value))/binary>>.
+%% Default codec set
+%% XXX: maybe move to application env?
+-spec default_codecs() -> [{epgsql_codec:codec_mod(), any()}].
+default_codecs() ->
+    [{epgsql_codec_boolean, []},
+     {epgsql_codec_bpchar, []},
+     {epgsql_codec_datetime, []},
+     {epgsql_codec_float, []},
+     {epgsql_codec_geometric, []},
+     %% {epgsql_codec_hstore, []},
+     {epgsql_codec_integer, []},
+     {epgsql_codec_intrange, []},
+     {epgsql_codec_json, []},
+     {epgsql_codec_net, []},
+     %% {epgsql_codec_postgis,[]},
+     {epgsql_codec_text, []},
+     {epgsql_codec_timerange, []},
+     {epgsql_codec_uuid, []}
+    ].
 
-encode_hstore_key(Key) -> encode_hstore_string(Key).
-
-encode_hstore_value(null)      -> <<-1:?int32>>;
-encode_hstore_value(undefined) -> <<-1:?int32>>;
-encode_hstore_value(Val)       -> encode_hstore_string(Val).
-
-encode_hstore_string(Str) when is_list(Str) -> encode_hstore_string(list_to_binary(Str));
-encode_hstore_string(Str) when is_atom(Str) -> encode_hstore_string(atom_to_binary(Str, utf8));
-encode_hstore_string(Str) when is_integer(Str) ->
-    %% FIXME - we can use integer_to_binary when we deprecate R15
-    encode_hstore_string(list_to_binary(integer_to_list(Str)));
-encode_hstore_string(Str) when is_float(Str) ->
-    encode_hstore_string(iolist_to_binary(io_lib:format("~w", [Str])));
-encode_hstore_string(Str) when is_binary(Str) -> <<(byte_size(Str)):?int32, Str/binary>>.
-
-encode_net({{_, _, _, _} = IP, Mask}) ->
-    Bin = list_to_binary(tuple_to_list(IP)),
-    <<?INET, Mask, 1, ?IP_SIZE, Bin/binary>>;
-encode_net({{_, _, _, _, _, _, _, _} = IP, Mask}) ->
-    Bin = << <<X:16>> || X <- tuple_to_list(IP) >>,
-    <<?INET6, Mask, 1, ?IP6_SIZE, Bin/binary>>;
-encode_net({_, _, _, _} = IP) ->
-    Bin = list_to_binary(tuple_to_list(IP)),
-    <<?INET, ?MAX_IP_MASK, 0, ?IP_SIZE, Bin/binary>>;
-encode_net({_, _, _, _, _, _, _, _} = IP) ->
-    Bin = << <<X:16>> || X <- tuple_to_list(IP) >>,
-    <<?INET6, ?MAX_IP6_MASK, 0, ?IP6_SIZE, Bin/binary>>.
-
-decode_array(<<NDims:?int32, _HasNull:?int32, Oid:?int32, Rest/binary>>, Codec) ->
-    {Dims, Data} = erlang:split_binary(Rest, NDims * 2 * 4),
-    Lengths = [Len || <<Len:?int32, _LBound:?int32>> <= Dims],
-    Type = oid2type(Oid, Codec),
-    {Array, <<>>} = decode_array(Data, Type, Lengths, Codec),
-    Array.
-
-decode_array(Data, _Type, [], _Codec)  ->
-    {[], Data};
-decode_array(Data, Type, [Len], Codec) ->
-    decode_elements(Data, Type, [], Len, Codec);
-decode_array(Data, Type, [Len | T], Codec) ->
-    F = fun(_N, Rest) -> decode_array(Rest, Type, T, Codec) end,
-    lists:mapfoldl(F, Data, lists:seq(1, Len)).
-
-decode_elements(Rest, _Type, Acc, 0, _Codec) ->
-    {lists:reverse(Acc), Rest};
-decode_elements(<<-1:?int32, Rest/binary>>, Type, Acc, N, Codec) ->
-    decode_elements(Rest, Type, [null | Acc], N - 1, Codec);
-decode_elements(<<Len:?int32, Value:Len/binary, Rest/binary>>, Type, Acc, N, Codec) ->
-    Value2 = decode(Type, Value, Codec),
-    decode_elements(Rest, Type, [Value2 | Acc], N - 1, Codec).
-
-decode_record(<<>>, Acc, _Codec) ->
-    lists:reverse(Acc);
-decode_record(<<_Type:?int32, -1:?int32, Rest/binary>>, Acc, Codec) ->
-    decode_record(Rest, [null | Acc], Codec);
-decode_record(<<Type:?int32, Len:?int32, Value:Len/binary, Rest/binary>>, Acc, Codec) ->
-    Value2 = decode(oid2type(Type, Codec), Value, Codec),
-    decode_record(Rest, [Value2 | Acc], Codec).
-
-decode_uuid(<<U0:32, U1:16, U2:16, U3:16, U4:48>>) ->
-    Format = "~8.16.0b-~4.16.0b-~4.16.0b-~4.16.0b-~12.16.0b",
-    iolist_to_binary(io_lib:format(Format, [U0, U1, U2, U3, U4])).
-
-decode_hstore(<<NumElements:?int32, Elements/binary>>) ->
-    {decode_hstore1(NumElements, Elements, [])}.
-
-decode_hstore1(0, _Elements, Acc) -> Acc;
-decode_hstore1(N, <<KeyLen:?int32, Key:KeyLen/binary, -1:?int32, Rest/binary>>, Acc) ->
-    decode_hstore1(N - 1, Rest, [{Key, null} | Acc]);
-decode_hstore1(N, <<KeyLen:?int32, Key:KeyLen/binary, ValLen:?int32, Value:ValLen/binary, Rest/binary>>, Acc) ->
-    decode_hstore1(N - 1, Rest, [{Key, Value} | Acc]).
-
-encode_point({X, Y}) when is_number(X), is_number(Y) ->
-    <<X:1/big-float-unit:64, Y:1/big-float-unit:64>>.
-
-decode_point(<<X:1/big-float-unit:64, Y:1/big-float-unit:64>>) ->
-    {X, Y}.
-
-encode_geometry(Data) ->
-    Bin = ewkb:encode_geometry(Data),
-    Size = byte_size(Bin),
-    <<Size:?int32, Bin/binary>>.
-
-decode_net(<<?INET, Mask, 1, ?IP_SIZE, Bin/binary>>) ->
-    {list_to_tuple(binary_to_list(Bin)), Mask};
-decode_net(<<?INET6, Mask, 1, ?IP6_SIZE, Bin/binary>>) ->
-    {list_to_tuple([X || <<X:16>> <= Bin]), Mask};
-decode_net(<<?INET, ?MAX_IP_MASK, 0, ?IP_SIZE, Bin/binary>>) ->
-    list_to_tuple(binary_to_list(Bin));
-decode_net(<<?INET6, ?MAX_IP6_MASK, 0, ?IP6_SIZE, Bin/binary>>) ->
-    list_to_tuple([X || <<X:16>> <= Bin]).
-
-%% @doc encode an int4range
-encode_int4range({minus_infinity, plus_infinity}) ->
-    <<1:?int32, 24:1/big-signed-unit:8>>;
-encode_int4range({From, plus_infinity}) ->
-    FromInt = to_int(From),
-    <<9:?int32, 18:1/big-signed-unit:8, 4:?int32, FromInt:?int32>>;
-encode_int4range({minus_infinity, To}) ->
-    ToInt = to_int(To),
-    <<9:?int32, 8:1/big-signed-unit:8, 4:?int32, ToInt:?int32>>;
-encode_int4range({From, To}) ->
-    FromInt = to_int(From),
-    ToInt = to_int(To),
-    <<17:?int32, 2:1/big-signed-unit:8, 4:?int32, FromInt:?int32, 4:?int32, ToInt:?int32>>.
-
-%% @doc encode an int8range
-encode_int8range({minus_infinity, plus_infinity}) ->
-    <<1:?int32, 24:1/big-signed-unit:8>>;
-encode_int8range({From, plus_infinity}) ->
-    FromInt = to_int(From),
-    <<13:?int32, 18:1/big-signed-unit:8, 8:?int32, FromInt:?int64>>;
-encode_int8range({minus_infinity, To}) ->
-    ToInt = to_int(To),
-    <<13:?int32, 8:1/big-signed-unit:8, 8:?int32, ToInt:?int64>>;
-encode_int8range({From, To}) ->
-    FromInt = to_int(From),
-    ToInt = to_int(To),
-    <<25:?int32, 2:1/big-signed-unit:8, 8:?int32, FromInt:?int64, 8:?int32, ToInt:?int64>>.
-
-to_int(N) when is_integer(N) -> N;
-to_int(S) when is_list(S) -> erlang:list_to_integer(S);
-to_int(B) when is_binary(B) -> erlang:binary_to_integer(B).
-
-%% @doc decode an int4range
-decode_int4range(<<2:1/big-signed-unit:8, 4:?int32, From:?int32, 4:?int32, To:?int32>>) -> {From, To};
-decode_int4range(<<8:1/big-signed-unit:8, 4:?int32, To:?int32>>) -> {minus_infinity, To};
-decode_int4range(<<18:1/big-signed-unit:8, 4:?int32, From:?int32>>) -> {From, plus_infinity};
-decode_int4range(<<24:1/big-signed-unit:8>>) -> {minus_infinity, plus_infinity}.
-
-%% @doc decode an int8range
-decode_int8range(<<2:1/big-signed-unit:8, 8:?int32, From:?int64, 8:?int32, To:?int64>>) -> {From, To};
-decode_int8range(<<8:1/big-signed-unit:8, 8:?int32, To:?int64>>) -> {minus_infinity, To};
-decode_int8range(<<18:1/big-signed-unit:8, 8:?int32, From:?int64>>) -> {From, plus_infinity};
-decode_int8range(<<24:1/big-signed-unit:8>>) -> {minus_infinity, plus_infinity}.
-
-supports(bool)    -> true;
-supports(bpchar)  -> true;
-supports(int2)    -> true;
-supports(int4)    -> true;
-supports(int8)    -> true;
-supports(float4)  -> true;
-supports(float8)  -> true;
-supports(bytea)   -> true;
-supports(text)    -> true;
-supports(varchar) -> true;
-supports(record)  -> true;
-supports(date)    -> true;
-supports(time)    -> true;
-supports(timetz)  -> true;
-supports(timestamp)   -> true;
-supports(timestamptz) -> true;
-supports(interval)    -> true;
-supports(uuid)        -> true;
-supports(hstore)      -> true;
-supports(cidr)        -> true;
-supports(inet)        -> true;
-supports(geometry)    -> true;
-supports(point)       -> true;
-supports(json)        -> true;
-supports(jsonb)        -> true;
-supports({array, bool})   -> true;
-supports({array, int2})   -> true;
-supports({array, int4})   -> true;
-supports({array, int8})   -> true;
-supports({array, float4}) -> true;
-supports({array, float8}) -> true;
-supports({array, char})   -> true;
-supports({array, text})   -> true;
-supports({array, date})   -> true;
-supports({array, time})   -> true;
-supports({array, timetz}) -> true;
-supports({array, timestamp})     -> true;
-supports({array, timestamptz})   -> true;
-supports({array, interval})      -> true;
-supports({array, hstore})        -> true;
-supports({array, varchar}) -> true;
-supports({array, uuid})   -> true;
-supports({array, cidr})   -> true;
-supports({array, inet})   -> true;
-supports({array, record}) -> true;
-supports({array, json})   -> true;
-supports({array, jsonb})   -> true;
-supports(int4range)       -> true;
-supports(int8range)       -> true;
-supports(_Type)       -> false.
+-spec default_oids() -> [epgsql_oid_db:oid_entry()].
+default_oids() ->
+    [{bool, 16, 1000},
+     {bpchar, 1042, 1014},
+     {bytea, 17, 1001},
+     {char, 18, 1002},
+     {cidr, 650, 651},
+     {date, 1082, 1182},
+     {daterange, 3912, 3913},
+     {float4, 700, 1021},
+     {float8, 701, 1022},
+     %% {geometry, 17063, 17071},
+     %% {hstore, 16935, 16940},
+     {inet, 869, 1041},
+     {int2, 21, 1005},
+     {int4, 23, 1007},
+     {int4range, 3904, 3905},
+     {int8, 20, 1016},
+     {int8range, 3926, 3927},
+     {interval, 1186, 1187},
+     {json, 114, 199},
+     {jsonb, 3802, 3807},
+     {macaddr, 829, 1040},
+     {macaddr8, 774, 775},
+     {point, 600, 1017},
+     {text, 25, 1009},
+     {time, 1083, 1183},
+     {timestamp, 1114, 1115},
+     {timestamptz, 1184, 1185},
+     {timetz, 1266, 1270},
+     {tsrange, 3908, 3909},
+     {tstzrange, 3910, 3911},
+     {uuid, 2950, 2951},
+     {varchar, 1043, 1015}
+    ].
