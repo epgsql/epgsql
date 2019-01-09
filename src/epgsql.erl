@@ -423,7 +423,8 @@ handle_x_log_data(Mod, StartLSN, EndLSN, WALRecord, Repl) ->
     [replication_option()]
     | #{align_lsn => boolean()}.
 
--spec start_replication(connection(), string(), Callback, cb_state(), string(), string(), replication_opts()) -> Response when
+-spec start_replication(connection(), string(), Callback, cb_state(), string(), string(), replication_opts()) ->
+    Response when
     Response :: epgsql_cmd_start_replication:response(),
     Callback :: module() | pid().
 %% @doc instructs Postgres server to start streaming WAL for logical replication

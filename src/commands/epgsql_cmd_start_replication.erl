@@ -48,7 +48,7 @@ execute(Sock, #start_repl{slot = ReplicationSlot, callback = Callback,
 
     Hex = [H || H <- WALPosition, H =/= $/],
     {ok, [LSN], _} = io_lib:fread("~16u", Hex),
-    AlignLsn = proplists:get_value(align_lsn, Opts, false),
+    AlignLsn = maps:get(align_lsn, Opts, false),
     Repl3 = Repl2#repl{last_flushed_lsn = LSN,
                        last_applied_lsn = LSN,
                        align_lsn = AlignLsn},

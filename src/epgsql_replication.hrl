@@ -7,5 +7,5 @@
           cbmodule :: module() | undefined,
           cbstate :: any() | undefined,
           receiver :: pid() | undefined,
-          align_lsn :: integer() | undefined
+          align_lsn :: boolean() | undefined
         }).
