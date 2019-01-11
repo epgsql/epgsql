@@ -70,11 +70,11 @@ only special commands accepted in this mode
     - `CbInitState`          - initial state of callback module. 
     - `WALPosition`          - the WAL position XXX/XXX to begin streaming at.
                                "0/0" to let the server determine the start point.
-    - `PluginOpts`           - optional options passed to the slot's logical decoding plugin.
-    - `Opts`                 - options of logical replication. If decoding plugin filter some WAL records
-                                align_lsn = True must be set, otherwise it will not be possible 
-                                to stop PostgreSql DB correctly when logical replication is running.
-    For example: "option_name1 'value1', option_name2 'value2'"
+    - `PluginOpts`           - optional options passed to the slot's logical decoding plugin. 
+                               For example: "option_name1 'value1', option_name2 'value2'"
+    - `Opts`                 - options of logical replication. 
+                               See Logical replication options section for details.
+    
 
     On success, PostgreSQL server responds with a CopyBothResponse message, and then starts to stream WAL records.
     PostgreSQL sends CopyData messages which contain:
@@ -108,3 +108,34 @@ handle_x_log_data(StartLSN, EndLSN, Data, CbState) ->
     io:format("~p~n", [{StartLSN, EndLSN, Data}]),
     {ok, EndLSN, EndLSN, CbState}.
 ```
+
+##Logical replication options
+
+* **align_lsn** - Default - false.
+
+    During shutdown PG server waits to exit until XLOG records have been sent to the standby, 
+    up to the shutdown checkpoint record and sends `Primary keepalive message` 
+    with the special flag (which means that the client should reply to this message as soon as possible) 
+    to get the last applied LSN from the standby.
+
+    If epgsql uses for replication a decoding plugin which filter some WAL records 
+    (for example pgoutput and PG publications with some tables) 
+    then epgsql will not receive all WAL records and keep in the state not the latest LSN.
+    In such case it is not be possible to stop PG server if epgsql replication is running, 
+    because epgsql is not able to report latest LSN.
+
+    To overcome this problem use option `align_lsn = true`.
+    If this option enabled when epgsql gets `Primary keepalive message` with the reply required flag 
+    it will send back to PG server LSN received in `Primary keepalive message`. 
+    PG server will stop normally after receiving this latest LSN.
+    If during PG server shutdown epgsql has some replication delay 
+    then there is a risk to skip not yet received wal segments, 
+    i.e. after restart PG server will send only new wal segments.
+    
+    However if you use epgsql replication to implement a case 'Consistent cache' 
+    and re-create replication slots (or use temporary slots) 
+    and load all data from tables on an application startup 
+    then you do not have any risk to lose data. 
+    
+    Otherwise (if you do not load all data from tables during erlang app startup) 
+    it is not recommended to set align_lsn to true. In this case to stop PG server stop epgsql replication first.
