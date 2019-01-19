@@ -245,13 +245,16 @@ handle_message(?READY_FOR_QUERY, _, Sock, _State) ->
 
 
 %% ErrorResponse
-handle_message(?ERROR, Err, Sock, #connect{stage = Stage} = _State) when Stage == auth;
-                                                                         Stage == maybe_auth ->
-    Why = case Err#error.code of
-        <<"28000">> -> invalid_authorization_specification;
-        <<"28P01">> -> invalid_password;
-        Any         -> Any
-    end,
+handle_message(?ERROR, #error{code = Code} = Err, Sock, #connect{stage = Stage} = _State) ->
+    IsAuthStage = (Stage == auth) orelse (Stage == maybe_auth),
+    Why = case Code of
+              <<"28000">> when IsAuthStage ->
+                  invalid_authorization_specification;
+              <<"28P01">> when IsAuthStage ->
+                  invalid_password;
+              _ ->
+                  Err
+          end,
     {stop, normal, {error, Why}, Sock};
 handle_message(_, _, _, _) ->
     unknown.
