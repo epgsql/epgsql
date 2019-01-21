@@ -27,6 +27,7 @@
          standby_status_update/3,
          start_replication/5,
          start_replication/6,
+         start_replication/7,
          to_map/1]).
 -export([handle_x_log_data/5]).                 % private
 
@@ -414,9 +415,18 @@ standby_status_update(Connection, FlushedLSN, AppliedLSN) ->
 handle_x_log_data(Mod, StartLSN, EndLSN, WALRecord, Repl) ->
     Mod:handle_x_log_data(StartLSN, EndLSN, WALRecord, Repl).
 
--spec start_replication(connection(), string(), Callback, cb_state(), string(), string()) -> Response when
-      Response :: epgsql_cmd_start_replication:response(),
-      Callback :: module() | pid().
+-type replication_option() ::
+    {align_lsn, boolean()}. %% Align last applied and flushed LSN with last received LSN
+                            %%  after Primary keepalive message with ReplyRequired flag
+
+-type replication_opts() ::
+    [replication_option()]
+    | #{align_lsn => boolean()}.
+
+-spec start_replication(connection(), string(), Callback, cb_state(), string(), string(), replication_opts()) ->
+    Response when
+    Response :: epgsql_cmd_start_replication:response(),
+    Callback :: module() | pid().
 %% @doc instructs Postgres server to start streaming WAL for logical replication
 %% where
 %% `Connection'      - connection in replication mode
@@ -428,13 +438,15 @@ handle_x_log_data(Mod, StartLSN, EndLSN, WALRecord, Repl) ->
 %%                      "0/0" to let the server determine the start point.
 %% `PluginOpts'      - optional options passed to the slot's logical decoding plugin.
 %%                      For example: "option_name1 'value1', option_name2 'value2'"
+%% `Opts'            - options of logical replication
 %% returns `ok' otherwise `{error, Reason}'
-start_replication(Connection, ReplicationSlot, Callback, CbInitState, WALPosition, PluginOpts) ->
-    Command = {ReplicationSlot, Callback, CbInitState, WALPosition, PluginOpts},
+start_replication(Connection, ReplicationSlot, Callback, CbInitState, WALPosition, PluginOpts, Opts) ->
+    Command = {ReplicationSlot, Callback, CbInitState, WALPosition, PluginOpts, to_map(Opts)},
     epgsql_sock:sync_command(Connection, epgsql_cmd_start_replication, Command).
-
+start_replication(Connection, ReplicationSlot, Callback, CbInitState, WALPosition, PluginOpts) ->
+    start_replication(Connection, ReplicationSlot, Callback, CbInitState, WALPosition, PluginOpts, []).
 start_replication(Connection, ReplicationSlot, Callback, CbInitState, WALPosition) ->
-    start_replication(Connection, ReplicationSlot, Callback, CbInitState, WALPosition, []).
+    start_replication(Connection, ReplicationSlot, Callback, CbInitState, WALPosition, [], []).
 
 %% @private
 -spec to_map([{any(), any()}] | map()) -> map().

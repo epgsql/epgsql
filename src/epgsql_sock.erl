@@ -525,10 +525,16 @@ on_message(Msg, Payload, State) ->
 %% CopyData for Replication mode
 on_replication(?COPY_DATA, <<?PRIMARY_KEEPALIVE_MESSAGE:8, LSN:?int64, _Timestamp:?int64, ReplyRequired:8>>,
                #state{repl = #repl{last_flushed_lsn = LastFlushedLSN,
-                                   last_applied_lsn = LastAppliedLSN} = Repl} = State) ->
+                                   last_applied_lsn = LastAppliedLSN,
+                                   align_lsn = AlignLsn} = Repl} = State) ->
     Repl1 =
         case ReplyRequired of
-            1 ->
+            1 when AlignLsn ->
+                send(State, ?COPY_DATA,
+                     epgsql_wire:encode_standby_status_update(LSN, LSN, LSN)),
+                Repl#repl{feedback_required = false,
+                     last_received_lsn = LSN, last_applied_lsn = LSN, last_flushed_lsn = LSN};
+            1 when not AlignLsn ->
                 send(State, ?COPY_DATA,
                      epgsql_wire:encode_standby_status_update(LSN, LastFlushedLSN, LastAppliedLSN)),
                 Repl#repl{feedback_required = false,

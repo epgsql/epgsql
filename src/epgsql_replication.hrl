@@ -6,5 +6,6 @@
           feedback_required :: boolean() | undefined,
           cbmodule :: module() | undefined,
           cbstate :: any() | undefined,
-          receiver :: pid() | undefined
+          receiver :: pid() | undefined,
+          align_lsn :: boolean() | undefined
         }).
