@@ -41,6 +41,8 @@ groups() ->
             connect_with_scram,
             connect_with_invalid_user,
             connect_with_invalid_password,
+            connect_to_invalid_database,
+            connect_with_other_error,
             connect_with_ssl,
             connect_with_client_cert,
             connect_to_closed_port,
@@ -229,6 +231,30 @@ connect_with_invalid_password(Config) ->
         invalid_authorization_specification -> ok; % =< 8.4
         invalid_password                    -> ok  % >= 9.0
     end.
+
+connect_to_invalid_database(Config) ->
+    {Host, Port} = epgsql_ct:connection_data(Config),
+    Module = ?config(module, Config),
+    ?assertMatch(
+       {error, invalid_authorization_specification},
+       Module:connect(
+        Host,
+        "epgsql_test_md5",
+        "epgsql_test_md5",
+        [{port, Port}, {database, "epgsql_test_invalid_db"}])).
+
+connect_with_other_error(Config) ->
+    {Host, Port} = epgsql_ct:connection_data(Config),
+    Module = ?config(module, Config),
+    ?assertMatch(
+       {error,
+        #error{severity = fatal,
+               codename = protocol_violation}},
+       Module:connect(
+        Host,
+        <<0, 0>>,
+        "epgsql_test_invalid",
+        [{port, Port}, {database, <<0, 0>>}])).
 
 connect_with_ssl(Config) ->
     Module = ?config(module, Config),
