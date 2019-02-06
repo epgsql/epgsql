@@ -70,10 +70,18 @@ handle_message(?COMMAND_COMPLETE, Bin, Sock,
                      {ok, Rows}
              end,
     {add_result, Result, {complete, Complete}, Sock, State#batch{batch = Batch}};
-handle_message(?READY_FOR_QUERY, _Status, Sock, #batch{batch = B} = _State) when
-      length(B) =< 1 ->
+handle_message(?READY_FOR_QUERY, _Status, Sock, #batch{batch = Batch} = _State) ->
     Results = epgsql_sock:get_results(Sock),
-    {finish, Results, done, Sock};
+    case Batch of
+        [] ->
+            {finish, Results, done, Sock};
+        [_|_] ->
+            % In the case of error, the remaining statements are not executed.
+            % We return {error, skipped} for them to have result list matching
+            % with the statement list in the batch.
+            Skipped = lists:duplicate(length(Batch), {error, skipped}),
+            {finish, Results ++ Skipped, done, Sock}
+    end;
 handle_message(?ERROR, Error, Sock, #batch{batch = [_ | Batch]} = State) ->
     Result = {error, Error},
     {add_result, Result, Result, Sock, State#batch{batch = Batch}};
