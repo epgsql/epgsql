@@ -2,62 +2,76 @@ Certificate:
     Data:
         Version: 3 (0x2)
         Serial Number:
-            81:4c:f2:4f:ec:a0:bf:ea
-        Signature Algorithm: sha1WithRSAEncryption
-        Issuer: C = US, ST = California, L = San Francisco, O = lambdaWorks, CN = epgsql CA
+            0c:a9:bd:1c:41:26:e9:c1:39:48:13:e7:8b:30:f8:17:0a:80:9d:b1
+        Signature Algorithm: sha256WithRSAEncryption
+        Issuer: CN = epgsql CA
         Validity
-            Not Before: Mar 27 03:52:34 2009 GMT
-            Not After : Feb  3 03:52:34 2019 GMT
-        Subject: C = US, ST = California, L = San Francisco, O = lambdaWorks, CN = epgsql CA
+            Not Before: Feb 17 03:59:45 2019 GMT
+            Not After : Feb 14 03:59:45 2029 GMT
+        Subject: CN = epgsql CA
         Subject Public Key Info:
             Public Key Algorithm: rsaEncryption
-                RSA Public-Key: (1024 bit)
+                RSA Public-Key: (2048 bit)
                 Modulus:
-                    00:bd:03:59:e5:ce:5d:24:45:ae:bf:cd:a4:4a:d4:
-                    33:7a:48:08:79:8a:20:4c:b6:28:51:f8:f0:9a:1d:
-                    1e:fb:b8:de:a3:b7:10:95:d7:a3:58:b7:94:b4:7e:
-                    36:0a:0c:68:1c:e8:21:a5:5d:9d:0a:3a:5d:26:dd:
-                    bb:5b:62:59:e0:1f:b8:48:a7:3d:28:dd:f3:b9:de:
-                    27:d7:25:4b:f6:8a:ac:ef:a3:0e:b3:fb:1b:b8:dd:
-                    db:01:72:01:1f:79:5b:f8:c3:54:7e:1a:94:68:1d:
-                    81:2c:05:11:05:2c:5b:81:05:21:19:c0:c7:94:4f:
-                    77:f5:76:4c:98:8d:ab:68:5b
+                    00:ec:8f:7a:c9:24:ed:3a:3b:23:01:69:2b:14:01:
+                    62:a6:4f:8f:53:9c:e5:61:59:b8:36:11:ad:c4:00:
+                    8f:e4:01:ff:b9:cf:29:f9:44:aa:30:87:d6:06:69:
+                    21:ec:f4:1c:dc:46:a2:14:af:e5:4a:bf:0f:0b:83:
+                    97:10:5d:f3:2c:c1:3b:07:90:56:5c:d6:dd:9d:17:
+                    20:0b:23:c9:e7:74:cb:3f:2e:c6:9e:6d:65:fc:b6:
+                    2c:4e:cc:96:c9:20:57:60:93:93:19:fa:bf:5f:3e:
+                    29:70:16:c8:38:41:ff:2a:2c:67:9a:19:57:12:20:
+                    24:fc:b0:0e:e3:cf:07:60:d7:ec:9e:43:3b:05:65:
+                    83:cf:58:f7:12:9d:fd:a4:1e:db:ea:99:90:d3:17:
+                    13:b7:68:0c:d6:c2:69:59:85:d2:96:a2:a7:3b:80:
+                    a4:4d:04:cd:c1:91:d5:37:da:30:32:47:90:d8:8c:
+                    3c:02:e4:ef:ba:e4:7d:40:66:63:54:96:1c:5c:2d:
+                    ac:52:38:52:05:38:1c:7d:67:a3:76:94:a5:34:e1:
+                    39:29:f0:90:67:6d:23:e3:0c:f0:22:5f:08:d2:00:
+                    4a:df:87:7c:a2:a8:81:41:a9:5f:33:d5:17:44:d2:
+                    ed:4c:13:c9:13:3b:0c:a3:6e:22:13:ae:ef:57:96:
+                    83:4b
                 Exponent: 65537 (0x10001)
         X509v3 extensions:
             X509v3 Subject Key Identifier: 
-                EE:4E:CD:35:A5:3B:76:A8:ED:80:32:B4:80:56:03:70:35:19:70:DA
+                A0:EE:8E:BD:E7:E1:1E:DE:4E:96:30:C8:54:D4:A7:FC:12:24:59:4E
             X509v3 Authority Key Identifier: 
-                keyid:EE:4E:CD:35:A5:3B:76:A8:ED:80:32:B4:80:56:03:70:35:19:70:DA
-                DirName:/C=US/ST=California/L=San Francisco/O=lambdaWorks/CN=epgsql CA
-                serial:81:4C:F2:4F:EC:A0:BF:EA
+                keyid:A0:EE:8E:BD:E7:E1:1E:DE:4E:96:30:C8:54:D4:A7:FC:12:24:59:4E
 
-            X509v3 Basic Constraints: 
+            X509v3 Basic Constraints: critical
                 CA:TRUE
-    Signature Algorithm: sha1WithRSAEncryption
-         27:4c:04:ee:27:46:23:9b:6f:7c:8f:5b:9e:c6:65:74:33:40:
-         06:be:ca:e0:55:91:1c:9e:1c:77:27:82:03:4e:67:91:5d:14:
-         e4:74:b7:88:9e:49:d6:02:5b:71:94:b3:62:2a:5e:58:00:7d:
-         8c:42:09:db:ca:27:20:71:33:16:09:d2:17:36:d4:4f:63:09:
-         0a:48:80:d7:36:13:24:57:e3:7a:7e:25:4e:b8:f0:71:c6:34:
-         69:4e:e1:4b:5a:ec:b3:be:14:78:1e:af:85:b2:56:91:62:03:
-         6b:b2:85:2e:8e:ef:4b:5a:bf:ac:54:43:24:cb:0e:c6:f8:58:
-         b5:a1
+    Signature Algorithm: sha256WithRSAEncryption
+         54:72:93:5b:0b:38:a9:4c:de:31:1c:d7:7c:53:da:e5:c4:08:
+         86:e8:77:a1:73:9b:66:e0:94:e8:42:70:68:23:ab:64:19:85:
+         a4:c9:db:63:b5:94:f6:56:02:53:05:6c:be:65:a4:09:13:91:
+         5a:f6:58:ec:fd:88:e7:fe:7b:96:fa:74:8f:ea:b1:3d:43:17:
+         09:7e:54:4e:bf:6a:e8:3b:75:81:0b:12:93:02:e5:8a:22:d0:
+         b8:77:92:60:76:89:ab:41:55:5d:2d:21:b4:89:63:c7:58:d4:
+         aa:dc:af:23:52:b1:39:62:97:7e:39:7f:1c:24:f0:86:6c:d1:
+         9d:26:0d:c5:c9:c5:ae:74:58:c4:96:dc:91:2a:26:e2:cd:ea:
+         b8:50:e4:6b:8d:2c:21:e8:7a:f6:cd:b5:32:ea:34:30:41:71:
+         87:e4:91:9d:13:3c:95:bf:96:e3:7a:73:09:2a:db:15:cb:11:
+         1e:74:18:71:1e:7a:c7:59:c3:86:b9:b3:6a:e4:ba:d6:18:94:
+         96:00:3c:5e:39:43:37:d2:16:06:e0:7d:55:d9:64:cc:75:5c:
+         bb:4f:06:9a:f7:09:47:3e:94:5f:ca:d8:86:e5:3b:5d:05:3a:
+         ee:20:65:c2:29:bd:42:e3:80:b3:2c:dd:6f:ca:9e:df:9a:3b:
+         18:d9:78:3d
 -----BEGIN CERTIFICATE-----
-MIIDEDCCAnmgAwIBAgIJAIFM8k/soL/qMA0GCSqGSIb3DQEBBQUAMGQxCzAJBgNV
-BAYTAlVTMRMwEQYDVQQIEwpDYWxpZm9ybmlhMRYwFAYDVQQHEw1TYW4gRnJhbmNp
-c2NvMRQwEgYDVQQKEwtsYW1iZGFXb3JrczESMBAGA1UEAxMJZXBnc3FsIENBMB4X
-DTA5MDMyNzAzNTIzNFoXDTE5MDIwMzAzNTIzNFowZDELMAkGA1UEBhMCVVMxEzAR
-BgNVBAgTCkNhbGlmb3JuaWExFjAUBgNVBAcTDVNhbiBGcmFuY2lzY28xFDASBgNV
-BAoTC2xhbWJkYVdvcmtzMRIwEAYDVQQDEwllcGdzcWwgQ0EwgZ8wDQYJKoZIhvcN
-AQEBBQADgY0AMIGJAoGBAL0DWeXOXSRFrr/NpErUM3pICHmKIEy2KFH48JodHvu4
-3qO3EJXXo1i3lLR+NgoMaBzoIaVdnQo6XSbdu1tiWeAfuEinPSjd87neJ9clS/aK
-rO+jDrP7G7jd2wFyAR95W/jDVH4alGgdgSwFEQUsW4EFIRnAx5RPd/V2TJiNq2hb
-AgMBAAGjgckwgcYwHQYDVR0OBBYEFO5OzTWlO3ao7YAytIBWA3A1GXDaMIGWBgNV
-HSMEgY4wgYuAFO5OzTWlO3ao7YAytIBWA3A1GXDaoWikZjBkMQswCQYDVQQGEwJV
-UzETMBEGA1UECBMKQ2FsaWZvcm5pYTEWMBQGA1UEBxMNU2FuIEZyYW5jaXNjbzEU
-MBIGA1UEChMLbGFtYmRhV29ya3MxEjAQBgNVBAMTCWVwZ3NxbCBDQYIJAIFM8k/s
-oL/qMAwGA1UdEwQFMAMBAf8wDQYJKoZIhvcNAQEFBQADgYEAJ0wE7idGI5tvfI9b
-nsZldDNABr7K4FWRHJ4cdyeCA05nkV0U5HS3iJ5J1gJbcZSzYipeWAB9jEIJ28on
-IHEzFgnSFzbUT2MJCkiA1zYTJFfjen4lTrjwccY0aU7hS1rss74UeB6vhbJWkWID
-a7KFLo7vS1q/rFRDJMsOxvhYtaE=
+MIIDCTCCAfGgAwIBAgIUDKm9HEEm6cE5SBPnizD4FwqAnbEwDQYJKoZIhvcNAQEL
+BQAwFDESMBAGA1UEAwwJZXBnc3FsIENBMB4XDTE5MDIxNzAzNTk0NVoXDTI5MDIx
+NDAzNTk0NVowFDESMBAGA1UEAwwJZXBnc3FsIENBMIIBIjANBgkqhkiG9w0BAQEF
+AAOCAQ8AMIIBCgKCAQEA7I96ySTtOjsjAWkrFAFipk+PU5zlYVm4NhGtxACP5AH/
+uc8p+USqMIfWBmkh7PQc3EaiFK/lSr8PC4OXEF3zLME7B5BWXNbdnRcgCyPJ53TL
+Py7Gnm1l/LYsTsyWySBXYJOTGfq/Xz4pcBbIOEH/KixnmhlXEiAk/LAO488HYNfs
+nkM7BWWDz1j3Ep39pB7b6pmQ0xcTt2gM1sJpWYXSlqKnO4CkTQTNwZHVN9owMkeQ
+2Iw8AuTvuuR9QGZjVJYcXC2sUjhSBTgcfWejdpSlNOE5KfCQZ20j4wzwIl8I0gBK
+34d8oqiBQalfM9UXRNLtTBPJEzsMo24iE67vV5aDSwIDAQABo1MwUTAdBgNVHQ4E
+FgQUoO6OvefhHt5OljDIVNSn/BIkWU4wHwYDVR0jBBgwFoAUoO6OvefhHt5OljDI
+VNSn/BIkWU4wDwYDVR0TAQH/BAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAQEAVHKT
+Wws4qUzeMRzXfFPa5cQIhuh3oXObZuCU6EJwaCOrZBmFpMnbY7WU9lYCUwVsvmWk
+CRORWvZY7P2I5/57lvp0j+qxPUMXCX5UTr9q6Dt1gQsSkwLliiLQuHeSYHaJq0FV
+XS0htIljx1jUqtyvI1KxOWKXfjl/HCTwhmzRnSYNxcnFrnRYxJbckSom4s3quFDk
+a40sIeh69s21Muo0MEFxh+SRnRM8lb+W43pzCSrbFcsRHnQYcR56x1nDhrmzauS6
+1hiUlgA8XjlDN9IWBuB9VdlkzHVcu08GmvcJRz6UX8rYhuU7XQU67iBlwim9QuOA
+syzdb8qe35o7GNl4PQ==
 -----END CERTIFICATE-----
