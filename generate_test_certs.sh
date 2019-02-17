@@ -26,4 +26,8 @@ openssl req -new -key ${DATADIR}/client.key -out ${DATADIR}/client.csr -subj "$C
 # create signed client cert
 openssl x509 -req -text -days 3650 -in ${DATADIR}/client.csr -CA ${DATADIR}/root.crt -CAkey ${DATADIR}/root.key -CAcreateserial -out ${DATADIR}/client.crt
 
+# generate bad client key and cert
+openssl genrsa -out ${DATADIR}/bad-client.key 2048
+openssl req -new -x509 -text -days 3650 -key ${DATADIR}/bad-client.key -out ${DATADIR}/bad-client.crt -subj "$CLIENT_SUBJ"
+
 rm ${DATADIR}/*.{csr,srl}

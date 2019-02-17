@@ -45,39 +45,47 @@
 init(#{host := _, username := _} = Opts) ->
     #connect{opts = Opts}.
 
-execute(PgSock, #connect{opts = Opts, stage = connect} = State) ->
-    #{host := Host,
-      username := Username} = Opts,
+execute(PgSock, #connect{opts = #{host := Host} = Opts, stage = connect} = State) ->
     Timeout = maps:get(timeout, Opts, 5000),
     Port = maps:get(port, Opts, 5432),
     SockOpts = [{active, false}, {packet, raw}, binary, {nodelay, true}, {keepalive, true}],
     case gen_tcp:connect(Host, Port, SockOpts, Timeout) of
         {ok, Sock} ->
+            client_handshake(Sock, PgSock, State);
+        {error, Reason} = Error ->
+            {stop, Reason, Error, PgSock}
+    end;
+execute(PgSock, #connect{stage = auth, auth_send = {PacketId, Data}} = St) ->
+    epgsql_sock:send(PgSock, PacketId, Data),
+    {ok, PgSock, St#connect{auth_send = undefined}}.
 
-            %% Increase the buffer size.  Following the recommendation in the inet man page:
-            %%
-            %%    It is recommended to have val(buffer) >=
-            %%    max(val(sndbuf),val(recbuf)).
+client_handshake(Sock, PgSock, #connect{opts = #{username := Username} = Opts} = State) ->
+    %% Increase the buffer size.  Following the recommendation in the inet man page:
+    %%
+    %%    It is recommended to have val(buffer) >=
+    %%    max(val(sndbuf),val(recbuf)).
 
-            {ok, [{recbuf, RecBufSize}, {sndbuf, SndBufSize}]} =
-                inet:getopts(Sock, [recbuf, sndbuf]),
-            inet:setopts(Sock, [{buffer, max(RecBufSize, SndBufSize)}]),
+    {ok, [{recbuf, RecBufSize}, {sndbuf, SndBufSize}]} =
+        inet:getopts(Sock, [recbuf, sndbuf]),
+    inet:setopts(Sock, [{buffer, max(RecBufSize, SndBufSize)}]),
 
-            PgSock1 = maybe_ssl(Sock, maps:get(ssl, Opts, false), Opts, PgSock),
-
+    case maybe_ssl(Sock, maps:get(ssl, Opts, false), Opts, PgSock) of
+        {error, Reason} ->
+            {stop, Reason, {error, Reason}, PgSock};
+        PgSock1 ->
             Opts2 = ["user", 0, Username, 0],
             Opts3 = case maps:find(database, Opts) of
-                error -> Opts2;
-                {ok, Database}  -> [Opts2 | ["database", 0, Database, 0]]
-            end,
+                        error -> Opts2;
+                        {ok, Database}  -> [Opts2 | ["database", 0, Database, 0]]
+                    end,
 
             {Opts4, PgSock2} =
                 case Opts of
                     #{replication := Replication}  ->
                         {[Opts3 | ["replication", 0, Replication, 0]],
                          epgsql_sock:init_replication_state(PgSock1)};
-                        _ -> {Opts3, PgSock1}
-                    end,
+                    _ -> {Opts3, PgSock1}
+                end,
 
             epgsql_sock:send(PgSock2, [<<196608:?int32>>, Opts4, 0]),
             PgSock3 = case Opts of
@@ -85,13 +93,8 @@ execute(PgSock, #connect{opts = Opts, stage = connect} = State) ->
                               epgsql_sock:set_attr(async, Async, PgSock2);
                           _ -> PgSock2
                       end,
-            {ok, PgSock3, State#connect{stage = maybe_auth}};
-        {error, Reason} = Error ->
-            {stop, Reason, Error, PgSock}
-    end;
-execute(PgSock, #connect{stage = auth, auth_send = {PacketId, Data}} = St) ->
-    epgsql_sock:send(PgSock, PacketId, Data),
-    {ok, PgSock, St#connect{auth_send = undefined}}.
+            {ok, PgSock3, State#connect{stage = maybe_auth}}
+    end.
 
 
 %% @doc Replace `password' in Opts map with obfuscated one
@@ -127,14 +130,15 @@ maybe_ssl(S, Flag, Opts, PgSock) ->
                 {ok, S2}        ->
                     epgsql_sock:set_net_socket(ssl, S2, PgSock);
                 {error, Reason} ->
-                    exit({ssl_negotiation_failed, Reason})
+                    Err = {ssl_negotiation_failed, Reason},
+                    {error, Err}
             end;
         $N ->
             case Flag of
                 true ->
                     epgsql_sock:set_net_socket(gen_tcp, S, PgSock);
                 required ->
-                    exit(ssl_not_available)
+                    {error, ssl_not_available}
             end
     end.
 

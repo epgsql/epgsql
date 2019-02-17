@@ -45,6 +45,7 @@ groups() ->
             connect_with_other_error,
             connect_with_ssl,
             connect_with_client_cert,
+            connect_with_invalid_client_cert,
             connect_to_closed_port,
             connect_map,
             connect_proplist
@@ -283,6 +284,27 @@ connect_with_client_cert(Config) ->
          "epgsql_test_cert",
         [{ssl, true}, {ssl_opts, [{keyfile, File("client.key")},
                                   {certfile, File("client.crt")}]}]).
+
+connect_with_invalid_client_cert(Config) ->
+    {Host, Port} = epgsql_ct:connection_data(Config),
+    Module = ?config(module, Config),
+    Dir = filename:join(code:lib_dir(epgsql), ?TEST_DATA_DIR),
+    File = fun(Name) -> filename:join(Dir, Name) end,
+    Trap = process_flag(trap_exit, true),
+    ?assertMatch(
+       {error, {ssl_negotiation_failed, _}},
+       Module:connect(
+         #{username => "epgsql_test_cert",
+           database => "epgsql_test_db1",
+           host => Host,
+           port => Port,
+           ssl => true,
+           ssl_opts =>
+               [{keyfile, File("bad-client.key")},
+                {certfile, File("bad-client.crt")}]}
+        )),
+    ?assertMatch({'EXIT', _, {ssl_negotiation_failed, _}}, receive Stop -> Stop end),
+    process_flag(trap_exit, Trap).
 
 connect_map(Config) ->
     {Host, Port} = epgsql_ct:connection_data(Config),
