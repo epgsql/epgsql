@@ -1,3 +1,43 @@
+Certificate:
+    Data:
+        Version: 3 (0x2)
+        Serial Number:
+            ac:08:5a:93:85:0b:91:16
+        Signature Algorithm: sha1WithRSAEncryption
+        Issuer: C = US, ST = California, L = San Francisco, O = lambdaWorks, CN = epgsql CA
+        Validity
+            Not Before: Mar 27 04:30:13 2009 GMT
+            Not After : Feb  3 04:30:13 2019 GMT
+        Subject: C = US, ST = California, L = San Francisco, O = lambdaWorks, CN = epgsql_test_cert
+        Subject Public Key Info:
+            Public Key Algorithm: rsaEncryption
+                RSA Public-Key: (1024 bit)
+                Modulus:
+                    00:b1:9d:59:37:d1:e7:4a:aa:42:16:5b:34:de:58:
+                    91:e5:73:96:5c:a3:93:00:48:0a:b3:27:a7:c2:e0:
+                    79:91:e3:2f:92:b4:50:7c:f0:d6:44:fc:44:8a:6d:
+                    65:cd:38:3e:3a:e1:f9:2e:ef:69:b9:8b:80:c8:d4:
+                    d7:ed:1a:06:4b:56:38:eb:16:62:c4:13:4e:52:87:
+                    29:a4:a9:6b:55:6f:e1:fd:44:10:f6:48:79:78:56:
+                    3c:03:52:c3:03:1d:91:a2:5c:bd:e7:d3:6b:96:17:
+                    e3:6d:a5:e4:07:91:a7:1f:6a:fd:74:65:03:b4:9e:
+                    7b:9b:9e:30:94:57:71:07:a1
+                Exponent: 65537 (0x10001)
+        X509v3 extensions:
+            X509v3 Authority Key Identifier: 
+                keyid:EE:4E:CD:35:A5:3B:76:A8:ED:80:32:B4:80:56:03:70:35:19:70:DA
+                DirName:/C=US/ST=California/L=San Francisco/O=lambdaWorks/CN=epgsql CA
+                serial:81:4C:F2:4F:EC:A0:BF:EA
+
+    Signature Algorithm: sha1WithRSAEncryption
+         78:72:9c:4d:ff:53:50:e2:a8:73:5f:f8:06:82:92:d5:68:1e:
+         5b:23:7d:7b:df:ae:1a:2e:a9:1e:d3:f3:89:31:0a:30:07:cc:
+         ce:aa:d7:cd:e0:6b:84:bd:36:12:de:ca:10:93:a2:20:e7:22:
+         85:25:52:0e:ef:d6:1f:70:4e:f5:c0:a0:ed:8d:c2:40:a9:49:
+         b2:14:9d:c8:fa:43:68:7a:27:ca:1b:5a:af:c1:0d:22:70:6d:
+         d3:dc:08:77:b8:ba:7f:0f:84:4a:64:88:42:b5:40:c3:26:e6:
+         1f:5d:fa:38:04:f2:6a:e0:19:95:cc:9e:fc:f0:e3:4a:2f:24:
+         73:8d
 -----BEGIN CERTIFICATE-----
 MIIC6jCCAlOgAwIBAgIJAKwIWpOFC5EWMA0GCSqGSIb3DQEBBQUAMGQxCzAJBgNV
 BAYTAlVTMRMwEQYDVQQIEwpDYWxpZm9ybmlhMRYwFAYDVQQHEw1TYW4gRnJhbmNp

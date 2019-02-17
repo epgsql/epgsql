@@ -277,8 +277,8 @@ connect_with_client_cert(Config) ->
 
     epgsql_ct:with_connection(Config,
          fun(C) ->
-             {ok, _, [{true}]} = Module:equery(C, "select ssl_is_used()"),
-             {ok, _, [{Serial2}]} = Module:equery(C, "select ssl_client_serial()")
+             ?assertMatch({ok, _, [{true}]}, Module:equery(C, "select ssl_is_used()")),
+             ?assertMatch({ok, _, [{Serial2}]}, Module:equery(C, "select ssl_client_serial()"))
          end,
          "epgsql_test_cert",
         [{ssl, true}, {ssl_opts, [{keyfile, File("epgsql.key")},
