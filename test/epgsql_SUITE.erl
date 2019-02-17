@@ -269,7 +269,7 @@ connect_with_client_cert(Config) ->
     Module = ?config(module, Config),
     Dir = filename:join(code:lib_dir(epgsql), ?TEST_DATA_DIR),
     File = fun(Name) -> filename:join(Dir, Name) end,
-    {ok, Pem} = file:read_file(File("epgsql.crt")),
+    {ok, Pem} = file:read_file(File("client.crt")),
     [{'Certificate', Der, not_encrypted}] = public_key:pem_decode(Pem),
     Cert = public_key:pkix_decode_cert(Der, plain),
     #'TBSCertificate'{serialNumber = Serial} = Cert#'Certificate'.tbsCertificate,
@@ -281,8 +281,8 @@ connect_with_client_cert(Config) ->
              ?assertMatch({ok, _, [{Serial2}]}, Module:equery(C, "select ssl_client_serial()"))
          end,
          "epgsql_test_cert",
-        [{ssl, true}, {ssl_opts, [{keyfile, File("epgsql.key")},
-                                  {certfile, File("epgsql.crt")}]}]).
+        [{ssl, true}, {ssl_opts, [{keyfile, File("client.key")},
+                                  {certfile, File("client.crt")}]}]).
 
 connect_map(Config) ->
     {Host, Port} = epgsql_ct:connection_data(Config),

@@ -182,8 +182,8 @@ copy_certs(Config) ->
     PgDataDir = ?config(datadir, Config),
 
     Files = [
-        {"epgsql.crt", "server.crt", 8#00660},
-        {"epgsql.key", "server.key", 8#00600},
+        {"server.crt", "server.crt", 8#00660},
+        {"server.key", "server.key", 8#00600},
         {"root.crt", "root.crt", 8#00660},
         {"root.key", "root.key", 8#00660}
     ],

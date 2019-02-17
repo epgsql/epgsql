@@ -1,0 +1,52 @@
+Certificate:
+    Data:
+        Version: 1 (0x0)
+        Serial Number:
+            0e:9f:3c:e6:3c:ca:ee:bd:d6:81:62:b0:40:50:ee:29:c2:3c:d2:45
+        Signature Algorithm: NULL
+        Issuer: CN = epgsql server
+        Validity
+            Not Before: Feb 17 04:16:40 2019 GMT
+            Not After : Feb 14 04:16:40 2029 GMT
+        Subject: CN = epgsql server
+        Subject Public Key Info:
+            Public Key Algorithm: rsaEncryption
+                RSA Public-Key: (2048 bit)
+                Modulus:
+                    00:ab:77:8d:54:16:e7:50:70:e1:e5:f1:e0:6f:c7:
+                    9d:78:85:be:91:4a:63:41:71:08:de:23:8c:98:44:
+                    8f:cf:75:f9:20:d7:62:95:c2:61:5d:19:78:d3:10:
+                    a5:1c:f0:39:9e:a6:00:b0:98:aa:02:2a:ee:c4:9d:
+                    07:05:3b:c6:35:b5:a4:f5:d2:32:73:d9:62:21:17:
+                    3e:10:2f:e9:e9:06:11:5e:36:43:1f:95:e8:aa:55:
+                    56:6b:ed:32:b6:f1:49:ff:13:42:78:e6:95:4f:c0:
+                    57:77:e0:9f:1c:aa:83:f4:09:fe:af:d3:25:bf:ef:
+                    b6:2d:35:79:b1:47:ed:ae:2b:c8:2f:42:7c:2f:ef:
+                    f3:1b:59:d0:69:b4:76:33:f2:7a:2f:0b:a5:4a:0d:
+                    c9:2d:f8:e3:01:0f:b3:6e:53:c5:a9:32:43:86:1d:
+                    af:73:c7:bd:61:94:dc:58:f9:96:01:6b:26:1e:65:
+                    e5:4d:b8:5b:eb:17:62:a5:29:d9:84:fc:a9:e7:22:
+                    13:ea:23:5b:76:c2:50:b2:d6:4a:29:9f:21:92:57:
+                    79:de:54:e8:9a:86:be:fd:58:5e:9d:9b:90:47:e1:
+                    82:1e:35:73:52:ae:41:9e:96:93:a3:8c:39:3f:35:
+                    b7:61:80:07:35:73:d0:ce:88:46:ea:ae:c4:2a:ba:
+                    2f:97
+                Exponent: 65537 (0x10001)
+    Signature Algorithm: NULL
+-----BEGIN CERTIFICATE-----
+MIICszCCAZsCFHY6YOsnigyFmdlh+oVOANI9KmmIMA0GCSqGSIb3DQEBCwUAMBQx
+EjAQBgNVBAMMCWVwZ3NxbCBDQTAeFw0xOTAyMTcwNDE2NDBaFw0yOTAyMTQwNDE2
+NDBaMBgxFjAUBgNVBAMMDWVwZ3NxbCBzZXJ2ZXIwggEiMA0GCSqGSIb3DQEBAQUA
+A4IBDwAwggEKAoIBAQCrd41UFudQcOHl8eBvx514hb6RSmNBcQjeI4yYRI/Pdfkg
+12KVwmFdGXjTEKUc8DmepgCwmKoCKu7EnQcFO8Y1taT10jJz2WIhFz4QL+npBhFe
+NkMfleiqVVZr7TK28Un/E0J45pVPwFd34J8cqoP0Cf6v0yW/77YtNXmxR+2uK8gv
+Qnwv7/MbWdBptHYz8novC6VKDckt+OMBD7NuU8WpMkOGHa9zx71hlNxY+ZYBayYe
+ZeVNuFvrF2KlKdmE/KnnIhPqI1t2wlCy1kopnyGSV3neVOiahr79WF6dm5BH4YIe
+NXNSrkGelpOjjDk/NbdhgAc1c9DOiEbqrsQqui+XAgMBAAEwDQYJKoZIhvcNAQEL
+BQADggEBABViHTwaK/0W6QgV3ogywia5XQHqvm8tMhFXQD2m+6IcuzHCDq8xu8f1
+n7+V7+c3Nc3jLIg8CuiFtI8oeoxuH/ccLAURDV7Rxgiv7+pqbNqSQzvlvzU/ogGI
+eUITW+fHujoOjoq07gayyZDogFIRjIyMty+YLQWg+9IjxySx8324R7QvM8Tl6EhB
+5AmyOHZPqzl3ZMaZxRWSDYu2ZbzYn9i036Gnuxoyg4bxgz0hOkedOMOffqOOLHCi
+fDjzbqMhy0vhTxGLRIoqE16/kFi5snYD5/y20yAldjGCUSD0BU08AvdC8djYlDpv
+K6dFasYmHFa2E2fifxixS2Dl6YksWq8=
+-----END CERTIFICATE-----
