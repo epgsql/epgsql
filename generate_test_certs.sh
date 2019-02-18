@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/sh
 # https://www.postgresql.org/docs/current/ssl-tcp.html#SSL-CERTIFICATE-CREATION
 
 DATADIR=test/data
