@@ -45,6 +45,7 @@ groups() ->
             connect_with_other_error,
             connect_with_ssl,
             connect_with_client_cert,
+            connect_with_invalid_client_cert,
             connect_to_closed_port,
             connect_map,
             connect_proplist
@@ -269,7 +270,7 @@ connect_with_client_cert(Config) ->
     Module = ?config(module, Config),
     Dir = filename:join(code:lib_dir(epgsql), ?TEST_DATA_DIR),
     File = fun(Name) -> filename:join(Dir, Name) end,
-    {ok, Pem} = file:read_file(File("epgsql.crt")),
+    {ok, Pem} = file:read_file(File("client.crt")),
     [{'Certificate', Der, not_encrypted}] = public_key:pem_decode(Pem),
     Cert = public_key:pkix_decode_cert(Der, plain),
     #'TBSCertificate'{serialNumber = Serial} = Cert#'Certificate'.tbsCertificate,
@@ -277,12 +278,33 @@ connect_with_client_cert(Config) ->
 
     epgsql_ct:with_connection(Config,
          fun(C) ->
-             {ok, _, [{true}]} = Module:equery(C, "select ssl_is_used()"),
-             {ok, _, [{Serial2}]} = Module:equery(C, "select ssl_client_serial()")
+             ?assertMatch({ok, _, [{true}]}, Module:equery(C, "select ssl_is_used()")),
+             ?assertMatch({ok, _, [{Serial2}]}, Module:equery(C, "select ssl_client_serial()"))
          end,
          "epgsql_test_cert",
-        [{ssl, true}, {ssl_opts, [{keyfile, File("epgsql.key")},
-                                  {certfile, File("epgsql.crt")}]}]).
+        [{ssl, true}, {ssl_opts, [{keyfile, File("client.key")},
+                                  {certfile, File("client.crt")}]}]).
+
+connect_with_invalid_client_cert(Config) ->
+    {Host, Port} = epgsql_ct:connection_data(Config),
+    Module = ?config(module, Config),
+    Dir = filename:join(code:lib_dir(epgsql), ?TEST_DATA_DIR),
+    File = fun(Name) -> filename:join(Dir, Name) end,
+    Trap = process_flag(trap_exit, true),
+    ?assertMatch(
+       {error, {ssl_negotiation_failed, _}},
+       Module:connect(
+         #{username => "epgsql_test_cert",
+           database => "epgsql_test_db1",
+           host => Host,
+           port => Port,
+           ssl => true,
+           ssl_opts =>
+               [{keyfile, File("bad-client.key")},
+                {certfile, File("bad-client.crt")}]}
+        )),
+    ?assertMatch({'EXIT', _, {ssl_negotiation_failed, _}}, receive Stop -> Stop end),
+    process_flag(trap_exit, Trap).
 
 connect_map(Config) ->
     {Host, Port} = epgsql_ct:connection_data(Config),
