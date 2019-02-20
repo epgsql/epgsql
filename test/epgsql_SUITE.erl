@@ -435,7 +435,7 @@ batch_error(Config) ->
     Module = ?config(module, Config),
     epgsql_ct:with_rollback(Config, fun(C) ->
         {ok, S} = Module:parse(C, "insert into test_table1(id, value) values($1, $2)"),
-        [{ok, 1}, {error, _}] =
+        [{ok, 1}, {error, _}, {error, skipped}] =
             Module:execute_batch(
               C,
               [{S, [3, "batch_error 3"]},
