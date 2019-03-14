@@ -44,11 +44,12 @@
 
 -type sql_query() :: iodata().
 -type host() :: inet:ip_address() | inet:hostname().
+-type password() :: string() | iodata() | fun( () -> iodata() ).
 -type connection() :: pid().
 -type connect_option() ::
     {host, host()}                                 |
     {username, string()}                           |
-    {password, string()}                           |
+    {password, password()}                         |
     {database, DBName     :: string()}             |
     {port,     PortNum    :: inet:port_number()}   |
     {ssl,      IsEnabled  :: boolean() | required} |
@@ -62,7 +63,7 @@
         [connect_option()]
       | #{host => host(),
           username => string(),
-          password => iodata() | fun( () -> iodata() ),
+          password => password(),
           database => string(),
           port => inet:port_number(),
           ssl => boolean() | required,
@@ -135,7 +136,7 @@ connect(Host, Opts) ->
 connect(Host, Username, Opts) ->
     connect(Host, Username, "", Opts).
 
--spec connect(host(), string(), string(), connect_opts())
+-spec connect(host(), string(), password(), connect_opts())
         -> {ok, Connection :: connection()} | {error, Reason :: connect_error()}.
 %% @doc connects to Postgres
 %% where
