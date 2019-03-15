@@ -149,7 +149,7 @@ connect(Host, Username, Password, Opts) ->
     {ok, C} = epgsql_sock:start_link(),
     connect(C, Host, Username, Password, Opts).
 
--spec connect(connection(), host(), string(), string(), connect_opts())
+-spec connect(connection(), host(), string(), password(), connect_opts())
         -> {ok, Connection :: connection()} | {error, Reason :: connect_error()}.
 connect(C, Host, Username, Password, Opts) ->
     Opts1 = maps:merge(to_map(Opts),
