@@ -233,6 +233,8 @@ equery(C, Sql) ->
     equery(C, Sql, []).
 
 %% TODO add fast_equery command that doesn't need parsed statement
+-spec equery(connection(), sql_query(), [bind_param()]) ->
+                    epgsql_cmd_equery:response().
 equery(C, Sql, Parameters) ->
     case parse(C, "", Sql, []) of
         {ok, #statement{types = Types} = S} ->
