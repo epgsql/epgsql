@@ -15,7 +15,6 @@ otp_release:
   - 20.3
   - 19.3
   - 18.3
-  - 17.5
 script:
   - make elvis
   - make test

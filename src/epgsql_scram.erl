@@ -133,16 +133,8 @@ h(Str) ->
 bin_xor(B1, B2) ->
     crypto:exor(B1, B2).
 
-
--ifndef(SLOW_MAPS).
 unique() ->
     erlang:unique_integer([positive]).
--else.
-unique() ->
-    %% POSIX timestamp microseconds
-    {Mega, Secs, Micro} = erlang:now(),
-    (Mega * 1000000 + Secs) * 1000000 + Micro.
--endif.
 
 
 -ifdef(TEST).
