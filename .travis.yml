@@ -1,11 +1,12 @@
 addons:
-  postgresql: "9.6"
+  postgresql: "10"
   apt:
     packages:
-      - postgresql-9.6-postgis-2.3
-      - postgresql-contrib-9.6
+      - postgresql-10-postgis-2.4
+      - postgresql-10-postgis-2.4-scripts
+      - postgresql-contrib-10
 env:
-  - PATH=".:/usr/lib/postgresql/9.6/bin:$PATH"
+  - PATH=".:/usr/lib/postgresql/10/bin:$PATH"
 install: "true"
 language: erlang
 otp_release:
@@ -14,7 +15,6 @@ otp_release:
   - 20.3
   - 19.3
   - 18.3
-  - 17.5
 script:
   - make elvis
   - make test
