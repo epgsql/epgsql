@@ -23,7 +23,7 @@
 %%   and returns a valid JSON binary string.
 %% - decode/1 expects a valid JSON binary string, and returns erlang-formatted JSON.
 %%
-%% or a tuple {Mod, {encode, Opts}, {decode, Opts}} where Mod implements encode/2 and
+%% or a tuple {Mod, EncodeOpts, DecodeOpts} where Mod implements encode/2 and
 %% decode/2 with the same interface semantics as encode/1 and decode/1, while
 %% accepting Opts as options to pass into the encode/2 and decode/2 functions.
 %%
@@ -39,12 +39,12 @@ names() ->
 
 encode(ErlJson, json, JsonMod) when is_atom(JsonMod) ->
     JsonMod:encode(ErlJson);
-encode(ErlJson, json, {JsonMod, {encode, Opts}, _}) when is_atom(JsonMod) ->
-    JsonMod:encode(ErlJson, Opts);
+encode(ErlJson, json, {JsonMod, EncodeOpts, _}) when is_atom(JsonMod) ->
+    JsonMod:encode(ErlJson, EncodeOpts);
 encode(ErlJson, jsonb, JsonMod) when is_atom(JsonMod) ->
     <<?JSONB_VERSION_1:8, (JsonMod:encode(ErlJson))/binary>>;
-encode(ErlJson, jsonb, {JsonMod, {encode, Opts}, _}) when is_atom(JsonMod) ->
-    <<?JSONB_VERSION_1:8, (JsonMod:encode(ErlJson, Opts))/binary>>;
+encode(ErlJson, jsonb, {JsonMod, EncodeOpts, _}) when is_atom(JsonMod) ->
+    <<?JSONB_VERSION_1:8, (JsonMod:encode(ErlJson, EncodeOpts))/binary>>;
 encode(Bin, json, _) ->
     Bin;
 encode(Bin, jsonb, _) ->
@@ -52,12 +52,12 @@ encode(Bin, jsonb, _) ->
 
 decode(Bin, json, JsonMod) when is_atom(JsonMod) ->
     JsonMod:decode(Bin);
-decode(Bin, json, {JsonMod, _, {decode, Opts}}) when is_atom(JsonMod) ->
-    JsonMod:decode(Bin, Opts);
+decode(Bin, json, {JsonMod, _, DecodeOpts}) when is_atom(JsonMod) ->
+    JsonMod:decode(Bin, DecodeOpts);
 decode(<<?JSONB_VERSION_1:8, Bin/binary>>, jsonb, JsonMod) when is_atom(JsonMod) ->
     JsonMod:decode(Bin);
-decode(<<?JSONB_VERSION_1:8, Bin/binary>>, jsonb, {JsonMod, _, {decode, Opts}}) when is_atom(JsonMod) ->
-    JsonMod:decode(Bin, Opts);
+decode(<<?JSONB_VERSION_1:8, Bin/binary>>, jsonb, {JsonMod, _, DecodeOpts}) when is_atom(JsonMod) ->
+    JsonMod:decode(Bin, DecodeOpts);
 decode(Bin, json, _) ->
     Bin;
 decode(<<?JSONB_VERSION_1:8, Bin/binary>>, jsonb, _) ->
