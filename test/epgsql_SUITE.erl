@@ -15,7 +15,7 @@
     end_per_suite/1
 ]).
 
--compile(export_all).
+-compile([export_all, nowarn_export_all]).
 
 modules() ->
     [
