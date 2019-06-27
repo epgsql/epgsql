@@ -828,10 +828,24 @@ date_time_type(Config) ->
     end).
 
 json_type(Config) ->
-    check_type(Config, json, "'{}'", <<"{}">>,
-               [<<"{}">>, <<"[]">>, <<"1">>, <<"1.0">>, <<"true">>, <<"\"string\"">>, <<"{\"key\": []}">>]),
-    check_type(Config, jsonb, "'{}'", <<"{}">>,
-               [<<"{}">>, <<"[]">>, <<"1">>, <<"1.0">>, <<"true">>, <<"\"string\"">>, <<"{\"key\": []}">>]).
+    Module = ?config(module, Config),
+    epgsql_ct:with_connection(Config, fun(C) ->
+        check_type(Config, json, "'{}'", <<"{}">>,
+                [<<"{}">>, <<"[]">>, <<"1">>, <<"1.0">>, <<"true">>, <<"\"string\"">>, <<"{\"key\": []}">>],
+                get_type_col(json), C),
+        check_type(Config, jsonb, "'{}'", <<"{}">>,
+                [<<"{}">>, <<"[]">>, <<"1">>, <<"1.0">>, <<"true">>, <<"\"string\"">>, <<"{\"key\": []}">>],
+                get_type_col(jsonb), C),
+        epgsql:update_type_cache(C, [{epgsql_codec_json, epgsql_fake_json_mod}]),
+        RowId = "json_type_custom_mod_" ++ atom_to_list(Module),
+        {ok, 1} = Module:equery(C, "insert into test_table2 (c_varchar, c_json, c_jsonb) values ($1, $2, $3)", [RowId, {"{}"}, {"{}"}]),
+        Res = Module:equery(C, "select c_json, c_jsonb from test_table2 where c_varchar = $1", [RowId]),
+        ?assertMatch(
+            {ok, [#column{name = <<"c_json">>, type = json}, #column{name = <<"c_jsonb">>, type = jsonb}],
+                 [{{<<"{}">>}, {<<"{}">>}}]},
+            Res
+        )
+    end).
 
 misc_type(Config) ->
     check_type(Config, bool, "true", true, [true, false]),
@@ -1241,32 +1255,35 @@ with_transaction(Config) ->
 %% Internal functions
 %% ============================================================================
 
+get_type_col(Type) ->
+    "c_" ++ atom_to_list(Type).
+
 check_type(Config, Type, In, Out, Values) ->
-    Column = "c_" ++ atom_to_list(Type),
+    Column = get_type_col(Type),
     check_type(Config, Type, In, Out, Values, Column).
 
 check_type(Config, Type, In, Out, Values, Column) ->
-    Module = ?config(module, Config),
     epgsql_ct:with_connection(Config, fun(C) ->
-        Select = io_lib:format("select ~s::~w", [In, Type]),
-        Res = Module:equery(C, Select),
-        ?assertMatch({ok, [#column{type = Type}], [{Out}]}, Res),
-        Sql = io_lib:format("insert into test_table2 (~s) values ($1) returning ~s", [Column, Column]),
-        {ok, #statement{columns = [#column{type = Type}]} = S} = Module:parse(C, Sql),
-        Insert = fun(V) ->
-            ok = Module:bind(C, S, [V]),
-            {ok, 1, [{V2}]} = Module:execute(C, S),
-            case compare(Type, V, V2) of
-                true  -> ok;
-                false ->
-                    error({write_read_compare_failed,
-                           iolist_to_binary(
-                             io_lib:format("~p =/= ~p~n", [V, V2]))})
-            end,
-            ok = Module:sync(C)
-        end,
-        lists:foreach(Insert, [null, undefined | Values])
+        check_type(Config, Type, In, Out, Values, Column, C)
     end).
+
+check_type(Config, Type, In, Out, Values, Column, C) ->
+    Module = ?config(module, Config),
+    Select = io_lib:format("select ~s::~w", [In, Type]),
+    Res = Module:equery(C, Select),
+    ?assertMatch({ok, [#column{type = Type}], [{Out}]}, Res),
+    Sql = io_lib:format("insert into test_table2 (~s) values ($1) returning ~s", [Column, Column]),
+    {ok, #statement{columns = [#column{type = Type}]} = S} = Module:parse(C, Sql),
+    Insert = fun(V) ->
+        ok = Module:bind(C, S, [V]),
+        {ok, 1, [{V2}]} = Module:execute(C, S),
+        case compare(Type, V, V2) of
+            true  -> ok;
+            false -> error({write_read_compare_failed, io_lib:format("~p =/= ~p", [V, V2])})
+        end,
+        ok = Module:sync(C)
+    end,
+    lists:foreach(Insert, [null, undefined | Values]).
 
 compare(_Type, null, null)      -> true;
 compare(_Type, undefined, null) -> true;
