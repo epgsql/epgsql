@@ -17,20 +17,19 @@
 
 -define(JSONB_VERSION_1, 1).
 
-%% JsonMod shall either be a module with encode/1 and decode/1, where:
-%%
-%% - encode/1 expects erlang-formatted JSON, e.g. a map or a proplist,
-%%   and returns a valid JSON binary string.
-%% - decode/1 expects a valid JSON binary string, and returns erlang-formatted JSON.
-%%
-%% or a tuple {Mod, EncodeOpts, DecodeOpts} where Mod implements encode/2 and
-%% decode/2 with the same interface semantics as encode/1 and decode/1, while
-%% accepting Opts as options to pass into the encode/2 and decode/2 functions.
-%%
-%% Tip: if you require special behavior that a third-party JSON module doesn't provide
-%%      for you, or which doesn't strictly meet this interface requirement, wrap the
-%%      third-party JSON module in a new module that implements the required interface,
-%%      and pass in _that_ as JsonMod.
+-optional_callbacks([encode/2, decode/2]).
+
+%% Encode erlang-formatted JSON, e.g. a map or a proplist,
+%% and return a valid JSON iolist or binary string.
+-callback encode(ErlJson::term()) -> EncodedJson::iodata().
+-callback encode(ErlJson::term(), EncodeOpts::term()) -> EncodedJson::iodata().
+
+%% Decode JSON binary string into erlang-formatted JSON.
+-callback decode(EncodedJson::binary()) -> ErlJson::term().
+-callback decode(EncodedJson::binary(), DecodeOpts::term()) -> ErlJson::term().
+
+%% JsonMod shall be a module that implements the callbacks defined by this module;
+%% encode/1, decode/1, and optionally the option-accepting variants.
 init(JsonMod, _) ->
     JsonMod.
 
@@ -42,9 +41,9 @@ encode(ErlJson, json, JsonMod) when is_atom(JsonMod) ->
 encode(ErlJson, json, {JsonMod, EncodeOpts, _}) when is_atom(JsonMod) ->
     JsonMod:encode(ErlJson, EncodeOpts);
 encode(ErlJson, jsonb, JsonMod) when is_atom(JsonMod) ->
-    <<?JSONB_VERSION_1:8, (JsonMod:encode(ErlJson))/binary>>;
+    [<<?JSONB_VERSION_1:8>> | JsonMod:encode(ErlJson)];
 encode(ErlJson, jsonb, {JsonMod, EncodeOpts, _}) when is_atom(JsonMod) ->
-    <<?JSONB_VERSION_1:8, (JsonMod:encode(ErlJson, EncodeOpts))/binary>>;
+    [<<?JSONB_VERSION_1:8>> | JsonMod:encode(ErlJson, EncodeOpts)];
 encode(Bin, json, _) ->
     Bin;
 encode(Bin, jsonb, _) ->
