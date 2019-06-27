@@ -434,7 +434,7 @@ PG type       | Representation
   point       |  `{10.2, 100.12}`
   int4range   | `[1,5)`
   hstore      | `{[ {binary(), binary() \| null} ]}`
-  json/jsonb  | `<<"{ \"key\": [ 1, 1.0, true, \"string\" ] }">>`
+  json/jsonb  | `<<"{ \"key\": [ 1, 1.0, true, \"string\" ] }">>` (see below for codec details)
   uuid        | `<<"123e4567-e89b-12d3-a456-426655440000">>`
   inet        | `inet:ip_address()`
   cidr        | `{ip_address(), Mask :: 0..32}`
@@ -444,14 +444,31 @@ PG type       | Representation
   tstzrange   | `{{Hour, Minute, Second.Microsecond}, {Hour, Minute, Second.Microsecond}}`
   daterange   | `{{Year, Month, Day}, {Year, Month, Day}}`
 
-  `timestamp` and `timestamptz` parameters can take `erlang:now()` format: `{MegaSeconds, Seconds, MicroSeconds}`
+`timestamp` and `timestamptz` parameters can take `erlang:now()` format: `{MegaSeconds, Seconds, MicroSeconds}`
 
-  `int4range` is a range type for ints that obeys inclusive/exclusive semantics,
-  bracket and parentheses respectively. Additionally, infinities are represented by the atoms `minus_infinity`
-  and `plus_infinity`
+`int4range` is a range type for ints that obeys inclusive/exclusive semantics,
+bracket and parentheses respectively. Additionally, infinities are represented by the atoms `minus_infinity`
+and `plus_infinity`
 
-  `tsrange`, `tstzrange`, `daterange` are range types for `timestamp`, `timestamptz` and `date`
-  respectively. They can return `empty` atom as the result from a database if bounds are equal
+`tsrange`, `tstzrange`, `daterange` are range types for `timestamp`, `timestamptz` and `date`
+respectively. They can return `empty` atom as the result from a database if bounds are equal
+
+`json` and `jsonb` types can optionally use a custom JSON encoding/decoding module to accept
+and return erlang-formatted JSON. The module must implement the callbacks in `epgsql_codec_json`,
+which most popular open source JSON parsers will already, and you can specify it in the codec
+configuration like this:
+
+```erlang
+{epgsql_codec_json, JsonMod}
+
+% With options
+{epgsql_codec_json, JsonMod, EncodingOpts, DecodingOpts}
+
+% Real world example using jiffy to return a map on decode
+{epgsql_codec_json, {jiffy, [], [return_maps]}}
+```
+
+Note that the decoded terms will be message-passed to the receiving process (i.e. copied), which may exhibit a performance hit if decoding large terms very frequently.
 
 ## Errors
 
