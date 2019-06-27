@@ -462,7 +462,7 @@ configuration like this:
 {epgsql_codec_json, JsonMod}
 
 % With options
-{epgsql_codec_json, JsonMod, EncodingOpts, DecodingOpts}
+{epgsql_codec_json, JsonMod, EncodeOpts, DecodeOpts}
 
 % Real world example using jiffy to return a map on decode
 {epgsql_codec_json, {jiffy, [], [return_maps]}}

@@ -14,7 +14,7 @@
 -export_type([data/0, json_mod/0]).
 
 -type data() :: binary().
--type json_mod()::module() | {module(), Encode::any(), DecodeOpts::any()}.
+-type json_mod()::module() | {module(), EncodeOpts::any(), DecodeOpts::any()}.
 
 -define(JSONB_VERSION_1, 1).
 
