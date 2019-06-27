@@ -11,9 +11,10 @@
 
 -export([init/2, names/0, encode/3, decode/3, decode_text/3]).
 
--export_type([data/0]).
+-export_type([data/0, json_mod/0]).
 
 -type data() :: binary().
+-type json_mod()::module() | {module(), Encode::any(), DecodeOpts::any()}.
 
 -define(JSONB_VERSION_1, 1).
 
@@ -30,6 +31,7 @@
 
 %% JsonMod shall be a module that implements the callbacks defined by this module;
 %% encode/1, decode/1, and optionally the option-accepting variants.
+-spec init(JsonMod::json_mod(), epgsql_sock:pg_sock()) -> epgsql_codec:codec_state().
 init(JsonMod, _) ->
     JsonMod.
 
