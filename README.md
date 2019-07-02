@@ -79,7 +79,9 @@ connect(Opts) -> {ok, Connection :: epgsql:connection()} | {error, Reason :: epg
 
 connect(Host, Username, Password, Opts) -> {ok, C} | {error, Reason}.
 ```
+
 example:
+
 ```erlang
 {ok, C} = epgsql:connect("localhost", "username", "psss", #{
     database => "test_db",
@@ -146,7 +148,9 @@ Asynchronous connect example (applies to **epgsqli** too):
 %% @doc runs simple `SqlQuery' via given `Connection'
 squery(Connection, SqlQuery) -> ...
 ```
+
 examples:
+
 ```erlang
 epgsql:squery(C, "insert into account (name) values  ('alice'), ('bob')").
 > {ok,2}
@@ -237,6 +241,7 @@ end.
 {ok, Count, Columns, Rows} = epgsql:equery(C, "insert ... returning ...", [Parameters]).
 {error, Error}             = epgsql:equery(C, "invalid SQL", [Parameters]).
 ```
+
 `Parameters` - optional list of values to be bound to `$1`, `$2`, `$3`, etc.
 
 The extended query protocol combines parse, bind, and execute using
@@ -276,17 +281,20 @@ end.
 squery including final `{C, Ref, done}`.
 
 ### Prepared Query
+
 ```erlang
 {ok, Columns, Rows}        = epgsql:prepared_query(C, StatementName, [Parameters]).
 {ok, Count}                = epgsql:prepared_query(C, StatementName, [Parameters]).
 {ok, Count, Columns, Rows} = epgsql:prepared_query(C, StatementName, [Parameters]).
 {error, Error}             = epgsql:prepared_query(C, "non_existent_query", [Parameters]).
 ```
+
 `Parameters` - optional list of values to be bound to `$1`, `$2`, `$3`, etc.
 `StatementName` - name of query given with ```erlang epgsql:parse(C, StatementName, "select ...", []).```
 
 With prepared query one can parse a query giving it a name with `epgsql:parse` on start and reuse the name
 for all further queries with different parameters.
+
 ```erlang
 epgsql:parse(C, "inc", "select $1+1", []).
 epgsql:prepared_query(C, "inc", [4]).
@@ -322,11 +330,13 @@ squery including final `{C, Ref, done}`.
 For valid type names see `pgsql_types.erl`.
 
 `epgsqla:parse/2` sends `{C, Ref, {ok, Statement} | {error, Reason}}`.
+
 `epgsqli:parse/2` sends:
- - `{C, Ref, {types, Types}}`
- - `{C, Ref, {columns, Columns}}`
- - `{C, Ref, no_data}` if statement will not return rows
- - `{C, Ref, {error, Reason}}`
+
+- `{C, Ref, {types, Types}}`
+- `{C, Ref, {columns, Columns}}`
+- `{C, Ref, no_data}` if statement will not return rows
+- `{C, Ref, {error, Reason}}`
 
 ```erlang
 ok = epgsql:bind(C, Statement, [PortalName], ParameterValues).
@@ -351,6 +361,7 @@ both `epgsqla:bind/3` and `epgsqli:bind/3` send `{C, Ref, ok | {error, Reason}}`
 return value of `epgsql:execute/3`.
 
 `epgsqli:execute/3` sends
+
 - `{C, Ref, {data, Row}}`
 - `{C, Ref, {error, Reason}}`
 - `{C, Ref, suspended}` partial result was sent, more rows are available
@@ -366,7 +377,6 @@ ok = epgsql:sync(C).
 All epgsql functions return `{error, Error}` when an error occurs.
 
 `epgsqla`/`epgsqli` modules' `close` and `sync` functions send `{C, Ref, ok}`.
-
 
 ### Batch execution
 
@@ -389,7 +399,9 @@ example:
 ```
 
 `epgsqla:execute_batch/3` sends `{C, Ref, Results}`
+
 `epgsqli:execute_batch/3` sends
+
 - `{C, Ref, {data, Row}}`
 - `{C, Ref, {error, Reason}}`
 - `{C, Ref, {complete, {_Type, Count}}}`
@@ -422,7 +434,7 @@ PG type       | Representation
   point       |  `{10.2, 100.12}`
   int4range   | `[1,5)`
   hstore      | `{[ {binary(), binary() \| null} ]}`
-  json/jsonb  | `<<"{ \"key\": [ 1, 1.0, true, \"string\" ] }">>`
+  json/jsonb  | `<<"{ \"key\": [ 1, 1.0, true, \"string\" ] }">>` (see below for codec details)
   uuid        | `<<"123e4567-e89b-12d3-a456-426655440000">>`
   inet        | `inet:ip_address()`
   cidr        | `{ip_address(), Mask :: 0..32}`
@@ -432,14 +444,31 @@ PG type       | Representation
   tstzrange   | `{{Hour, Minute, Second.Microsecond}, {Hour, Minute, Second.Microsecond}}`
   daterange   | `{{Year, Month, Day}, {Year, Month, Day}}`
 
-  `timestamp` and `timestamptz` parameters can take `erlang:now()` format: `{MegaSeconds, Seconds, MicroSeconds}`
+`timestamp` and `timestamptz` parameters can take `erlang:now()` format: `{MegaSeconds, Seconds, MicroSeconds}`
 
-  `int4range` is a range type for ints that obeys inclusive/exclusive semantics,
-  bracket and parentheses respectively. Additionally, infinities are represented by the atoms `minus_infinity`
-  and `plus_infinity`
+`int4range` is a range type for ints that obeys inclusive/exclusive semantics,
+bracket and parentheses respectively. Additionally, infinities are represented by the atoms `minus_infinity`
+and `plus_infinity`
 
-  `tsrange`, `tstzrange`, `daterange` are range types for `timestamp`, `timestamptz` and `date`
-  respectively. They can return `empty` atom as the result from a database if bounds are equal
+`tsrange`, `tstzrange`, `daterange` are range types for `timestamp`, `timestamptz` and `date`
+respectively. They can return `empty` atom as the result from a database if bounds are equal
+
+`json` and `jsonb` types can optionally use a custom JSON encoding/decoding module to accept
+and return erlang-formatted JSON. The module must implement the callbacks in `epgsql_codec_json`,
+which most popular open source JSON parsers will already, and you can specify it in the codec
+configuration like this:
+
+```erlang
+{epgsql_codec_json, JsonMod}
+
+% With options
+{epgsql_codec_json, JsonMod, EncodeOpts, DecodeOpts}
+
+% Real world example using jiffy to return a map on decode
+{epgsql_codec_json, {jiffy, [], [return_maps]}}
+```
+
+Note that the decoded terms will be message-passed to the receiving process (i.e. copied), which may exhibit a performance hit if decoding large terms very frequently.
 
 ## Errors
 
@@ -482,6 +511,7 @@ Message formats:
 ```erlang
 {epgsql, Connection, {notification, Channel, Pid, Payload}}
 ```
+
 - `Connection`  - connection the notification occurred on
 - `Channel`  - channel the notification occurred on
 - `Pid`  - database session pid that sent notification
@@ -490,6 +520,7 @@ Message formats:
 ```erlang
 {epgsql, Connection, {notice, Error}}
 ```
+
 - `Connection`  - connection the notice occurred on
 - `Error`       - an `#error{}` record, see `epgsql.hrl`
 
@@ -510,7 +541,9 @@ Executes a function in a PostgreSQL transaction. It executes `BEGIN` prior to ex
 `ROLLBACK` if the function raises an exception and `COMMIT` if the function returns without an error.
 If it is successful, it returns the result of the function. The failure case may differ, depending on
 the options passed.
+
 Options (proplist or map):
+
 - `reraise` (default `true`): when set to true, the original exception will be re-thrown after rollback,
   otherwise `{rollback, ErrorReason}` will be returned
 - `ensure_committed` (default `false`): even when the callback returns without exception,
@@ -521,7 +554,6 @@ Options (proplist or map):
   https://www.postgresql.org/docs/current/static/sql-begin.html) as a string by just
   appending them to `"BEGIN "` string. Eg `{begin_opts, "ISOLATION LEVEL SERIALIZABLE"}`.
   Beware of SQL injection! The value of `begin_opts` is not escaped!
-
 
 ### Command status
 
@@ -571,10 +603,10 @@ See [pluggable_types.md](pluggable_types.md)
 epgsql is a community driven effort - we welcome contributions!
 Here's how to create a patch that's easy to integrate:
 
-* Create a new branch for the proposed fix.
-* Make sure it includes a test and documentation, if appropriate.
-* Open a pull request against the `devel` branch of epgsql.
-* Passing build in travis
+- Create a new branch for the proposed fix.
+- Make sure it includes a test and documentation, if appropriate.
+- Open a pull request against the `devel` branch of epgsql.
+- Passing build in travis
 
 ## Test Setup
 
@@ -582,11 +614,10 @@ In order to run the epgsql tests, you will need to install local
 Postgres database.
 
 NOTE: you will need the postgis and hstore extensions to run these
-tests!  On Ubuntu, you can install them with a command like this:
+tests! On Ubuntu, you can install them with a command like this:
 
-1.  apt-get install postgresql-9.3-postgis-2.1 postgresql-contrib
-
-2. `make test` # Runs the tests
+1. `apt-get install postgresql-9.3-postgis-2.1 postgresql-contrib`
+1. `make test` # Runs the tests
 
 NOTE 2: It's possible to run tests on exact postgres version by changing $PATH like
 
