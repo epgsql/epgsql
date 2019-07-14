@@ -1,3 +1,17 @@
+In 4.3.0
+
+* Erlang 22 compatibility is tested; support for Erlang 17 was dropped. Last
+  version that supports Erlang 17 is 4.2.1 (#195)
+* Fixed some corner-case bug in streaming replication (#181)
+* It's now possible to set-up JSON encoder/decoder callback for json/jsonb
+  datatypes (#197)
+* Performance micro-optimizations on hot paths (#177)
+* Use PostgreSQL 10 for Travis tests (#195)
+* Improved connection error handling (#183)
+* TLS certificates used in tests had expired (epgsql project is more than
+  10 years old!), so, new ones were created (#187)
+* Some typespecs fixed
+
 In 4.2.1
 
 * Bug fix for `epgsql:connect(proplist())`
