@@ -226,7 +226,7 @@ auth_scram(_, _, _) ->
 handle_message(?AUTHENTICATION_REQUEST, <<?AUTH_OK:?int32>>, Sock, State) ->
     {noaction, Sock, State#connect{stage = initialization,
                                    auth_fun = undefined,
-                                   auth_state = undefned,
+                                   auth_state = undefined,
                                    auth_send = undefined}};
 
 handle_message(?AUTHENTICATION_REQUEST, Message, Sock, #connect{stage = Stage} = St) when Stage =/= auth ->
