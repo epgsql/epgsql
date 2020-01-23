@@ -1186,7 +1186,8 @@ range_type(Config) ->
         check_type(Config, int4range, "int4range(10, 20)", {10, 20}, [
             {1, 58}, {-1, 12}, {-985521, 5412687}, {minus_infinity, 0},
             {984655, plus_infinity}, {minus_infinity, plus_infinity}
-        ])
+        ]),
+        check_type(Config, int4range, "int4range(10, 10)", empty, [])
    end, []).
 
 range8_type(Config) ->
@@ -1195,17 +1196,26 @@ range8_type(Config) ->
             {1, 58}, {-1, 12}, {-9223372036854775808, 5412687},
             {minus_infinity, 9223372036854775807},
             {984655, plus_infinity}, {minus_infinity, plus_infinity}
-        ])
+        ]),
+        check_type(Config, int8range, "int8range(10, 10)", empty, [])
     end, []).
 
 date_time_range_type(Config) ->
     epgsql_ct:with_min_version(Config, [9, 2], fun(_C) ->
         check_type(Config, tsrange, "tsrange('2008-01-02 03:04:05', '2008-02-02 03:04:05')", {{{2008,1,2},{3,4,5.0}}, {{2008,2,2},{3,4,5.0}}}, []),
-       check_type(Config, tsrange, "tsrange('2008-01-02 03:04:05', '2008-01-02 03:04:05')", empty, []),
-
-       check_type(Config, daterange, "daterange('2008-01-02', '2008-02-02')", {{2008,1,2}, {2008, 2, 2}}, [{{-4712,1,1}, {5874897,1,1}}
-]),
-      check_type(Config, tstzrange, "tstzrange('2011-01-02 03:04:05+3', '2011-01-02 04:04:05+3')", {{{2011, 1, 2}, {0, 4, 5.0}}, {{2011, 1, 2}, {1, 4, 5.0}}}, [{{{2011, 1, 2}, {0, 4, 5.0}}, {{2011, 1, 2}, {1, 4, 5.0}}}])
+        check_type(Config, tsrange, "tsrange('2008-01-02 03:04:05', '2008-02-02 03:04:05', '[]')", {{{2008,1,2},{3,4,5.0}}, {{2008,2,2},{3,4,5.0}}}, []),
+        check_type(Config, tsrange, "tsrange('2008-01-02 03:04:05', '2008-02-02 03:04:05', '()')", {{{2008,1,2},{3,4,5.0}}, {{2008,2,2},{3,4,5.0}}}, []),
+        check_type(Config, tsrange, "tsrange('2008-01-02 03:04:05', '2008-02-02 03:04:05', '[)')", {{{2008,1,2},{3,4,5.0}}, {{2008,2,2},{3,4,5.0}}}, []),
+        check_type(Config, tsrange, "tsrange('2008-01-02 03:04:05', '2008-02-02 03:04:05', '(]')", {{{2008,1,2},{3,4,5.0}}, {{2008,2,2},{3,4,5.0}}}, []),
+        check_type(Config, tsrange, "tsrange('2008-01-02 03:04:05', '2008-01-02 03:04:05')", empty, []),
+        check_type(Config, daterange, "daterange('2008-01-02', '2008-02-02')", {{2008,1,2}, {2008, 2, 2}}, [{{-4712,1,1}, {5874897,1,1}}]),
+        check_type(Config, tstzrange, "tstzrange('2011-01-02 03:04:05+3', '2011-01-02 04:04:05+3')", {{{2011, 1, 2}, {0, 4, 5.0}}, {{2011, 1, 2}, {1, 4, 5.0}}}, [{{{2011, 1, 2}, {0, 4, 5.0}}, {{2011, 1, 2}, {1, 4, 5.0}}}]),
+        check_type(Config, tstzrange, "tstzrange('2008-01-02 03:04:05', null)", {{{2008,1,2},{3,4,5.0}}, plus_infinity}, []),
+        check_type(Config, tstzrange, "tstzrange('2008-01-02 03:04:05', null, '[]')", {{{2008,1,2},{3,4,5.0}}, plus_infinity}, []),
+        check_type(Config, tstzrange, "tstzrange('2008-01-02 03:04:05', null, '()')", {{{2008,1,2},{3,4,5.0}}, plus_infinity}, []),
+        check_type(Config, tstzrange, "tstzrange(null, '2008-01-02 03:04:05')", {minus_infinity, {{2008,1,2},{3,4,5.0}}}, []),
+        check_type(Config, tstzrange, "tstzrange(null, '2008-01-02 03:04:05', '[]')", {minus_infinity, {{2008,1,2},{3,4,5.0}}}, []),
+        check_type(Config, tstzrange, "tstzrange(null, '2008-01-02 03:04:05', '()')", {minus_infinity, {{2008,1,2},{3,4,5.0}}}, [])
 
    end, []).
 

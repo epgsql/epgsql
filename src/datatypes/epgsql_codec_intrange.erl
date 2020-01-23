@@ -16,7 +16,7 @@
 
 -export_type([data/0]).
 
--type data() :: {left(), right()}.
+-type data() :: {left(), right()} | empty.
 
 -type left() :: minus_infinity | integer().
 -type right() :: plus_infinity | integer().
@@ -27,11 +27,15 @@ init(_, _) -> [].
 names() ->
     [int4range, int8range].
 
+encode(empty, _, _) ->
+    <<1>>;
 encode(Range, int4range, _) ->
     encode_int4range(Range);
 encode(Range, int8range, _) ->
     encode_int8range(Range).
 
+decode(<<1>>, _, _) ->
+    empty;
 decode(Bin, int4range, _) ->
     decode_int4range(Bin);
 decode(Bin, int8range, _) ->
