@@ -153,7 +153,7 @@ decode_data(<<Len:?int32, Value:Len/binary, Rest/binary>>, [Decoder | Decs], Cod
 decode_columns(0, _Bin, _Codec) -> [];
 decode_columns(Count, Bin, Codec) ->
     [Name, Rest] = decode_string(Bin),
-    <<_TableOid:?int32, _AttribNum:?int16, TypeOid:?int32,
+    <<TableOid:?int32, AttribNum:?int16, TypeOid:?int32,
       Size:?int16, Modifier:?int32, Format:?int16, Rest2/binary>> = Rest,
     %% TODO: get rid of this 'type' (extra oid_db lookup)
     Type = epgsql_binary:oid_to_name(TypeOid, Codec),
@@ -163,7 +163,9 @@ decode_columns(Count, Bin, Codec) ->
       oid      = TypeOid,
       size     = Size,
       modifier = Modifier,
-      format   = Format},
+      format   = Format,
+      table_oid = TableOid,
+      table_attr_number = AttribNum},
     [Desc | decode_columns(Count - 1, Rest2, Codec)].
 
 %% @doc decode ParameterDescription

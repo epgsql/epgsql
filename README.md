@@ -126,21 +126,15 @@ Asynchronous connect example (applies to **epgsqli** too):
 ### Simple Query
 
 ```erlang
--type query() :: string() | iodata().
--type squery_row() :: {binary()}.
+-include_lib("epgsql/include/epgsql.hrl").
 
--record(column, {
-    name :: binary(),
-    type :: epgsql_type(),
-    size :: -1 | pos_integer(),
-    modifier :: -1 | pos_integer(),
-    format :: integer()
-}).
+-type query() :: string() | iodata().
+-type squery_row() :: tuple() % tuple of binary().
 
 -type ok_reply(RowType) ::
-    {ok, ColumnsDescription :: [#column{}], RowsValues :: [RowType]} |                            % select
+    {ok, ColumnsDescription :: [epgsql:column()], RowsValues :: [RowType]} |                            % select
     {ok, Count :: non_neg_integer()} |                                                            % update/insert/delete
-    {ok, Count :: non_neg_integer(), ColumnsDescription :: [#column{}], RowsValues :: [RowType]}. % update/insert/delete + returning
+    {ok, Count :: non_neg_integer(), ColumnsDescription :: [epgsql:column()], RowsValues :: [RowType]}. % update/insert/delete + returning
 -type error_reply() :: {error, query_error()}.
 -type reply(RowType) :: ok_reply() | error_reply().
 
@@ -159,7 +153,7 @@ epgsql:squery(C, "insert into account (name) values  ('alice'), ('bob')").
 ```erlang
 epgsql:squery(C, "select * from account").
 > {ok,
-    [{column,<<"id">>,int4,4,-1,0},{column,<<"name">>,text,-1,-1,0}],
+    [#column{name = <<"id">>, type = int4, …},#column{name = <<"name">>, type = text, …}],
     [{<<"1">>,<<"alice">>},{<<"2">>,<<"bob">>}]
 }
 ```
@@ -170,13 +164,12 @@ epgsql:squery(C,
     "    values ('joe'), (null)"
     "    returning *").
 > {ok,2,
-    [{column,<<"id">>,int4,4,-1,0}, {column,<<"name">>,text,-1,-1,0}],
+    [#column{name = <<"id">>, type = int4, …}, #column{name = <<"name">>, type = text, …}],
     [{<<"3">>,<<"joe">>},{<<"4">>,null}]
 }
 ```
 
 ```erlang
--include_lib("epgsql/include/epgsql.hrl").
 epgsql:squery(C, "SELECT * FROM _nowhere_").
 > {error,
    #error{severity = error,code = <<"42P01">>,
@@ -253,7 +246,7 @@ an error occurs, all statements result in `{error, #error{}}`.
 ```erlang
 epgsql:equery(C, "select id from account where name = $1", ["alice"]),
 > {ok,
-    [{column,<<"id">>,int4,4,-1,1}],
+    [#column{name = <<"id">>, type = int4, …}],
     [{1}]
 }
 ```

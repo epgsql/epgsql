@@ -514,9 +514,9 @@ parse_column_format(Config) ->
     Module = ?config(module, Config),
     epgsql_ct:with_connection(Config, fun(C) ->
         {ok, S} = Module:parse(C, "select 1::int4, false::bool, 2.0::float4"),
-        [#column{type = int4},
-         #column{type = bool},
-         #column{type = float4}] = S#statement.columns,
+        [#column{type = int4, table_oid = 0, table_attr_number = 0},
+         #column{type = bool, table_oid = 0, table_attr_number = 0},
+         #column{type = float4, table_oid = 0, table_attr_number = 0}] = S#statement.columns,
         ok = Module:bind(C, S, []),
         {ok, [{1, false, 2.0}]} = Module:execute(C, S, 0),
         ok = Module:close(C, S),
