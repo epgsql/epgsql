@@ -16,7 +16,8 @@ src/epgsql_errcodes.erl:
 	./generate_errcodes_src.sh > src/epgsql_errcodes.erl
 
 test: compile
-	@$(REBAR) do ct -v
+	@$(REBAR) do ct -v -c
+	@$(REBAR) cover -v -m 55
 
 dialyzer: compile
 	@$(REBAR) dialyzer
