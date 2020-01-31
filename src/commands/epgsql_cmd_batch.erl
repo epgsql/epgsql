@@ -10,14 +10,6 @@
 -export([init/1, execute/2, handle_message/4]).
 -export_type([arguments/0, response/0]).
 
--type arguments() ::
-        {epgsql:statement(), [ [epgsql:bind_param()] ]} |
-        [{epgsql:statement(), [epgsql:bind_param()]}].
-
--type response() :: [{ok, Count :: non_neg_integer(), Rows :: [tuple()]}
-                     | {ok, Count :: non_neg_integer()}
-                     | {ok, Rows :: [tuple()]}
-                     | {error, epgsql:query_error()}].
 
 -include("epgsql.hrl").
 -include("protocol.hrl").
@@ -27,7 +19,17 @@
          statement :: #statement{} | undefined,
          decoder :: epgsql_wire:row_decoder() | undefined}).
 
--spec init(arguments()) -> #batch{}.
+-type arguments() ::
+        {epgsql:statement(), [ [epgsql:bind_param()] ]} |
+        [{epgsql:statement(), [epgsql:bind_param()]}].
+
+-type response() :: [{ok, Count :: non_neg_integer(), Rows :: [tuple()]}
+                     | {ok, Count :: non_neg_integer()}
+                     | {ok, Rows :: [tuple()]}
+                     | {error, epgsql:query_error()}].
+-type state() :: #batch{}.
+
+-spec init(arguments()) -> state().
 init({#statement{} = Statement, Batch}) ->
     #batch{statement = Statement,
            batch = Batch};
@@ -42,11 +44,8 @@ execute(Sock, #batch{batch = Batch, statement = undefined} = State) ->
                   #statement{name = StatementName,
                              columns = Columns,
                              types = Types} = Statement,
-                  TypedParameters = lists:zip(Types, Parameters),
-                  Bin1 = epgsql_wire:encode_parameters(TypedParameters, Codec),
-                  Bin2 = epgsql_wire:encode_formats(Columns),
-                  [{?BIND, [0, StatementName, 0, Bin1, Bin2]},
-                   {?EXECUTE, [0, <<0:?int32>>]} | Acc]
+                  BinFormats = epgsql_wire:encode_formats(Columns),
+                  add_command(StatementName, Types, Parameters, BinFormats, Codec, Acc)
           end,
           [{?SYNC, []}],
           Batch),
@@ -61,15 +60,18 @@ execute(Sock, #batch{batch = Batch,
     Commands =
         lists:foldr(
           fun(Parameters, Acc) ->
-                  TypedParameters = lists:zip(Types, Parameters),
-                  BinParams = epgsql_wire:encode_parameters(TypedParameters, Codec),
-                  [{?BIND, [0, StatementName, 0, BinParams, BinFormats]},
-                   {?EXECUTE, [0, <<0:?int32>>]} | Acc]
+                  add_command(StatementName, Types, Parameters, BinFormats, Codec, Acc)
           end,
           [{?SYNC, []}],
           Batch),
     epgsql_sock:send_multi(Sock, Commands),
     {ok, Sock, State}.
+
+add_command(StmtName, Types, Params, BinFormats, Codec, Acc) ->
+    TypedParameters = lists:zip(Types, Params),
+    BinParams = epgsql_wire:encode_parameters(TypedParameters, Codec),
+    [{?BIND, [0, StmtName, 0, BinParams, BinFormats]},
+     {?EXECUTE, [0, <<0:?int32>>]} | Acc].
 
 handle_message(?BIND_COMPLETE, <<>>, Sock, State) ->
     Columns = current_cols(State),
