@@ -1,4 +1,5 @@
 REBAR = ./rebar3
+MINIMAL_COVERAGE = 55
 
 all: compile
 
@@ -15,9 +16,16 @@ clean: $(REBAR)
 src/epgsql_errcodes.erl:
 	./generate_errcodes_src.sh > src/epgsql_errcodes.erl
 
-test: compile
-	@$(REBAR) do ct -v -c
-	@$(REBAR) cover -v -m 55
+common-test:
+	$(REBAR) ct -v -c
+
+eunit:
+	$(REBAR) eunit -c
+
+cover:
+	$(REBAR) cover -v --min_coverage $(MINIMAL_COVERAGE)
+
+test: compile eunit common-test cover
 
 dialyzer: compile
 	@$(REBAR) dialyzer
@@ -25,4 +33,4 @@ dialyzer: compile
 elvis: $(REBAR)
 	@$(REBAR) as lint lint
 
-.PHONY: all compile clean test dialyzer elvis
+.PHONY: all compile clean common-test eunit cover test dialyzer elvis
