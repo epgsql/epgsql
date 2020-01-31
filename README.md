@@ -427,7 +427,7 @@ epgsql:execute_batch(C, "INSERT INTO account (name, age) VALUES ($1, $2) RETURNI
                      [ ["Joe", 35], ["Paul", 26], ["Mary", 24] ]).
 ```
 
-In case one of the batch items will cause an error, result returned for this particular
+In case one of the batch items causes an error, the result returned for this particular
 item will be `{error, #error{}}` and no more results will be produced.
 
 `epgsqla:execute_batch/{2,3}` sends `{C, Ref, Results}`
