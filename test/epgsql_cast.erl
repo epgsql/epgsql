@@ -9,7 +9,7 @@
 -export([get_parameter/2, set_notice_receiver/2, get_cmd_status/1, squery/2, equery/2, equery/3]).
 -export([prepared_query/3]).
 -export([parse/2, parse/3, parse/4, describe/2, describe/3]).
--export([bind/3, bind/4, execute/2, execute/3, execute/4, execute_batch/2]).
+-export([bind/3, bind/4, execute/2, execute/3, execute/4, execute_batch/2, execute_batch/3]).
 -export([close/2, close/3, sync/1]).
 -export([receive_result/2, sync_on_error/2]).
 
@@ -122,6 +122,17 @@ execute(C, S, PortalName, N) ->
 execute_batch(C, Batch) ->
     Ref = epgsqla:execute_batch(C, Batch),
     receive_result(C, Ref).
+
+execute_batch(C, #statement{columns = Cols} = Stmt, Batch) ->
+    Ref = epgsqla:execute_batch(C, Stmt, Batch),
+    {Cols, receive_result(C, Ref)};
+execute_batch(C, Sql, Batch) ->
+    case parse(C, Sql) of
+        {ok, #statement{} = S} ->
+            execute_batch(C, S, Batch);
+        Error ->
+            Error
+    end.
 
 %% statement/portal functions
 
