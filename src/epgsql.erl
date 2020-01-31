@@ -255,13 +255,15 @@ equery(C, Name, Sql, Parameters) ->
             Error
     end.
 
--spec prepared_query(C::connection(), Name::string(), Parameters::[bind_param()]) ->
+-spec prepared_query(C::connection(), string() | statement(), Parameters::[bind_param()]) ->
                             epgsql_cmd_prepared_query:response().
-prepared_query(C, Name, Parameters) ->
+prepared_query(C, #statement{types = Types} = S, Parameters) ->
+    TypedParameters = lists:zip(Types, Parameters),
+    epgsql_sock:sync_command(C, epgsql_cmd_prepared_query, {S, TypedParameters});
+prepared_query(C, Name, Parameters) when is_list(Name) ->
     case describe(C, statement, Name) of
-        {ok, #statement{types = Types} = S} ->
-            TypedParameters = lists:zip(Types, Parameters),
-            epgsql_sock:sync_command(C, epgsql_cmd_prepared_query, {S, TypedParameters});
+        {ok, #statement{} = S} ->
+            prepared_query(C, S, Parameters);
         Error ->
             Error
     end.
