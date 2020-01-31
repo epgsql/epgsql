@@ -289,8 +289,8 @@ squery including final `{C, Ref, done}`.
 {error, Error}             = epgsql:prepared_query(C, "non_existent_query", [Parameters]).
 ```
 
-`Parameters` - optional list of values to be bound to `$1`, `$2`, `$3`, etc.
-`Statement` - name of query given with ```erlang epgsql:parse(C, StatementName, "select ...", []).```
+- `Parameters` - optional list of values to be bound to `$1`, `$2`, `$3`, etc.
+- `Statement` - name of query given with ```erlang epgsql:parse(C, StatementName, "select ...", []).```
                (can be empty string) or `#statement{}` record returned by `epgsql:parse`.
 
 With prepared query one can parse a query giving it a name with `epgsql:parse` on start and reuse the name
@@ -385,23 +385,54 @@ Batch execution is `bind` + `execute` for several prepared statements.
 It uses unnamed portals and `MaxRows = 0`.
 
 ```erlang
-Results = epgsql:execute_batch(C, Batch).
+Results = epgsql:execute_batch(C, BatchStmt :: [{statement(), [bind_param()]}]).
+{Columns, Results} = epgsql:execute_batch(C, statement() | sql_query(), Batch :: [ [bind_param()] ]).
 ```
 
-- `Batch`   - list of {Statement, ParameterValues}
-- `Results` - list of {ok, Count} or {ok, Count, Rows}
+- `BatchStmt` - list of `{Statement, ParameterValues}`, each item has it's own `#statement{}`
+- `Batch` - list of `ParameterValues`, each item executes the same common `#statement{}` or SQL query
+- `Columns` - list of `#column{}` descriptions of `Results` columns
+- `Results` - list of `{ok, Count}` or `{ok, Count, Rows}`
+
+There are 2 versions:
+
+`execute_batch/2` - each item in a batch has it's own named statement (but it's allowed to have duplicates)
 
 example:
 
 ```erlang
-{ok, S1} = epgsql:parse(C, "one", "select $1", [int4]),
-{ok, S2} = epgsql:parse(C, "two", "select $1 + $2", [int4, int4]),
+{ok, S1} = epgsql:parse(C, "one", "select $1::integer", []),
+{ok, S2} = epgsql:parse(C, "two", "select $1::integer + $2::integer", []),
 [{ok, [{1}]}, {ok, [{3}]}] = epgsql:execute_batch(C, [{S1, [1]}, {S2, [1, 2]}]).
+ok = epgsql:close(C, "one").
+ok = epgsql:close(C, "two").
 ```
 
-`epgsqla:execute_batch/3` sends `{C, Ref, Results}`
+`execute_batch/3` - each item in a batch executed with the same common SQL query or `#statement{}`.
+It's allowed to use unnamed statement.
 
-`epgsqli:execute_batch/3` sends
+example (the most efficient way to make batch inserts with epgsql):
+
+```erlang
+{ok, Stmt} = epgsql:parse(C, "my_insert", "INSERT INTO account (name, age) VALUES ($1, $2) RETURNING id", []).
+{[#column{name = <<"id">>}], [{ok, [{1}]}, {ok, [{2}]}, {ok, [{3}]}]} =
+    epgsql:execute_batch(C, Stmt, [ ["Joe", 35], ["Paul", 26], ["Mary", 24] ]).
+ok = epgsql:close(C, "my_insert").
+```
+
+equivalent:
+
+```erlang
+epgsql:execute_batch(C, "INSERT INTO account (name, age) VALUES ($1, $2) RETURNING id",
+                     [ ["Joe", 35], ["Paul", 26], ["Mary", 24] ]).
+```
+
+In case one of the batch items will cause an error, result returned for this particular
+item will be `{error, #error{}}` and no more results will be produced.
+
+`epgsqla:execute_batch/{2,3}` sends `{C, Ref, Results}`
+
+`epgsqli:execute_batch/{2,3}` sends
 
 - `{C, Ref, {data, Row}}`
 - `{C, Ref, {error, Reason}}`

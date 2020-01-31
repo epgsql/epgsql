@@ -15,7 +15,7 @@
          describe/2, describe/3,
          bind/3, bind/4,
          execute/2, execute/3, execute/4,
-         execute_batch/2,
+         execute_batch/2, execute_batch/3,
          close/2, close/3,
          sync/1,
          cancel/1,
@@ -314,6 +314,19 @@ execute(C, S, PortalName, N) ->
                            epgsql_cmd_batch:response().
 execute_batch(C, Batch) ->
     epgsql_sock:sync_command(C, epgsql_cmd_batch, Batch).
+
+-spec execute_batch(connection(), statement() | sql_query(), [ [bind_param()] ]) ->
+                           {[column()], epgsql_cmd_batch:response()}.
+execute_batch(C, #statement{columns = Cols} = Statement, Batch) ->
+    {Cols, epgsql_sock:sync_command(C, epgsql_cmd_batch, {Statement, Batch})};
+execute_batch(C, Sql, Batch) ->
+    case parse(C, Sql) of
+        {ok, #statement{} = S} ->
+            execute_batch(C, S, Batch);
+        Error ->
+            Error
+    end.
+
 
 %% statement/portal functions
 -spec describe(connection(), statement()) -> epgsql_cmd_describe_statement:response().

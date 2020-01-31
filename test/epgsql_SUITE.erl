@@ -87,6 +87,9 @@ groups() ->
         cursor,
         multiple_result,
         execute_batch,
+        execute_batch_3_named_stmt,
+        execute_batch_3_unnamed_stmt,
+        execute_batch_3_sql,
         batch_error,
         single_batch,
         extended_select,
@@ -429,6 +432,32 @@ execute_batch(Config) ->
         {ok, S2} = Module:parse(C, "two", "select $1 + $2", [int4, int4]),
         [{ok, [{1}]}, {ok, [{3}]}] =
             Module:execute_batch(C, [{S1, [1]}, {S2, [1, 2]}])
+    end).
+
+execute_batch_3_named_stmt(Config) ->
+    Module = ?config(module, Config),
+    epgsql_ct:with_connection(Config, fun(C) ->
+        {ok, Stmt} = Module:parse(C, "my_stmt", "select $1 + $2", [int4, int4]),
+        ?assertMatch(
+           {[#column{type = int4, _ = _}], [{ok, [{3}]}, {ok, [{7}]}]},
+           Module:execute_batch(C, Stmt, [[1, 2], [3, 4]]))
+    end).
+
+execute_batch_3_unnamed_stmt(Config) ->
+    Module = ?config(module, Config),
+    epgsql_ct:with_connection(Config, fun(C) ->
+        {ok, Stmt} = Module:parse(C, "select $1::integer + $2::integer"),
+        ?assertMatch(
+           {[#column{type = int4, _ = _}], [{ok, [{3}]}, {ok, [{7}]}]},
+           Module:execute_batch(C, Stmt, [[2, 1], [4, 3]]))
+    end).
+
+execute_batch_3_sql(Config) ->
+    Module = ?config(module, Config),
+    epgsql_ct:with_connection(Config, fun(C) ->
+        ?assertMatch(
+           {[#column{type = int4, _ = _}], [{ok, [{3}]}, {ok, [{7}]}]},
+           Module:execute_batch(C, "select $1::integer + $2::integer", [[1, 2], [3, 4]]))
     end).
 
 batch_error(Config) ->
