@@ -144,9 +144,9 @@ describe(C, statement, Name) ->
     Ref = epgsqli:describe(C, statement, Name),
     sync_on_error(C, receive_describe(C, Ref, #statement{name = Name}));
 
-describe(C, Type, Name) ->
-    %% TODO unknown result format of Describe portal
-    epgsqli:describe(C, Type, Name).
+describe(C, portal, Name) ->
+    Ref = epgsqli:describe(C, portal, Name),
+    sync_on_error(C, receive_describe_portal(C, Ref)).
 
 close(C, #statement{name = Name}) ->
     close(C, statement, Name).
@@ -235,6 +235,18 @@ receive_describe(C, Ref, Statement = #statement{}) ->
             {ok, Statement#statement{columns = Columns}};
         {C, Ref, no_data} ->
             {ok, Statement#statement{columns = []}};
+        {C, Ref, Error = {error, _}} ->
+            Error;
+        {'EXIT', C, _Reason} ->
+            {error, closed}
+    end.
+
+receive_describe_portal(C, Ref) ->
+    receive
+        {C, Ref, {columns, Columns}} ->
+            {ok, Columns};
+        {C, Ref, no_data} ->
+            {ok, []};
         {C, Ref, Error = {error, _}} ->
             Error;
         {'EXIT', C, _Reason} ->
