@@ -111,6 +111,7 @@ groups() ->
         describe_with_param,
         describe_named,
         describe_error,
+        describe_portal,
         portal,
         returning,
         multiple_statement,
@@ -679,6 +680,23 @@ describe_error(Config) ->
         {ok, S} = Module:describe(C, statement, ""),
         ok = Module:sync(C)
 
+    end).
+
+describe_portal(Config) ->
+    Module = ?config(module, Config),
+    epgsql_ct:with_connection(Config, fun(C) ->
+        {ok, Stmt} = Module:parse(C, "my_stmt", "select * from test_table1 WHERE id = $1", []),
+        ok = Module:bind(C, Stmt, "my_portal", [1]),
+        {ok, Columns} = Module:describe(C, portal, "my_portal"),
+        ?assertMatch(
+           [#column{name = <<"id">>,
+                    type = int4},
+            #column{name = <<"value">>,
+                    type = text}],
+           Columns
+          ),
+        ok = Module:close(C, Stmt),
+        ok = Module:sync(C)
     end).
 
 portal(Config) ->
