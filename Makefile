@@ -22,6 +22,7 @@ common-test:
 eunit:
 	$(REBAR) eunit -c
 
+# Fail the build if coverage falls below 55%
 cover:
 	$(REBAR) cover -v --min_coverage $(MINIMAL_COVERAGE)
 
