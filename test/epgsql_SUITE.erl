@@ -67,7 +67,8 @@ groups() ->
             range_type,
             range8_type,
             date_time_range_type,
-            custom_types
+            custom_types,
+            custom_null
         ]},
         {generic, [parallel], [
             with_transaction
@@ -931,18 +932,24 @@ array_type(Config) ->
         {ok, _, [{[1, 2]}]} = Module:equery(C, "select ($1::int[])[1:2]", [[1, 2, 3]]),
         {ok, _, [{[{1, <<"one">>}, {2, <<"two">>}]}]} =
             Module:equery(C, "select Array(select (id, value) from test_table1)", []),
-        Select = fun(Type, A) ->
+        {ok, _, [{ [[1], [null], [3], [null]] }]} =
+            Module:equery(C, "select $1::int2[]", [ [[1], [null], [3], [undefined]] ]),
+        Select = fun(Type, AIn) ->
             Query = "select $1::" ++ atom_to_list(Type) ++ "[]",
-            {ok, _Cols, [{A2}]} = Module:equery(C, Query, [A]),
-            case lists:all(fun({V, V2}) -> compare(Type, V, V2) end, lists:zip(A, A2)) of
+            {ok, _Cols, [{AOut}]} = Module:equery(C, Query, [AIn]),
+            case lists:all(fun({VIn, VOut}) ->
+                                   compare(Type, VIn, VOut)
+                           end, lists:zip(AIn, AOut)) of
                 true  -> ok;
-                false -> ?assertMatch(A, A2)
+                false -> ?assertEqual(AIn, AOut)
             end
         end,
         Select(int2,   []),
         Select(int2,   [1, 2, 3, 4]),
         Select(int2,   [[1], [2], [3], [4]]),
         Select(int2,   [[[[[[1, 2]]]]]]),
+        Select(int2,   [1, null, 3, undefined]),
+        Select(int2,   [[1], [null], [3], [null]]),
         Select(bool,   [true]),
         Select(char,   [$a, $b, $c]),
         Select(int4,   [[1, 2]]),
@@ -983,7 +990,10 @@ record_type(Config) ->
         Select("select (1, '{2,3}'::int[])", {{1, [2, 3]}}),
 
         %% Array of records inside record
-        Select("select (0, ARRAY(select (id, value) from test_table1))", {{0,[{1,<<"one">>},{2,<<"two">>}]}})
+        Select("select (0, ARRAY(select (id, value) from test_table1))", {{0,[{1,<<"one">>},{2,<<"two">>}]}}),
+
+        %% Record with NULLs
+        Select("select (1, NULL::integer, 2)", {{1, null, 2}})
     end).
 
 custom_types(Config) ->
@@ -999,6 +1009,31 @@ custom_types(Config) ->
         {ok, 1} = Module:execute(C, S),
         ?assertMatch({ok, _, [{bar}]}, Module:equery(C, "SELECT col FROM t_foo"))
     end).
+
+custom_null(Config) ->
+    Module = ?config(module, Config),
+    epgsql_ct:with_connection(Config, fun(C) ->
+        Test3 = fun(Type, In, Out) ->
+                        Q = ["SELECT $1::", Type],
+                        {ok, _, [{Res}]} = Module:equery(C, Q, [In]),
+                        ?assertEqual(Out, Res)
+                end,
+        Test = fun(Type, In) ->
+                       Test3(Type, In, In)
+               end,
+        Test("int2", nil),
+        Test3("int2", 'NULL', nil),
+        Test("text", nil),
+        Test3("text", 'NULL', nil),
+        Test("int2[]", [nil, 1, nil, 2]),
+        Test3("int2[]", ['NULL', 1, nil, 2], [nil, 1, nil, 2]),
+        Test("int2[]", [[nil], [1], [nil], [2]]),
+        Test3("int2[]", [['NULL'], [1], [nil], [2]], [[nil], [1], [nil], [2]]),
+        ?assertMatch(
+           {ok, _, [{ {1, nil, {2, nil, 3}} }]},
+           Module:equery(C, "SELECT (1, NULL, (2, NULL, 3))", []))
+    end,
+    [{nulls, [nil, 'NULL']}]).
 
 text_format(Config) ->
     Module = ?config(module, Config),

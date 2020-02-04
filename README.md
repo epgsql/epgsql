@@ -74,6 +74,7 @@ connect(Opts) -> {ok, Connection :: epgsql:connection()} | {error, Reason :: epg
       timeout =>  timeout(),             % socket connect timeout, default: 5000 ms
       async =>    pid() | atom(),        % process to receive LISTEN/NOTIFY msgs
       codecs =>   [{epgsql_codec:codec_mod(), any()}]}
+      nulls =>    [null, undefined],     % NULL terms
       replication => Replication :: string()} % Pass "database" to connect in replication mode
     | list().
 
@@ -104,6 +105,10 @@ Only `host` and `username` are mandatory, but most likely you would need `databa
 - `ssl_opts` will be passed as is to `ssl:connect/3`
 - `async` see [Server notifications](#server-notifications)
 - `codecs` see [Pluggable datatype codecs](#pluggable-datatype-codecs)
+- `nulls` terms which will be used to represent `NULL`. If any of those has been encountered in
+   placeholder parameters (`$1`, `$2` etc values), it will be interpreted as `NULL`.
+   1st element of the list will be used to represent NULLs received from the server. It's not recommended
+   to use `"string"`s or lists. Try to keep this list short for performance!
 - `replication` see [Streaming replication protocol](#streaming-replication-protocol)
 
 Options may be passed as proplist or as map with the same key names.
@@ -468,6 +473,8 @@ PG type       | Representation
   tsrange     | `{{Hour, Minute, Second.Microsecond}, {Hour, Minute, Second.Microsecond}}`
   tstzrange   | `{{Hour, Minute, Second.Microsecond}, {Hour, Minute, Second.Microsecond}}`
   daterange   | `{{Year, Month, Day}, {Year, Month, Day}}`
+
+`null` can be configured. See `nulls` `connect/1` option.
 
 `timestamp` and `timestamptz` parameters can take `erlang:now()` format: `{MegaSeconds, Seconds, MicroSeconds}`
 
