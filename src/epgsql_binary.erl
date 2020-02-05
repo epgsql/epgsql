@@ -27,7 +27,7 @@
          oid_db :: epgsql_oid_db:db()}).
 -record(array_decoder,
         {element_decoder :: decoder(),
-         nulls :: nulls() }).
+         null_term :: any() }).
 -record(array_encoder,
         {element_encoder :: epgsql_codec:codec_entry(),
          n_dims = 0 :: non_neg_integer(),
@@ -148,7 +148,7 @@ oid_to_decoder(?RECORD_ARRAY_OID, binary, Codec) ->
     {fun ?MODULE:decode_array/3, array,
      #array_decoder{
         element_decoder = oid_to_decoder(?RECORD_OID, binary, Codec),
-        nulls = Codec#codec.nulls}};
+        null_term = null(Codec)}};
 oid_to_decoder(Oid, Format, #codec{oid_db = Db} = Codec) ->
     case epgsql_oid_db:find_by_oid(Oid, Db) of
         undefined when Format == binary ->
@@ -176,11 +176,11 @@ make_decoder(Name, Mod, State, _Codec, text, false) ->
         false ->
             {fun epgsql_codec_noop:decode_text/3, undefined, []}
     end;
-make_decoder(Name, Mod, State, #codec{nulls = Nulls}, binary, true) ->
+make_decoder(Name, Mod, State, Codec, binary, true) ->
     {fun ?MODULE:decode_array/3, array,
      #array_decoder{
         element_decoder = {fun Mod:decode/3, Name, State},
-        nulls = Nulls}};
+        null_term = null(Codec)}};
 make_decoder(Name, Mod, State, _Codec, binary, false) ->
     {fun Mod:decode/3, Name, State}.
 
@@ -215,7 +215,7 @@ decode_array1(Data, [Len | T], ArrayDecoder) ->
 decode_elements(Rest, Acc, 0, _ArDec) ->
     {lists:reverse(Acc), Rest};
 decode_elements(<<-1:?int32, Rest/binary>>, Acc, N,
-                #array_decoder{nulls = [Null | _]} = ArDec) ->
+                #array_decoder{null_term = Null} = ArDec) ->
     decode_elements(Rest, [Null | Acc], N - 1, ArDec);
 decode_elements(<<Len:?int32, Value:Len/binary, Rest/binary>>, Acc, N,
                 #array_decoder{element_decoder = ElemDecoder} = ArDecoder) ->
