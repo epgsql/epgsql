@@ -57,6 +57,7 @@
     {timeout,  TimeoutMs  :: timeout()}            | % default: 5000 ms
     {async,    Receiver   :: pid() | atom()}       | % process to receive LISTEN/NOTIFY msgs
     {codecs,   Codecs     :: [{epgsql_codec:codec_mod(), any()}]} |
+    {nulls,    Nulls      :: [any(), ...]} |    % terms to be used as NULL
     {replication, Replication :: string()}. % Pass "database" to connect in replication mode
 
 -type connect_opts() ::
@@ -71,6 +72,7 @@
           timeout => timeout(),
           async => pid() | atom(),
           codecs => [{epgsql_codec:codec_mod(), any()}],
+          nulls => [any(), ...],
           replication => string()}.
 
 -type connect_error() :: epgsql_cmd_connect:connect_error().

@@ -4,6 +4,8 @@
 
 -export([new_codec/2,
          update_codec/2,
+         null/1,
+         is_null/2,
          type_to_oid/2,
          typeinfo_to_name_array/2,
          typeinfo_to_oid_info/2,
@@ -17,10 +19,24 @@
 -export_type([codec/0, decoder/0]).
 
 -include("protocol.hrl").
+-define(DEFAULT_NULLS, [null, undefined]).
 
 -record(codec,
-        {opts = [] :: list(),                   % not used yet
+        {opts = #{} :: opts(),                   % not used yet
+         nulls = ?DEFAULT_NULLS :: nulls(),
          oid_db :: epgsql_oid_db:db()}).
+-record(array_decoder,
+        {element_decoder :: decoder(),
+         null_term :: any() }).
+-record(array_encoder,
+        {element_encoder :: epgsql_codec:codec_entry(),
+         n_dims = 0 :: non_neg_integer(),
+         lengths = [] :: [non_neg_integer()],
+         has_null = false :: boolean(),
+         codec :: codec()}).
+
+-type nulls() :: [any(), ...].
+-type opts() :: #{nulls => nulls()}.
 
 -opaque codec() :: #codec{}.
 -opaque decoder() :: {fun((binary(), epgsql:type_name(), epgsql_codec:codec_state()) -> any()),
@@ -36,7 +52,7 @@
 %% Codec is used to convert data (result rows and query parameters) between Erlang and postgresql formats
 %% It uses mappings between OID, type names and `epgsql_codec_*' modules (epgsql_oid_db)
 
--spec new_codec(epgsql_sock:pg_sock(), list()) -> codec().
+-spec new_codec(epgsql_sock:pg_sock(), opts()) -> codec().
 new_codec(PgSock, Opts) ->
     Codecs = default_codecs(),
     Oids = default_oids(),
@@ -45,7 +61,9 @@ new_codec(PgSock, Opts) ->
 new_codec(PgSock, Codecs, Oids, Opts) ->
     CodecEntries = epgsql_codec:init_mods(Codecs, PgSock),
     Types = epgsql_oid_db:join_codecs_oids(Oids, CodecEntries),
-    #codec{oid_db = epgsql_oid_db:from_list(Types), opts = Opts}.
+    #codec{oid_db = epgsql_oid_db:from_list(Types),
+           nulls = maps:get(nulls, Opts, ?DEFAULT_NULLS),
+           opts = Opts}.
 
 -spec update_codec([epgsql_oid_db:type_info()], codec()) -> codec().
 update_codec(TypeInfos, #codec{oid_db = Db} = Codec) ->
@@ -62,6 +80,16 @@ oid_to_name(Oid, Codec) ->
                 {_, Name, false} -> Name
             end
     end.
+
+%% @doc Return the value that represents NULL (1st element of `nulls' list)
+-spec null(codec()) -> any().
+null(#codec{nulls = [Null | _]}) ->
+    Null.
+
+%% @doc Returns `true' if `Value' is a term representing `NULL'
+-spec is_null(any(), codec()) -> boolean().
+is_null(Value, #codec{nulls = Nulls}) ->
+    lists:member(Value, Nulls).
 
 -spec type_to_oid(type(), codec()) -> epgsql_oid_db:oid().
 type_to_oid({array, Name}, Codec) ->
@@ -117,28 +145,30 @@ decode(Bin, {Fun, TypeName, State}) ->
 oid_to_decoder(?RECORD_OID, binary, Codec) ->
     {fun ?MODULE:decode_record/3, record, Codec};
 oid_to_decoder(?RECORD_ARRAY_OID, binary, Codec) ->
-    %% See `make_array_decoder/3'
-    {fun ?MODULE:decode_array/3, [], oid_to_decoder(?RECORD_OID, binary, Codec)};
-oid_to_decoder(Oid, Format, #codec{oid_db = Db}) ->
+    {fun ?MODULE:decode_array/3, array,
+     #array_decoder{
+        element_decoder = oid_to_decoder(?RECORD_OID, binary, Codec),
+        null_term = null(Codec)}};
+oid_to_decoder(Oid, Format, #codec{oid_db = Db} = Codec) ->
     case epgsql_oid_db:find_by_oid(Oid, Db) of
         undefined when Format == binary ->
             {fun epgsql_codec_noop:decode/3, undefined, []};
         undefined when Format == text ->
             {fun epgsql_codec_noop:decode_text/3, undefined, []};
         Type ->
-            make_decoder(Type, Format)
+            make_decoder(Type, Format, Codec)
     end.
 
--spec make_decoder(epgsql_oid_db:type_info(), binary | text) -> decoder().
-make_decoder(Type, Format) ->
+-spec make_decoder(epgsql_oid_db:type_info(), binary | text, codec()) -> decoder().
+make_decoder(Type, Format, Codec) ->
     {Name, Mod, State} = epgsql_oid_db:type_to_codec_entry(Type),
     {_Oid, Name, IsArray} = epgsql_oid_db:type_to_oid_info(Type),
-    make_decoder(Name, Mod, State, Format, IsArray).
+    make_decoder(Name, Mod, State, Codec, Format, IsArray).
 
-make_decoder(_Name, _Mod, _State, text, true) ->
+make_decoder(_Name, _Mod, _State, _Codec, text, true) ->
     %% Don't try to decode text arrays
     {fun epgsql_codec_noop:decode_text/3, undefined, []};
-make_decoder(Name, Mod, State, text, false) ->
+make_decoder(Name, Mod, State, _Codec, text, false) ->
     %% decode_text/3 is optional callback. If it's not defined, do NOOP.
     case erlang:function_exported(Mod, decode_text, 3) of
         true ->
@@ -146,18 +176,18 @@ make_decoder(Name, Mod, State, text, false) ->
         false ->
             {fun epgsql_codec_noop:decode_text/3, undefined, []}
     end;
-make_decoder(Name, Mod, State, binary, true) ->
-    make_array_decoder(Name, Mod, State);
-make_decoder(Name, Mod, State, binary, false) ->
+make_decoder(Name, Mod, State, Codec, binary, true) ->
+    {fun ?MODULE:decode_array/3, array,
+     #array_decoder{
+        element_decoder = {fun Mod:decode/3, Name, State},
+        null_term = null(Codec)}};
+make_decoder(Name, Mod, State, _Codec, binary, false) ->
     {fun Mod:decode/3, Name, State}.
 
 
 %% Array decoding
 %%% $PG$/src/backend/utils/adt/arrayfuncs.c
-make_array_decoder(Name, Mod, State) ->
-    {fun ?MODULE:decode_array/3, [], {fun Mod:decode/3, Name, State}}.
-
-decode_array(<<NDims:?int32, _HasNull:?int32, _Oid:?int32, Rest/binary>>, _, ElemDecoder) ->
+decode_array(<<NDims:?int32, _HasNull:?int32, _Oid:?int32, Rest/binary>>, _, ArrayDecoder) ->
     %% 4b: n_dimensions;
     %% 4b: flags;
     %% 4b: Oid // should be the same as in column spec;
@@ -168,27 +198,29 @@ decode_array(<<NDims:?int32, _HasNull:?int32, _Oid:?int32, Rest/binary>>, _, Ele
     %% https://www.postgresql.org/docs/current/static/arrays.html#arrays-io
     {Dims, Data} = erlang:split_binary(Rest, NDims * 2 * 4),
     Lengths = [Len || <<Len:?int32, _LBound:?int32>> <= Dims],
-    {Array, <<>>} = decode_array1(Data, Lengths, ElemDecoder),
+    {Array, <<>>} = decode_array1(Data, Lengths, ArrayDecoder),
     Array.
 
 decode_array1(Data, [], _)  ->
     %% zero-dimensional array
     {[], Data};
-decode_array1(Data, [Len], ElemDecoder) ->
+decode_array1(Data, [Len], ArrayDecoder) ->
     %% 1-dimensional array
-    decode_elements(Data, [], Len, ElemDecoder);
-decode_array1(Data, [Len | T], ElemDecoder) ->
+    decode_elements(Data, [], Len, ArrayDecoder);
+decode_array1(Data, [Len | T], ArrayDecoder) ->
     %% multidimensional array
-    F = fun(_N, Rest) -> decode_array1(Rest, T, ElemDecoder) end,
+    F = fun(_N, Rest) -> decode_array1(Rest, T, ArrayDecoder) end,
     lists:mapfoldl(F, Data, lists:seq(1, Len)).
 
-decode_elements(Rest, Acc, 0, _ElDec) ->
+decode_elements(Rest, Acc, 0, _ArDec) ->
     {lists:reverse(Acc), Rest};
-decode_elements(<<-1:?int32, Rest/binary>>, Acc, N, ElDec) ->
-    decode_elements(Rest, [null | Acc], N - 1, ElDec);
-decode_elements(<<Len:?int32, Value:Len/binary, Rest/binary>>, Acc, N, ElemDecoder) ->
+decode_elements(<<-1:?int32, Rest/binary>>, Acc, N,
+                #array_decoder{null_term = Null} = ArDec) ->
+    decode_elements(Rest, [Null | Acc], N - 1, ArDec);
+decode_elements(<<Len:?int32, Value:Len/binary, Rest/binary>>, Acc, N,
+                #array_decoder{element_decoder = ElemDecoder} = ArDecoder) ->
     Value2 = decode(Value, ElemDecoder),
-    decode_elements(Rest, [Value2 | Acc], N - 1, ElemDecoder).
+    decode_elements(Rest, [Value2 | Acc], N - 1, ArDecoder).
 
 
 
@@ -199,7 +231,7 @@ decode_record(<<Size:?int32, Bin/binary>>, record, Codec) ->
 
 decode_record1(<<>>, 0, _Codec) -> [];
 decode_record1(<<_Type:?int32, -1:?int32, Rest/binary>>, Size, Codec) ->
-    [null | decode_record1(Rest, Size - 1, Codec)];
+    [null(Codec) | decode_record1(Rest, Size - 1, Codec)];
 decode_record1(<<Oid:?int32, Len:?int32, ValueBin:Len/binary, Rest/binary>>, Size, Codec) ->
     Value = decode(ValueBin, oid_to_decoder(Oid, binary, Codec)),
     [Value | decode_record1(Rest, Size - 1, Codec)].
@@ -213,44 +245,73 @@ decode_record1(<<Oid:?int32, Len:?int32, ValueBin:Len/binary, Rest/binary>>, Siz
 -spec encode(epgsql:type_name() | {array, epgsql:type_name()}, any(), codec()) -> iolist().
 encode(TypeName, Value, Codec) ->
     Type = type_to_type_info(TypeName, Codec),
-    encode_with_type(Type, Value).
+    encode_with_type(Type, Value, Codec).
 
-encode_with_type(Type, Value) ->
-    {Name, Mod, State} = epgsql_oid_db:type_to_codec_entry(Type),
+encode_with_type(Type, Value, Codec) ->
+    NameModState = epgsql_oid_db:type_to_codec_entry(Type),
     case epgsql_oid_db:type_to_oid_info(Type) of
         {_ArrayOid, _, true} ->
             %FIXME: check if this OID is the same as was returned by 'Describe'
             ElementOid = epgsql_oid_db:type_to_element_oid(Type),
-            encode_array(Value, ElementOid, {Mod, Name, State});
+            encode_array(Value, ElementOid,
+                         #array_encoder{
+                            element_encoder = NameModState,
+                            codec = Codec});
         {_Oid, _, false} ->
-            encode_value(Value, {Mod, Name, State})
+            encode_value(Value, NameModState)
     end.
 
-encode_value(Value, {Mod, Name, State}) ->
+encode_value(Value, {Name, Mod, State}) ->
     Payload = epgsql_codec:encode(Mod, Value, Name, State),
     [<<(iolist_size(Payload)):?int32>> | Payload].
 
 
 %% Number of dimensions determined at encode-time by introspection of data, so,
 %% we can't encode array of lists (eg. strings).
-encode_array(Array, Oid, ValueEncoder) ->
-    {Data, {NDims, Lengths}} = encode_array(Array, 0, [], ValueEncoder),
+encode_array(Array, Oid, ArrayEncoder) ->
+    {Data, {NDims, Lengths, HasNull}} = encode_array_dims(Array, ArrayEncoder),
     Lens = [<<N:?int32, 1:?int32>> || N <- lists:reverse(Lengths)],
-    Hdr  = <<NDims:?int32, 0:?int32, Oid:?int32>>,
+    HasNullInt = case HasNull of
+                     true -> 1;
+                     false -> 0
+                 end,
+    Hdr  = <<NDims:?int32, HasNullInt:?int32, Oid:?int32>>,
     Payload  = [Hdr, Lens, Data],
     [<<(iolist_size(Payload)):?int32>> | Payload].
 
-encode_array([], NDims, Lengths, _Codec) ->
-    {[], {NDims, Lengths}};
-encode_array([H | _] = Array, NDims, Lengths, ValueEncoder) when not is_list(H) ->
-    F = fun(E, Len) -> {encode_value(E, ValueEncoder), Len + 1} end,
-    {Data, Len} = lists:mapfoldl(F, 0, Array),
-    {Data, {NDims + 1, [Len | Lengths]}};
-encode_array(Array, NDims, Lengths, Codec) ->
-    Lengths2 = [length(Array) | Lengths],
-    F = fun(A2, {_NDims, _Lengths}) -> encode_array(A2, NDims, Lengths2, Codec) end,
-    {Data, {NDims2, Lengths3}} = lists:mapfoldl(F, {NDims, Lengths2}, Array),
-    {Data, {NDims2 + 1, Lengths3}}.
+encode_array_dims([], #array_encoder{n_dims = NDims,
+                                     lengths = Lengths,
+                                     has_null = HasNull}) ->
+    {[], {NDims, Lengths, HasNull}};
+encode_array_dims([H | _] = Array,
+                  #array_encoder{n_dims = NDims0,
+                                 lengths = Lengths0,
+                                 has_null = HasNull0,
+                                 codec = Codec,
+                                 element_encoder = ValueEncoder}) when not is_list(H) ->
+    F = fun(El, {Len, HasNull1}) ->
+                case is_null(El, Codec) of
+                    false ->
+                        {encode_value(El, ValueEncoder), {Len + 1, HasNull1}};
+                    true ->
+                        {<<-1:?int32>>, {Len + 1, true}}
+                end
+        end,
+    {Data, {Len, HasNull2}} = lists:mapfoldl(F, {0, HasNull0}, Array),
+    {Data, {NDims0 + 1, [Len | Lengths0], HasNull2}};
+encode_array_dims(Array, #array_encoder{lengths = Lengths0,
+                                        n_dims = NDims0,
+                                        has_null = HasNull0} = ArrayEncoder) ->
+    Lengths1 = [length(Array) | Lengths0],
+    F = fun(A2, {_NDims, _Lengths, HasNull1}) ->
+                encode_array_dims(A2, ArrayEncoder#array_encoder{
+                                   n_dims = NDims0,
+                                   has_null = HasNull1,
+                                   lengths = Lengths1})
+        end,
+    {Data, {NDims2, Lengths2, HasNull2}} =
+        lists:mapfoldl(F, {NDims0, Lengths1, HasNull0}, Array),
+    {Data, {NDims2 + 1, Lengths2, HasNull2}}.
 
 
 %% Supports

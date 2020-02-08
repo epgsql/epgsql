@@ -242,8 +242,9 @@ handle_message(?CANCELLATION_KEY, <<Pid:?int32, Key:?int32>>, Sock, _State) ->
     {noaction, epgsql_sock:set_attr(backend, {Pid, Key}, Sock)};
 
 %% ReadyForQuery
-handle_message(?READY_FOR_QUERY, _, Sock, _State) ->
-    Codec = epgsql_binary:new_codec(Sock, []),
+handle_message(?READY_FOR_QUERY, _, Sock, #connect{opts = Opts}) ->
+    CodecOpts = maps:with([nulls], Opts),
+    Codec = epgsql_binary:new_codec(Sock, CodecOpts),
     Sock1 = epgsql_sock:set_attr(codec, Codec, Sock),
     {finish, connected, connected, Sock1};
 

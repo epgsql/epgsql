@@ -143,12 +143,12 @@ decode_data(Bin, {Decoders, _Columns, Codec}) ->
 
 decode_data(_, [], _) -> [];
 decode_data(<<-1:?int32, Rest/binary>>, [_Dec | Decs], Codec) ->
-    [null | decode_data(Rest, Decs, Codec)];
+    [epgsql_binary:null(Codec) | decode_data(Rest, Decs, Codec)];
 decode_data(<<Len:?int32, Value:Len/binary, Rest/binary>>, [Decoder | Decs], Codec) ->
     [epgsql_binary:decode(Value, Decoder)
      | decode_data(Rest, Decs, Codec)].
 
-%% @doc decode column information
+%% @doc decode RowDescription column information
 -spec decode_columns(non_neg_integer(), binary(), epgsql_binary:codec()) -> [epgsql:column()].
 decode_columns(0, _Bin, _Codec) -> [];
 decode_columns(Count, Bin, Codec) ->
@@ -177,7 +177,7 @@ decode_parameters(<<_Count:?int16, Bin/binary>>, Codec) ->
          TypeInfo -> TypeInfo
      end || <<Oid:?int32>> <= Bin].
 
-%% @doc decode command complete msg
+%% @doc decode CcommandComplete msg
 decode_complete(<<"SELECT", 0>>)        -> select;
 decode_complete(<<"SELECT", _/binary>>) -> select;
 decode_complete(<<"BEGIN", 0>>)         -> 'begin';
@@ -246,16 +246,18 @@ encode_parameters([P | T], Count, Formats, Values, Codec) ->
       Type :: epgsql:type_name()
             | {array, epgsql:type_name()}
             | {unknown_oid, epgsql_oid_db:oid()}.
-encode_parameter({T, undefined}, Codec) ->
-    encode_parameter({T, null}, Codec);
-encode_parameter({_, null}, _Codec) ->
-    {1, <<-1:?int32>>};
-encode_parameter({{unknown_oid, _Oid}, Value}, _Codec) ->
-    {0, encode_text(Value)};
 encode_parameter({Type, Value}, Codec) ->
-    {1, epgsql_binary:encode(Type, Value, Codec)};
-encode_parameter(Value, _Codec) ->
-    {0, encode_text(Value)}.
+    case epgsql_binary:is_null(Value, Codec) of
+        false ->
+            encode_parameter(Type, Value, Codec);
+        true ->
+            {1, <<-1:?int32>>}
+    end.
+
+encode_parameter({unknown_oid, _Oid}, Value, _Codec) ->
+    {0, encode_text(Value)};
+encode_parameter(Type, Value, Codec) ->
+    {1, epgsql_binary:encode(Type, Value, Codec)}.
 
 encode_text(B) when is_binary(B)  -> encode_bin(B);
 encode_text(A) when is_atom(A)    -> encode_bin(atom_to_binary(A, utf8));
