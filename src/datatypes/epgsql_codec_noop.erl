@@ -1,3 +1,4 @@
+%%% @private
 %%% @doc
 %%% Dummy codec. Used internally
 %%% @end

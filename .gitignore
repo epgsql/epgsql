@@ -1,3 +1,5 @@
 _build
 rebar3
 datadir/
+doc/*
+!doc/overview.edoc

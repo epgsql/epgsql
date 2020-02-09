@@ -3,12 +3,14 @@
 
 %%% @doc GenServer holding all connection state (including socket).
 %%%
-%%% See https://www.postgresql.org/docs/current/static/protocol-flow.html
+%%% See [https://www.postgresql.org/docs/current/static/protocol-flow.html]
+%%%
 %%% Commands in PostgreSQL are pipelined: you don't need to wait for reply to
 %%% be able to send next command.
 %%% Commands are processed (and responses to them are generated) in FIFO order.
 %%% eg, if you execute 2 SimpleQuery: #1 and #2, first you get all response
 %%% packets for #1 and then all for #2:
+%%% ```
 %%% > SQuery #1
 %%% > SQuery #2
 %%% < RowDescription #1
@@ -17,8 +19,8 @@
 %%% < RowDescription #2
 %%% < DataRow #2
 %%% < CommandComplete #2
-%%%
-%%% See epgsql_cmd_connect for network connection and authentication setup
+%%% '''
+%%% @see epgsql_cmd_connect. epgsql_cmd_connect for network connection and authentication setup
 
 
 -module(epgsql_sock).

@@ -1,0 +1,71 @@
+
+@title epgsql - PostgreSQL driver for Erlang
+@doc
+== Interfaces ==
+Epgsql has 3 API interfaces:
+
+<ul>
+  <li>{@link epgsql} - synchronous</li>
+  <li>{@link epgsqla} - asynchronous</li>
+  <li>{@link epgsqli} - incremental</li>
+</ul>
+
+They have the same set of functions, but differ by the way they deliver results.
+
+`epgsql' returns results as a function's return value;
+`epgsqla' delivers whole result as a single message;
+`epgsqli' delivers results and metadata in individual messages row-by-row.
+
+It's usualy not a problem to use different interfaces with the same connection.
+
+== Example session ==
+
+```
+{ok, C} = epgsql:connect(#{host => "localhost",
+                           username => "test-user", password => "test",
+                           database => "test-db"}),
+{ok, _Columns, Rows} = epgsql:equery(C, "SELECT * FROM users WHERE id=$1", [42]),
+io:format("Users: ~p~n", [Rows]),
+
+Ref = epgsqla:squery(C, "SELECT count(*) FROM users"),
+receive
+  {C, Ref, {ok, [#column{}], [{Count}]}} ->
+    io:format("count: ~p~n", [binary_to_integer(Count)]);
+  {C, Ref, #error{} = E} ->
+    io:format("error: ~p~n", [E])
+after 10000 ->
+    io:format("timeout"),
+    ok = epgsql:cancel(C),
+    % we still can receive normal result because `cancel' is always asynchronous
+    % otherwise we will receive
+    % `#error{code = <<"57014">>, codename = query_canceled}'
+    receive {C, Ref, OkOrCancel} ->
+      io:format("cancelation result: ~p~n", [OkOrCancel])
+    end
+end,
+ok =
+ epgsql:with_transaction(
+   C,
+   fun() ->
+     [{ok, _}, {ok, _}] =
+       epgsql:execute_batch(
+         C, "INSERT INTO users (name, age) VALUES ($1, $2)",
+         [
+          [<<"Joe">>, 35],
+          [<<"Mary">>, 24]
+         ]),
+     ok
+   end, #{}),
+ok = epgsql:close(C).
+'''
+
+== Commands ==
+
+Client can execute a number of built-in commands as well as define
+their own. See {@link epgsql_command}.
+
+== Datatypes ==
+
+Epgsql supports both text and binary data encodings. There are a bunch
+of built-in codecs and it's possible to implement custom ones
+as well as fine-tune some of built-ins. See {@link epgsql_codec}.

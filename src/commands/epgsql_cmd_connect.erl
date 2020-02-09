@@ -1,6 +1,8 @@
+%%% @doc Connects to the server and performs all the necessary handshakes.
+%%%
 %%% Special kind of command - it's exclusive: no other commands can run until
 %%% this one finishes.
-%%% It also uses some 'private' epgsql_sock's APIs
+%%% It also uses some "private" epgsql_sock's APIs
 %%%
 -module(epgsql_cmd_connect).
 -behaviour(epgsql_command).
@@ -105,7 +107,7 @@ opts_hide_password(Opts) -> Opts.
 
 
 %% @doc this function wraps plaintext password to a lambda function, so, if
-%% epgsql_sock process crashes when executing `connect` command, password will
+%% epgsql_sock process crashes when executing `connect' command, password will
 %% not appear in a crash log
 -spec hide_password(iodata()) -> fun( () -> iodata() ).
 hide_password(Password) when is_list(Password);

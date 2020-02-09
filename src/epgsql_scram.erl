@@ -1,11 +1,13 @@
 %%% coding: utf-8
 %%% @doc
 %%% SCRAM--SHA-256 helper functions
-%%% See
-%%% https://www.postgresql.org/docs/current/static/sasl-authentication.html
-%%% https://en.wikipedia.org/wiki/Salted_Challenge_Response_Authentication_Mechanism
-%%% https://tools.ietf.org/html/rfc7677
-%%% https://tools.ietf.org/html/rfc5802
+%%%
+%%% <ul>
+%%%  <li>[https://www.postgresql.org/docs/current/static/sasl-authentication.html]</li>
+%%%  <li>[https://en.wikipedia.org/wiki/Salted_Challenge_Response_Authentication_Mechanism]</li>
+%%%  <li>[https://tools.ietf.org/html/rfc7677]</li>
+%%%  <li>[https://tools.ietf.org/html/rfc5802]</li>
+%%% </ul>
 %%% @end
 
 -module(epgsql_scram).

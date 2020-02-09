@@ -1,5 +1,10 @@
+%% @doc Requests server to start sending replication packets
+%%
+%% See {@link epgsql:connect/1} `replication' parameter.
+%% ```
 %% > SimpleQuery "START_REPLICATION ..."
 %% < CopyBothResponse | Error
+%% '''
 -module(epgsql_cmd_start_replication).
 -behaviour(epgsql_command).
 -export([init/1, execute/2, handle_message/4]).

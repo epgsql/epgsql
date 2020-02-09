@@ -1,5 +1,9 @@
-%% > Describe
+%% @doc Asks the server to provide description of portal's results columns
+%%
+%% ```
+%% > Describe(PORTAL)
 %% < RowDescription | NoData
+%% '''
 -module(epgsql_cmd_describe_portal).
 -behaviour(epgsql_command).
 -export([init/1, execute/2, handle_message/4]).

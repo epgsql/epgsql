@@ -1,3 +1,10 @@
+%% @doc Performs 2nd stage of
+%% <a href="https://www.postgresql.org/docs/current/protocol-flow.html#PROTOCOL-FLOW-EXT-QUERY">
+%% extended query protocol.</a>
+%%
+%% Takes prepared `statement()' and bind-parameters for placeholders and produces
+%% query results.
+%% ```
 %% > Bind
 %% < BindComplete
 %% > Execute
@@ -7,6 +14,8 @@
 %% < CloseComplete
 %% > Sync
 %% < ReadyForQuery
+%% '''
+%% @see epgsql_cmd_parse
 -module(epgsql_cmd_equery).
 -behaviour(epgsql_command).
 -export([init/1, execute/2, handle_message/4]).

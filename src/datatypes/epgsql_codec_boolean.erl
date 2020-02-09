@@ -1,8 +1,11 @@
 %%% @doc
 %%% Codec for `bool'.
+%%%
 %%% `unknown' is represented by `null'.
-%%% https://www.postgresql.org/docs/current/static/datatype-boolean.html
-%%% $PG$/src/backend/utils/adt/bool.c
+%%% <ul>
+%%%  <li>[https://www.postgresql.org/docs/current/static/datatype-boolean.html]</li>
+%%%  <li>$PG$/src/backend/utils/adt/bool.c</li>
+%%% </ul>
 %%% @end
 %%% Created : 12 Oct 2017 by Sergey Prokhorov <me@seriyps.ru>
 

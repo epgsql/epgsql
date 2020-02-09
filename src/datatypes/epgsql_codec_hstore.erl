@@ -1,10 +1,12 @@
 %%% @doc
 %%% Codec for `hstore' type.
-%%% https://www.postgresql.org/docs/current/static/hstore.html
-%%% XXX: hstore not a part of postgresql builtin datatypes, it's in contrib.
-%%% It should be enabled in postgresql by command
-%%% `CREATE EXTENSION hstore`
-%%% $PG$/contrib/hstore/
+%%%
+%%% XXX: hstore is not a part of postgresql builtin datatypes, it's in contrib.
+%%% It should be enabled in postgresql by command `CREATE EXTENSION hstore'.
+%%% <ul>
+%%%  <li>[https://www.postgresql.org/docs/current/static/hstore.html]</li>
+%%%  <li>$PG$/contrib/hstore/</li>
+%%% </ul>
 %%% @end
 %%% Created : 14 Oct 2017 by Sergey Prokhorov <me@seriyps.ru>
 

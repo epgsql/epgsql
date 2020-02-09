@@ -34,4 +34,7 @@ dialyzer: compile
 elvis: $(REBAR)
 	@$(REBAR) as lint lint
 
+edoc: $(REBAR)
+	@$(REBAR) edoc
+
 .PHONY: all compile clean common-test eunit cover test dialyzer elvis

@@ -1,7 +1,7 @@
 %%% @author Sergey Prokhorov <me@seriyps.ru>
 %%% @doc
-%%% Holds Oid <-> Type mappings (forward and reverse).
-%%% See https://www.postgresql.org/docs/current/static/catalog-pg-type.html
+%%% Holds Oid to Type mappings (forward and reverse).
+%%% See [https://www.postgresql.org/docs/current/static/catalog-pg-type.html].
 %%% @end
 
 -module(epgsql_oid_db).
@@ -36,7 +36,7 @@
 %% pg_type Data preparation
 %%
 
-%% @doc build query to fetch OID<->type_name information from PG server
+%% @doc build query to fetch OID to type_name information from PG server
 -spec build_query([epgsql:type_name() | binary()]) -> iolist().
 build_query(TypeNames) ->
     %% TODO: lists:join/2, ERL 19+
