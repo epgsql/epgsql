@@ -387,15 +387,20 @@ with_transaction(C, F) ->
 %% @doc Execute callback function with connection in a transaction.
 %% Transaction will be rolled back in case of exception.
 %% Options (proplist or map):
-%% - reraise (true): when set to true, exception will be re-thrown, otherwise
-%%   {rollback, ErrorReason} will be returned
-%% - ensure_comitted (false): even when callback returns without exception,
+%% <dl>
+%%  <dt>reraise</dt>
+%%  <dd>when set to true, exception will be re-thrown, otherwise
+%%   `{rollback, ErrorReason}' will be returned. Default: `true'</dd>
+%%  <dt>ensure_comitted</dt>
+%%  <dd>even when callback returns without exception,
 %%   check that transaction was comitted by checking CommandComplete status
 %%   of "COMMIT" command. In case when transaction was rolled back, status will be
-%%   "rollback" instead of "commit".
-%% - begin_opts (""): append extra options to "BEGIN" command (see
+%%   "rollback" instead of "commit". Default: `false'</dd>
+%%  <dt>begin_opts</dt>
+%%  <dd>append extra options to "BEGIN" command (see
 %%   https://www.postgresql.org/docs/current/static/sql-begin.html)
-%%   Beware of SQL injections! No escaping is made on begin_opts!
+%%   Beware of SQL injections! No escaping is made on begin_opts! Default: `""'</dd>
+%% </dl>
 -spec with_transaction(
         connection(), fun((connection()) -> Reply), Opts) -> Reply | {rollback, any()} | no_return() when
       Reply :: any(),

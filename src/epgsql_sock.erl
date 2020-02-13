@@ -1,12 +1,9 @@
-%%% Copyright (C) 2009 - Will Glozer.  All rights reserved.
-%%% Copyright (C) 2011 - Anton Lebedevich.  All rights reserved.
-
-%%% @doc GenServer holding all connection state (including socket).
+%%% @doc GenServer holding all the connection state (including socket).
 %%%
 %%% See [https://www.postgresql.org/docs/current/static/protocol-flow.html]
 %%%
-%%% Commands in PostgreSQL are pipelined: you don't need to wait for reply to
-%%% be able to send next command.
+%%% Commands in PostgreSQL protocol are pipelined: you don't have to wait for
+%%% reply to be able to send next command.
 %%% Commands are processed (and responses to them are generated) in FIFO order.
 %%% eg, if you execute 2 SimpleQuery: #1 and #2, first you get all response
 %%% packets for #1 and then all for #2:
@@ -14,14 +11,29 @@
 %%% > SQuery #1
 %%% > SQuery #2
 %%% < RowDescription #1
-%%% < DataRow #1
+%%% < DataRow #1.1
+%%% < ...
+%%% < DataRow #1.N
 %%% < CommandComplete #1
 %%% < RowDescription #2
-%%% < DataRow #2
+%%% < DataRow #2.1
+%%% < ...
+%%% < DataRow #2.N
 %%% < CommandComplete #2
 %%% '''
+%%% `epgsql_sock' is capable of utilizing the pipelining feature - as soon as
+%%% it receives a new command, it sends it to the server immediately and then
+%%% it puts command's callbacks and state into internal queue of all the commands
+%%% which were sent to the server and waiting for response. So it knows in which
+%%% order it should call each pipelined command's `handle_message' callback.
+%%% But it can be easily broken if high-level command is poorly implemented or
+%%% some conflicting low-level commands (such as `parse', `bind', `execute') are
+%%% executed in a wrong order. In this case server and epgsql states become out of
+%%% sync and {@link epgsql_cmd_sync} have to be executed in order to recover.
 %%% @see epgsql_cmd_connect. epgsql_cmd_connect for network connection and authentication setup
-
+%%% @end
+%%% Copyright (C) 2009 - Will Glozer.  All rights reserved.
+%%% Copyright (C) 2011 - Anton Lebedevich.  All rights reserved.
 
 -module(epgsql_sock).
 

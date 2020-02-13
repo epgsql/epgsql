@@ -12,6 +12,10 @@ compile: src/epgsql_errcodes.erl $(REBAR)
 
 clean: $(REBAR)
 	@$(REBAR) clean
+	@rm -f doc/*.html
+	@rm -f doc/erlang.png
+	@rm -f doc/stylesheet.css
+	@rm -f doc/edoc-info
 
 src/epgsql_errcodes.erl:
 	./generate_errcodes_src.sh > src/epgsql_errcodes.erl
