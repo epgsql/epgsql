@@ -1,5 +1,9 @@
+%% @doc Closes statement / portal
+%%
+%% ```
 %% > Close
 %% < CloseComplete
+%% '''
 -module(epgsql_cmd_close).
 -behaviour(epgsql_command).
 -export([init/1, execute/2, handle_message/4]).

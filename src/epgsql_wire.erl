@@ -1,3 +1,9 @@
+%%% @doc
+%%% Interface to encoder/decoder for postgresql
+%%% <a href="https://www.postgresql.org/docs/current/protocol-message-formats.html">wire-protocol</a>
+%%%
+%%% See also `include/protocol.hrl'.
+%%% @end
 %%% Copyright (C) 2009 - Will Glozer.  All rights reserved.
 %%% Copyright (C) 2011 - Anton Lebedevich.  All rights reserved.
 
@@ -25,6 +31,7 @@
 
 -opaque row_decoder() :: {[epgsql_binary:decoder()], [epgsql:column()], epgsql_binary:codec()}.
 
+%% @doc tries to extract single postgresql packet from TCP stream
 -spec decode_message(binary()) -> {byte(), binary(), binary()} | binary().
 decode_message(<<Type:8, Len:?int32, Rest/binary>> = Bin) ->
     Len2 = Len - 4,
@@ -65,7 +72,7 @@ decode_fields(<<Type:8, Rest/binary>>, Acc) ->
     decode_fields(Rest2, [{Type, Str} | Acc]).
 
 %% @doc decode ErrorResponse
-%% See http://www.postgresql.org/docs/current/interactive/protocol-error-fields.html
+%% See [http://www.postgresql.org/docs/current/interactive/protocol-error-fields.html]
 -spec decode_error(binary()) -> epgsql:query_error().
 decode_error(Bin) ->
     Fields = decode_fields(Bin),
@@ -219,6 +226,7 @@ encode_formats([], Count, Acc) ->
 encode_formats([#column{format = Format} | T], Count, Acc) ->
     encode_formats(T, Count + 1, <<Acc/binary, Format:?int16>>).
 
+%% @doc Returns 1 if Codec knows how to decode binary format of the type provided and 0 otherwise
 format({unknown_oid, _}, _) -> 0;
 format(#column{oid = Oid}, Codec) ->
     case epgsql_binary:supports(Oid, Codec) of

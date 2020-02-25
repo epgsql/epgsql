@@ -1,3 +1,10 @@
+%%% @doc
+%%% Asynchronous interface.
+%%%
+%%% All the functions return `reference()' immediately. Results are delivered
+%%% asynchronously in a form of `{connection(), reference(), Result}', where
+%%% `Result' is what synchronous version of this function normally returns.
+%%% @end
 %%% Copyright (C) 2011 - Anton Lebedevich.  All rights reserved.
 
 -module(epgsqla).

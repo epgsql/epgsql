@@ -1,8 +1,14 @@
 %%% @doc
 %%% Codec for `point'.
-%%% https://www.postgresql.org/docs/current/static/datatype-geometric.html
-%%% $PG$/src/backend/utils/adt/geo_ops.c
-%%% XXX: it's not PostGIS!
+%%%
+%%% Codecs for other geometric datatypes (line, box, path, polygon, circle) can
+%%% be added later.
+%%%
+%%% XXX: it's not PostGIS! For PostGIS see {@link epgsql_codec_postgis}.
+%%% <ul>
+%%%  <li>[https://www.postgresql.org/docs/current/static/datatype-geometric.html]</li>
+%%%  <li>$PG$/src/backend/utils/adt/geo_ops.c</li>
+%%% </ul>
 %%% @end
 %%% Created : 14 Oct 2017 by Sergey Prokhorov <me@seriyps.ru>
 %%% TODO: line, lseg, box, path, polygon, circle

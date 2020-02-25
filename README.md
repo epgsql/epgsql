@@ -442,7 +442,7 @@ item will be `{error, #error{}}` and no more results will be produced.
 
 ## Data Representation
 
-Data representation may be configured using [pluggable datatype codecs](pluggable_types.md),
+Data representation may be configured using [pluggable datatype codecs](doc/pluggable_types.md),
 so following is just default mapping:
 
 PG type       | Representation
@@ -618,15 +618,15 @@ Parameter's value may change during connection's lifetime.
 
 ## Streaming replication protocol
 
-See [streaming.md](streaming.md).
+See [streaming.md](doc/streaming.md).
 
 ## Pluggable commands
 
-See [pluggable_commands.md](pluggable_commands.md)
+See [pluggable_commands.md](doc/pluggable_commands.md)
 
 ## Pluggable datatype codecs
 
-See [pluggable_types.md](pluggable_types.md)
+See [pluggable_types.md](doc/pluggable_types.md)
 
 ## Mailing list
 

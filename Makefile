@@ -12,6 +12,10 @@ compile: src/epgsql_errcodes.erl $(REBAR)
 
 clean: $(REBAR)
 	@$(REBAR) clean
+	@rm -f doc/*.html
+	@rm -f doc/erlang.png
+	@rm -f doc/stylesheet.css
+	@rm -f doc/edoc-info
 
 src/epgsql_errcodes.erl:
 	./generate_errcodes_src.sh > src/epgsql_errcodes.erl
@@ -33,5 +37,8 @@ dialyzer: compile
 
 elvis: $(REBAR)
 	@$(REBAR) as lint lint
+
+edoc: $(REBAR)
+	@$(REBAR) edoc
 
 .PHONY: all compile clean common-test eunit cover test dialyzer elvis

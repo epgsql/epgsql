@@ -1,7 +1,12 @@
 %%% @doc
 %%% Codec for `int4range', `int8range' types.
-%%% https://www.postgresql.org/docs/current/static/rangetypes.html#rangetypes-builtin
-%%% $PG$/src/backend/utils/adt/rangetypes.c
+%%%
+%%% <ul>
+%%%   <li>[https://www.postgresql.org/docs/current/static/rangetypes.html#rangetypes-builtin]</li>
+%%%   <li>$PG$/src/backend/utils/adt/rangetypes.c</li>
+%%% </ul>
+%%% @end
+%%% @see epgsql_codec_integer
 %%% @end
 %%% Created : 14 Oct 2017 by Sergey Prokhorov <me@seriyps.ru>
 %%% TODO: universal range, based on pg_range table

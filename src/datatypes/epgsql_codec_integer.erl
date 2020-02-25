@@ -1,8 +1,11 @@
 %%% @doc
 %%% Codec for `int2', `int4', `int8' (smallint, integer, bigint).
-%%% https://www.postgresql.org/docs/current/static/datatype-numeric.html#datatype-int
-%%% $PG$/src/backend/utils/adt/int.c
-%%% $PG$/src/backend/utils/adt/int8.c
+%%%
+%%% <ul>
+%%%  <li>[https://www.postgresql.org/docs/current/static/datatype-numeric.html#datatype-int]</li>
+%%%  <li>$PG$/src/backend/utils/adt/int.c</li>
+%%%  <li>$PG$/src/backend/utils/adt/int8.c</li>
+%%% </ul>
 %%% @end
 %%% Created : 12 Oct 2017 by Sergey Prokhorov <me@seriyps.ru>
 

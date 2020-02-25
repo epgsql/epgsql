@@ -20,4 +20,5 @@ matrix:
 script:
   - '[ "$TRAVIS_OTP_RELEASE" = "18.3" ] || make elvis' # TODO: remove the guard when OTP18 support is dropped
   - make test
+  - make edoc
   - make dialyzer

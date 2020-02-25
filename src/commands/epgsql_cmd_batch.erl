@@ -1,3 +1,12 @@
+%% @doc Execute multiple extended queries in a single network round-trip
+%%
+%% There are 2 kinds of interface:
+%% <ol>
+%%  <li>To execute multiple queries, each with it's own `statement()'</li>
+%%  <li>To execute multiple queries, but by binding different parameters to the
+%%  same `statement()'</li>
+%% </ol>
+%% ```
 %% > {Bind
 %% <  BindComplete
 %% >  Execute
@@ -5,6 +14,7 @@
 %% <  CommandComplete}*
 %% > Sync
 %% < ReadyForQuery
+%% '''
 -module(epgsql_cmd_batch).
 -behaviour(epgsql_command).
 -export([init/1, execute/2, handle_message/4]).
@@ -57,6 +67,7 @@ execute(Sock, #batch{batch = Batch,
                                             types = Types}} = State) ->
     Codec = epgsql_sock:get_codec(Sock),
     BinFormats = epgsql_wire:encode_formats(Columns),
+    %% TODO: build some kind of encoder and reuse it for each batch item
     Commands =
         lists:foldr(
           fun(Parameters, Acc) ->

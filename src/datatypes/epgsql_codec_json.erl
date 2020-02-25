@@ -1,8 +1,13 @@
 %%% @doc
 %%% Codec for `json', `jsonb'
-%%% https://www.postgresql.org/docs/current/static/datatype-json.html
-%%% $PG$/src/backend/utils/adt/json.c // `json'
-%%% $PG$/src/backend/utils/adt/jsonb.c // `jsonb'
+%%%
+%%% It is possible to instruct the codec to do JSON encoding/decoding to Erlang
+%%% terms by providing callback module name, see {@link json_mod()}.
+%%% <ul>
+%%%   <li>[https://www.postgresql.org/docs/current/static/datatype-json.html]</li>
+%%%   <li>$PG$/src/backend/utils/adt/json.c // `json'</li>
+%%%   <li>$PG$/src/backend/utils/adt/jsonb.c // `jsonb'</li>
+%%% </ul>
 %%% @end
 %%% Created : 12 Oct 2017 by Sergey Prokhorov <me@seriyps.ru>
 

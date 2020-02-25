@@ -1,8 +1,11 @@
 %%% @doc
 %%% Behaviour for postgresql datatype codecs.
+%%%
 %%% XXX: this module and callbacks "know nothing" about OIDs.
 %%% XXX: state of codec shouldn't leave epgsql_sock process. If you need to
 %%% return "pointer" to data type/codec, it's better to return OID or type name.
+%%% @end
+%%% @see epgsql_binary
 %%% @end
 %%% Created : 12 Oct 2017 by Sergey Prokhorov <me@seriyps.ru>
 

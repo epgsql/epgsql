@@ -1,7 +1,12 @@
 %%% @doc
 %%% Codec for `tsrange', `tstzrange', `daterange' types.
-%%% https://www.postgresql.org/docs/current/static/rangetypes.html#rangetypes-builtin
-%%% $PG$/src/backend/utils/adt/rangetypes.c
+%%%
+%%% <ul>
+%%%  <li>[https://www.postgresql.org/docs/current/static/rangetypes.html#rangetypes-builtin]</li>
+%%%  <li>$PG$/src/backend/utils/adt/rangetypes.c</li>
+%%% </ul>
+%%% @end
+%%% @see epgsql_codec_datetime
 %%% @end
 %%% Created : 16 Jul 2018 by Vladimir Sekissov <eryx67@gmail.com>
 %%% TODO: universal range, based on pg_range table

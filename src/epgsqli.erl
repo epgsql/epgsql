@@ -1,3 +1,10 @@
+%%% @doc Incremental interface
+%%%
+%%% All the functions return `reference()' immediately. Each data row as well
+%%% as metadata are delivered as separate messages in a form of
+%%% `{connection(), reference(), Payload}' where `Payload' depends on command
+%%% being executed.
+%%% @end
 %%% Copyright (C) 2011 - Anton Lebedevich.  All rights reserved.
 
 -module(epgsqli).

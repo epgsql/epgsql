@@ -1,5 +1,11 @@
+%%% @doc
+%%% Interface to encoder/decoder for binary postgres data representation
+%%% @end
+%%% @see epgsql_codec
+%%% @see epgsql_wire
+%%% @end
 %%% Copyright (C) 2008 - Will Glozer.  All rights reserved.
-%% XXX: maybe merge this module into epgsql_codec?
+%%% XXX: maybe merge this module into epgsql_codec?
 -module(epgsql_binary).
 
 -export([new_codec/2,

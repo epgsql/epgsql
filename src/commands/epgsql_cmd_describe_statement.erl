@@ -1,7 +1,12 @@
-%% Almost the same as "parse"
-%% > Describe
+%% @doc Asks server to provide input parameter and result rows information.
+%%
+%% Almost the same as {@link epgsql_cmd_parse}.
+%%
+%% ```
+%% > Describe(STATEMENT)
 %% < ParameterDescription
 %% < RowDescription | NoData
+%% '''
 -module(epgsql_cmd_describe_statement).
 -behaviour(epgsql_command).
 -export([init/1, execute/2, handle_message/4]).

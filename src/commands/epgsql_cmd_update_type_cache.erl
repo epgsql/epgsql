@@ -1,4 +1,4 @@
-%% Special command. Executes Squery over pg_type table and updates codecs.
+%% @doc Special command. Executes Squery over pg_type table and updates codecs.
 -module(epgsql_cmd_update_type_cache).
 -behaviour(epgsql_command).
 -export([init/1, execute/2, handle_message/4]).
