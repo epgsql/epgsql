@@ -1,6 +1,6 @@
 -module(epgsql_SUITE).
 
--include_lib("eunit/include/eunit.hrl").
+-include_lib("stdlib/include/assert.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("public_key/include/public_key.hrl").
 -include("epgsql_tests.hrl").
@@ -780,7 +780,25 @@ numeric_type(Config) ->
     check_type(Config, float4, "1.0", 1.0, [0.0, 1.23456, -1.23456]),
     check_type(Config, float4, "'-Infinity'", minus_infinity, [minus_infinity, plus_infinity, nan]),
     check_type(Config, float8, "1.0", 1.0, [0.0, 1.23456789012345, -1.23456789012345]),
-    check_type(Config, float8, "'nan'", nan, [minus_infinity, plus_infinity, nan]).
+    check_type(Config, float8, "'nan'", nan, [minus_infinity, plus_infinity, nan]),
+    %% Check overflow protection. Connection just crashes for now instead of silently
+    %% truncating the data. Some cleaner behaviour can be introduced later.
+    epgsql_ct:with_connection(Config, fun(C) ->
+        Module = ?config(module, Config),
+        Trap = process_flag(trap_exit, true),
+        try Module:equery(C, "SELECT $1::int2", [32768]) of
+          {error, closed} ->
+                %% epgsqla/epgsqli
+                ok
+        catch exit:Reason ->
+                %% epgsql
+                ?assertMatch({{{integer_overflow, int2, _}, _}, _}, Reason),
+                receive {'EXIT', C, _} -> ok
+                after 1000 -> error(timeout)
+                end
+        end,
+        process_flag(trap_exit, Trap)
+    end).
 
 character_type(Config) ->
     Alpha = unicode:characters_to_binary([16#03B1]),
@@ -1110,7 +1128,7 @@ connection_closed_by_server(Config) ->
                     {'EXIT', C2, {shutdown, #error{code = <<"57P01">>}}} ->
                         P ! ok;
                     Other ->
-                        ?debugFmt("Unexpected msg: ~p~n", [Other]),
+                        ct:pal("Unexpected msg: ~p~n", [Other]),
                         P ! error
                 end
             end)
