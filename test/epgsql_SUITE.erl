@@ -900,6 +900,7 @@ misc_type(Config) ->
     check_type(Config, bytea, "E'\001\002'", <<1,2>>, [<<>>, <<0,128,255>>]).
 
 hstore_type(Config) ->
+    Module = ?config(module, Config),
     Values = [
         {[]},
         {[{null, null}]},
@@ -915,7 +916,42 @@ hstore_type(Config) ->
     check_type(Config, hstore, "''", {[]}, []),
     check_type(Config, hstore,
                "'a => 1, b => 2.0, c => null'",
-               {[{<<"a">>, <<"1">>}, {<<"b">>, <<"2.0">>}, {<<"c">>, null}]}, Values).
+               {[{<<"a">>, <<"1">>}, {<<"b">>, <<"2.0">>}, {<<"c">>, null}]}, Values),
+    epgsql_ct:with_connection(
+      Config,
+      fun(C) ->
+              %% Maps as input
+              [begin
+                   {ok, _, [{Res}]} = Module:equery(C, "select $1::hstore", [maps:from_list(KV)]),
+                   ?assert(compare(hstore, Res, Jiffy))
+               end || {KV} = Jiffy <- Values],
+              %% Maps as output
+              {ok, [hstore]} = epgsql:update_type_cache(
+                                 C, [{epgsql_codec_hstore, #{return => map}}]),
+              [begin
+                   {ok, _, [{Res}]} = Module:equery(C, "select $1::hstore", [maps:from_list(KV)]),
+                   HstoreMap = maps:from_list([{format_hstore_key(K), format_hstore_value(V)} || {K, V} <- KV]),
+                   ?assertEqual(HstoreMap, Res)
+               end || {KV} <- Values],
+              %% Proplist as output
+              {ok, [hstore]} = epgsql:update_type_cache(
+                                 C, [{epgsql_codec_hstore, #{return => proplist}}]),
+              [begin
+                   {ok, _, [{Res}]} = Module:equery(C, "select $1::hstore", [Jiffy]),
+                   HstoreProplist = [{format_hstore_key(K), format_hstore_value(V)} || {K, V} <- KV],
+                   ?assertEqual(lists:sort(HstoreProplist), lists:sort(Res))
+               end || {KV} = Jiffy <- Values],
+              %% Custom nulls
+              Nulls = [nil, 'NULL', aaaa],
+              {ok, [hstore]} = epgsql:update_type_cache(
+                                 C, [{epgsql_codec_hstore, #{return => map,
+                                                             nulls => Nulls}}]),
+              K = <<"k">>,
+              [begin
+                   {ok, _, [{Res}]} = Module:equery(C, "select $1::hstore", [#{K => V}]),
+                   ?assertEqual(#{K => nil}, Res)
+               end || V <- Nulls]
+      end).
 
 net_type(Config) ->
     check_type(Config, cidr, "'127.0.0.1/32'", {{127,0,0,1}, 32}, [{{127,0,0,1}, 32}, {{0,0,0,0,0,0,0,1}, 128}]),
