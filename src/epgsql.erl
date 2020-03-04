@@ -231,7 +231,7 @@ set_notice_receiver(C, PidOrName) ->
 get_cmd_status(C) ->
     epgsql_sock:get_cmd_status(C).
 
--spec squery(connection(), sql_query()) -> epgsql_cmd_squery:response().
+-spec squery(connection(), sql_query()) -> epgsql_cmd_squery:response() | epgsql_sock:error().
 %% @doc runs simple `SqlQuery' via given `Connection'
 %% @see epgsql_cmd_squery
 squery(Connection, SqlQuery) ->
@@ -241,7 +241,7 @@ equery(C, Sql) ->
     equery(C, Sql, []).
 
 -spec equery(connection(), sql_query(), [bind_param()]) ->
-                    epgsql_cmd_equery:response().
+                    epgsql_cmd_equery:response() | epgsql_sock:error().
 equery(C, Sql, Parameters) ->
     equery(C, "", Sql, Parameters).
 
@@ -251,7 +251,7 @@ equery(C, Sql, Parameters) ->
 %% @end
 %% TODO add fast_equery command that doesn't need parsed statement
 -spec equery(connection(), string(), sql_query(), [bind_param()]) ->
-                    epgsql_cmd_equery:response().
+                    epgsql_cmd_equery:response() | epgsql_sock:error().
 equery(C, Name, Sql, Parameters) ->
     case parse(C, Name, Sql, []) of
         {ok, #statement{types = Types} = S} ->

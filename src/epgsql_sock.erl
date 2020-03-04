@@ -60,7 +60,7 @@
          get_parameter_internal/2,
          get_replication_state/1, set_packet_handler/2]).
 
--export_type([transport/0, pg_sock/0]).
+-export_type([transport/0, pg_sock/0, error/0]).
 
 -include("epgsql.hrl").
 -include("protocol.hrl").
@@ -72,6 +72,8 @@
 
 -type tcp_socket() :: port(). %gen_tcp:socket() isn't exported prior to erl 18
 -type repl_state() :: #repl{}.
+
+-type error() :: {error, sync_required | closed | sock_closed | sock_error}.
 
 -record(state, {mod :: gen_tcp | ssl | undefined,
                 sock :: tcp_socket() | ssl:sslsocket() | undefined,
