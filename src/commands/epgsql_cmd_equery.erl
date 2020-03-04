@@ -24,7 +24,7 @@
 -type response() :: {ok, Count :: non_neg_integer(), Cols :: [epgsql:column()], Rows :: [tuple()]}
                   | {ok, Count :: non_neg_integer()}
                   | {ok, Cols :: [epgsql:column()], Rows :: [tuple()]}
-                  | {error, epgsql:query_error()}.
+                  | {error, epgsql:query_error() | sock_closed}.
 
 -include("epgsql.hrl").
 -include("protocol.hrl").
