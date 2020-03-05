@@ -4,3 +4,5 @@ datadir/
 doc/*
 !doc/overview.edoc
 !doc/*.md
+*.idea/*
+*.iml
