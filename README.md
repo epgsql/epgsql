@@ -465,8 +465,8 @@ PG type       | Representation
   record      | `{int2, time, text, ...}` (decode only)
   point       |  `{10.2, 100.12}`
   int4range   | `[1,5)`
-  hstore      | `{[ {binary(), binary() \| null} ]}`
-  json/jsonb  | `<<"{ \"key\": [ 1, 1.0, true, \"string\" ] }">>` (see below for codec details)
+  hstore      | `{[ {binary(), binary() \| null} ]}` (configurable)
+  json/jsonb  | `<<"{ \"key\": [ 1, 1.0, true, \"string\" ] }">>` (configurable)
   uuid        | `<<"123e4567-e89b-12d3-a456-426655440000">>`
   inet        | `inet:ip_address()`
   cidr        | `{ip_address(), Mask :: 0..32}`
@@ -486,6 +486,12 @@ and `plus_infinity`
 
 `tsrange`, `tstzrange`, `daterange` are range types for `timestamp`, `timestamptz` and `date`
 respectively. They can return `empty` atom as the result from a database if bounds are equal
+
+`hstore` type can take map or jiffy-style objects as input. Output can be tuned by
+providing `return :: map | jiffy | proplist` option to choose the format to which
+hstore should be decoded. `nulls :: [atom(), ...]` option can be used to select the
+terms which should be interpreted as SQL `NULL` - semantics is the same as
+for `connect/1` `nulls` option.
 
 `json` and `jsonb` types can optionally use a custom JSON encoding/decoding module to accept
 and return erlang-formatted JSON. The module must implement the callbacks in `epgsql_codec_json`,
