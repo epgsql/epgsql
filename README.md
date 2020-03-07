@@ -440,6 +440,40 @@ item will be `{error, #error{}}` and no more results will be produced.
 - `{C, Ref, {complete, _Type}}`
 - `{C, Ref, done}` - execution of all queries from Batch has finished
 
+### Query cancellation
+
+`epgsql:cancel(connection()) -> ok.`
+
+PostgreSQL protocol supports [cancellation](https://www.postgresql.org/docs/current/protocol-flow.html#id-1.10.5.7.9)
+of currently executing command. `cancel/1` sends a cancellation request via
+new temporary TCP connection asynchronously, it doesn't await for the command to
+be cancelled. Otherwise, client should expect to get
+`{error, #error{code = <<"57014">>, codename = query_canceled}}` back from
+the command that was cancelled. However, normal response can still be returned as well.
+While it's not so straightforward to use with synchronous `epgsql` API, it plays
+quite nicely with asynchronous `epgsqla` API. For example, that's how query with
+soft timeout could be implemented:
+
+```erlang
+squery(C, SQL, Timeout) ->
+    Ref = epgsqla:squery(C, SQL),
+    receive
+       {C, Ref, Result} -> Result
+    after Timeout ->
+        ok = epgsql:cancel(C),
+        % We can still receive {ok, …} as well as
+        % {error, #error{codename = query_canceled}}
+        receive
+            {C, Ref, Result} -> Result
+        end
+    end.
+```
+
+This API should be used with extreme care when pipelining is in use: it only cancels
+currently executing command, all the subsequent pipelined commands will continue
+their normal execution. And it's not always easy to see which command exactly is
+executing when we are issuing the cancellation request.
+
 ## Data Representation
 
 Data representation may be configured using [pluggable datatype codecs](doc/pluggable_types.md),
