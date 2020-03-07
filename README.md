@@ -442,17 +442,19 @@ item will be `{error, #error{}}` and no more results will be produced.
 
 ### Query cancellation
 
-`epgsql:cancel(connection()) -> ok.`
+```erlang
+epgsql:cancel(connection()) -> ok.
+```
 
 PostgreSQL protocol supports [cancellation](https://www.postgresql.org/docs/current/protocol-flow.html#id-1.10.5.7.9)
-of currently executing command. `cancel/1` sends a cancellation request via
+of currently executing command. `cancel/1` sends a cancellation request via the
 new temporary TCP connection asynchronously, it doesn't await for the command to
-be cancelled. Otherwise, client should expect to get
+be cancelled. Instead, client should expect to get
 `{error, #error{code = <<"57014">>, codename = query_canceled}}` back from
-the command that was cancelled. However, normal response can still be returned as well.
+the command that was cancelled. However, normal response can still be received as well.
 While it's not so straightforward to use with synchronous `epgsql` API, it plays
-quite nicely with asynchronous `epgsqla` API. For example, that's how query with
-soft timeout could be implemented:
+quite nicely with asynchronous `epgsqla` API. For example, that's how a query with
+soft timeout can be implemented:
 
 ```erlang
 squery(C, SQL, Timeout) ->
@@ -462,7 +464,7 @@ squery(C, SQL, Timeout) ->
     after Timeout ->
         ok = epgsql:cancel(C),
         % We can still receive {ok, …} as well as
-        % {error, #error{codename = query_canceled}}
+        % {error, #error{codename = query_canceled}} or any other error
         receive
             {C, Ref, Result} -> Result
         end
