@@ -43,6 +43,7 @@
 -define(READY_FOR_QUERY, $Z).
 -define(COPY_BOTH_RESPONSE, $W).
 -define(COPY_DATA, $d).
+-define(TERMINATE, $X).
 
 % CopyData replication messages
 -define(X_LOG_DATA, $w).

@@ -221,6 +221,7 @@ handle_cast({{Method, From, Ref} = Transport, Command, Args}, State)
     command_new(Transport, Command, Args, State);
 
 handle_cast(stop, State) ->
+    send(State, ?TERMINATE, []),
     {stop, normal, flush_queue(State, {error, closed})};
 
 handle_cast(cancel, State = #state{backend = {Pid, Key},
