@@ -97,8 +97,8 @@ Only `host` and `username` are mandatory, but most likely you would need `databa
 - `password` - DB user password. It might be provided as string / binary or as a fun that returns
    string / binary. Internally, plain password is wrapped to anonymous fun before it is sent to connection
    process, so, if `connect` command crashes, plain password will not appear in crash logs.
-- `{timeout, TimeoutMs}` parameter will trigger an `{error, timeout}` result when the
-   socket fails to connect within `TimeoutMs` milliseconds.
+- `timeout` parameter will trigger an `{error, timeout}` result when the
+   socket fails to connect within provided milliseconds.
 - `ssl` if set to `true`, perform an attempt to connect in ssl mode, but continue unencrypted
   if encryption isn't supported by server. if set to `required` connection will fail if encryption
   is not available.
