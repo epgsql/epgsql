@@ -51,26 +51,34 @@ encode_int4range({minus_infinity, plus_infinity}) ->
     <<24:1/big-signed-unit:8>>;
 encode_int4range({From, plus_infinity}) ->
     FromInt = to_int(From),
+    epgsql_codec_integer:check_overflow_int(FromInt),
     <<18:1/big-signed-unit:8, 4:?int32, FromInt:?int32>>;
 encode_int4range({minus_infinity, To}) ->
     ToInt = to_int(To),
+    epgsql_codec_integer:check_overflow_int(ToInt),
     <<8:1/big-signed-unit:8, 4:?int32, ToInt:?int32>>;
 encode_int4range({From, To}) ->
     FromInt = to_int(From),
     ToInt = to_int(To),
+    epgsql_codec_integer:check_overflow_int(FromInt),
+    epgsql_codec_integer:check_overflow_int(ToInt),
     <<2:1/big-signed-unit:8, 4:?int32, FromInt:?int32, 4:?int32, ToInt:?int32>>.
 
 encode_int8range({minus_infinity, plus_infinity}) ->
     <<24:1/big-signed-unit:8>>;
 encode_int8range({From, plus_infinity}) ->
     FromInt = to_int(From),
+    epgsql_codec_integer:check_overflow_big(FromInt),
     <<18:1/big-signed-unit:8, 8:?int32, FromInt:?int64>>;
 encode_int8range({minus_infinity, To}) ->
     ToInt = to_int(To),
+    epgsql_codec_integer:check_overflow_big(ToInt),
     <<8:1/big-signed-unit:8, 8:?int32, ToInt:?int64>>;
 encode_int8range({From, To}) ->
     FromInt = to_int(From),
     ToInt = to_int(To),
+    epgsql_codec_integer:check_overflow_big(FromInt),
+    epgsql_codec_integer:check_overflow_big(ToInt),
     <<2:1/big-signed-unit:8, 8:?int32, FromInt:?int64, 8:?int32, ToInt:?int64>>.
 
 to_int(N) when is_integer(N) -> N;
