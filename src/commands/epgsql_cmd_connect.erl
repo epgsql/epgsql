@@ -124,9 +124,8 @@ maybe_ssl(S, false, _, PgSock, _Deadline) ->
 maybe_ssl(S, Flag, Opts, PgSock, Deadline) ->
     ok = gen_tcp:send(S, <<8:?int32, 80877103:?int32>>),
     Timeout0 = timeout(Deadline),
-    {ok, <<Code>>} = gen_tcp:recv(S, 1, Timeout0),
-    case Code of
-        $S  ->
+    case gen_tcp:recv(S, 1, Timeout0) of
+        {ok, <<$S>>}  ->
             SslOpts = maps:get(ssl_opts, Opts, []),
             Timeout = timeout(Deadline),
             case ssl:connect(S, SslOpts, Timeout) of
@@ -136,13 +135,15 @@ maybe_ssl(S, Flag, Opts, PgSock, Deadline) ->
                     Err = {ssl_negotiation_failed, Reason},
                     {error, Err}
             end;
-        $N ->
+        {ok, <<$N>>} ->
             case Flag of
                 true ->
                     epgsql_sock:set_net_socket(gen_tcp, S, PgSock);
                 required ->
                     {error, ssl_not_available}
-            end
+            end;
+        {error, Reason} ->
+            {error, Reason}
     end.
 
 %% Auth sub-protocol
@@ -280,12 +281,7 @@ hex(Bin) ->
     <<<<(HChar(H)), (HChar(L))>> || <<H:4, L:4>> <= Bin>>.
 
 deadline(Timeout) ->
-    erlang:monotonic_time(millisecond) + Timeout.
+    erlang:monotonic_time(milli_seconds) + Timeout.
 
 timeout(Deadline) ->
-    case (Deadline - erlang:monotonic_time(millisecond)) of
-        NewDeadline when NewDeadline < 0 ->
-            0;
-        Val ->
-            Val
-    end.
+    erlang:max(0, Deadline - erlang:monotonic_time(milli_seconds)).
