@@ -1,5 +1,11 @@
+%% @doc Binds placeholder parameters to prepared statement
+%%
+%% ```
 %% > Bind
 %% < BindComplete
+%% '''
+%% @see epgsql_cmd_parse
+%% @see epgsql_cmd_execute
 -module(epgsql_cmd_bind).
 -behaviour(epgsql_command).
 -export([init/1, execute/2, handle_message/4]).

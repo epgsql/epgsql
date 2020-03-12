@@ -1,3 +1,10 @@
+%%% @doc Incremental interface
+%%%
+%%% All the functions return `reference()' immediately. Each data row as well
+%%% as metadata are delivered as separate messages in a form of
+%%% `{connection(), reference(), Payload}' where `Payload' depends on command
+%%% being executed.
+%%% @end
 %%% Copyright (C) 2011 - Anton Lebedevich.  All rights reserved.
 
 -module(epgsqli).
@@ -15,7 +22,7 @@
          describe/2, describe/3,
          bind/3, bind/4,
          execute/2, execute/3, execute/4,
-         execute_batch/2,
+         execute_batch/2, execute_batch/3,
          close/2, close/3,
          sync/1,
          cancel/1]).
@@ -122,6 +129,10 @@ execute(C, Statement, PortalName, MaxRows) ->
 -spec execute_batch(epgsql:connection(), [{epgsql:statement(), [epgsql:bind_param()]}]) -> reference().
 execute_batch(C, Batch) ->
     incremental(C, epgsql_cmd_batch, Batch).
+
+-spec execute_batch(epgsql:connection(), epgsql:statement(), [ [epgsql:bind_param()] ]) -> reference().
+execute_batch(C, #statement{} = Statement, Batch) ->
+    incremental(C, epgsql_cmd_batch, {Statement, Batch}).
 
 describe(C, #statement{name = Name}) ->
     describe(C, statement, Name).

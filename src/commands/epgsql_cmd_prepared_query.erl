@@ -1,4 +1,7 @@
-%% Almost the same as equery, but don't execute 'CLOSE'
+%% @doc Almost the same as equery, but don't execute 'CLOSE'
+%%
+%% So, statement can be reused multiple times.
+%% ```
 %% > Bind
 %% < BindComplete
 %% > Execute
@@ -6,6 +9,7 @@
 %% < CommandComplete
 %% > Sync
 %% < ReadyForQuery
+%% '''
 -module(epgsql_cmd_prepared_query).
 -behaviour(epgsql_command).
 -export([init/1, execute/2, handle_message/4]).

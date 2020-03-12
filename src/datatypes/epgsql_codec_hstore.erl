@@ -1,10 +1,17 @@
 %%% @doc
 %%% Codec for `hstore' type.
-%%% https://www.postgresql.org/docs/current/static/hstore.html
-%%% XXX: hstore not a part of postgresql builtin datatypes, it's in contrib.
-%%% It should be enabled in postgresql by command
-%%% `CREATE EXTENSION hstore`
-%%% $PG$/contrib/hstore/
+%%%
+%%% Hstore codec can take a jiffy-style object or map() as input.
+%%% Output format can be changed by providing `return' option. See {@link return_format()}.
+%%% Values of hstore can be `NULL'. NULL representation can be changed by providing
+%%% `nulls' option, semantics is similar to {@link epgsql:connect_opts()} `nulls' option.
+%%%
+%%% XXX: hstore is not a part of postgresql builtin datatypes, it's in contrib.
+%%% It should be enabled in postgresql by command `CREATE EXTENSION hstore'.
+%%% <ul>
+%%%  <li>[https://www.postgresql.org/docs/current/static/hstore.html]</li>
+%%%  <li>$PG$/contrib/hstore/</li>
+%%% </ul>
 %%% @end
 %%% Created : 14 Oct 2017 by Sergey Prokhorov <me@seriyps.ru>
 
@@ -15,43 +22,71 @@
 
 -include("protocol.hrl").
 
--export_type([data/0]).
+-export_type([data/0, options/0, return_format/0]).
 
 -type data() :: data_in() | data_out().
 
 -type key_in() :: list() | binary() | atom() | integer() | float().
-%% jiffy-style maps
--type data_in() :: { [{key_in(), binary()}] }.
--type data_out() :: { [{Key :: binary(), Value :: binary()}] }.
+-type data_in() :: { [{key_in(), binary()}] } |
+                   #{key_in() => binary() | atom()}.
+-type data_out() :: { [{Key :: binary(), Value :: binary()}] } |      % jiffy
+                    [{Key :: binary(), Value :: binary() | atom()}] | % proplist
+                    #{binary() => binary() | atom()}.                 % map
+
+-type return_format() :: map | jiffy | proplist.
+-type options() :: #{return => return_format(),
+                     nulls => [atom(), ...]}.
+
+-record(st,
+        {return :: return_format(),
+         nulls :: [atom(), ...]}).
 
 -dialyzer([{nowarn_function, [encode/3]}, no_improper_lists]).
 
-%% TODO: option for output format: proplist | jiffy-object | map
-init(_, _) -> [].
+init(Opts0, _) ->
+    Opts = epgsql:to_map(Opts0),
+    #st{return = maps:get(return, Opts, jiffy),
+        nulls = maps:get(nulls, Opts, [null, undefined])}.
 
 names() ->
     [hstore].
 
-encode({Hstore}, hstore, _) when is_list(Hstore) ->
-    Size = length(Hstore),
+encode({KV}, hstore, #st{nulls = Nulls}) when is_list(KV) ->
+    Size = length(KV),
+    encode_kv(KV, Size, Nulls);
+encode(Map, hstore, #st{nulls = Nulls}) when is_map(Map) ->
+    Size = map_size(Map),
+    encode_kv(maps:to_list(Map), Size, Nulls).
+
+decode(<<Size:?int32, Elements/binary>>, hstore, #st{return = Return, nulls = Nulls}) ->
+    KV = do_decode(Size, Elements, hd(Nulls)),
+    case Return of
+        jiffy ->
+            {KV};
+        map ->
+            maps:from_list(KV);
+        proplist ->
+            KV
+    end.
+
+decode_text(V, _, _) -> V.
+
+%% Internal
+
+encode_kv(KV, Size, Nulls) ->
     %% TODO: construct improper list when support for Erl 17 will be dropped
-    Body = [[encode_key(K), encode_value(V)]
-           || {K, V} <- Hstore],
+    Body = [[encode_key(K), encode_value(V, Nulls)]
+           || {K, V} <- KV],
     [<<Size:?int32>> | Body].
-
-decode(<<Size:?int32, Elements/binary>>, hstore, _) ->
-    {do_decode(Size, Elements)}.
-
 
 encode_key(K) ->
     encode_string(K).
 
-encode_value(null) ->
-    <<-1:?int32>>;
-encode_value(undefined) ->
-    <<-1:?int32>>;
-encode_value(V) ->
-    encode_string(V).
+encode_value(V, Nulls) ->
+    case lists:member(V, Nulls) of
+        true -> <<-1:?int32>>;
+        false -> encode_string(V)
+    end.
 
 encode_string(Str) when is_binary(Str) ->
     <<(byte_size(Str)):?int32, Str/binary>>;
@@ -66,11 +101,9 @@ encode_string(Str) when is_float(Str) ->
     %% encode_string(erlang:float_to_binary(Str)).
 
 
-do_decode(0, _) -> [];
-do_decode(N, <<KeyLen:?int32, Key:KeyLen/binary, -1:?int32, Rest/binary>>) ->
-    [{Key, null} | do_decode(N - 1, Rest)];
+do_decode(0, _, _) -> [];
+do_decode(N, <<KeyLen:?int32, Key:KeyLen/binary, -1:?int32, Rest/binary>>, Null) ->
+    [{Key, Null} | do_decode(N - 1, Rest, Null)];
 do_decode(N, <<KeyLen:?int32, Key:KeyLen/binary,
-               ValLen:?int32, Value:ValLen/binary, Rest/binary>>) ->
-    [{Key, Value} | do_decode(N - 1, Rest)].
-
-decode_text(V, _, _) -> V.
+               ValLen:?int32, Value:ValLen/binary, Rest/binary>>, Null) ->
+    [{Key, Value} | do_decode(N - 1, Rest, Null)].

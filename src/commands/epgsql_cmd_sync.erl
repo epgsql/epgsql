@@ -1,5 +1,10 @@
+%% @doc Synchronize client and server states for multi-command combinations
+%%
+%% Should be executed if APIs start to return `{error, sync_required}'.
+%% ```
 %% > Sync
 %% < ReadyForQuery
+%% '''
 -module(epgsql_cmd_sync).
 -behaviour(epgsql_command).
 -export([init/1, execute/2, handle_message/4]).

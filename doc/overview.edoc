@@ -1,0 +1,57 @@
+@title epgsql - PostgreSQL driver for Erlang, internal documentation
+@doc
+This document is made mostly as internal documentation. It can be useful
+if you plan to contribute some patches to epgsql, want to implement
+custom datatypes or commands or to better understand epgsql internals.
+
+End-user interface is described in <a href="https://github.com/epgsql/epgsql#readme">README.md</a>.
+
+== Interfaces ==
+Epgsql has 3 end-user API interfaces:
+
+<ul>
+  <li>{@link epgsql} - synchronous</li>
+  <li>{@link epgsqla} - asynchronous</li>
+  <li>{@link epgsqli} - incremental</li>
+</ul>
+
+== Internals ==
+
+All 3 interfaces communicate with {@link epgsql_sock} gen_server, which holds all
+the connection state. While `epgsql_sock' holds all the state, it doesn't know
+much about Client-Server communication protocol.
+All the communication logic between epgsql and PostgreSQL server is implemented
+as a {@section Commands} and `epgsql_sock' acts as an executor for those commands.
+
+PostgreSQL binary communication protocol is represented by 2 modules:
+<ul>
+  <li>{@link epgsql_wire} - codecs for on-wire communication protocol messages</li>
+  <li>{@link epgsql_binary} - interface to PostgreSQL binary data encoding protocol(see {@section Datatypes})</li>
+</ul>
+
+`epgsql_sock' holds an internal state of `epgsql_binary' codecs as well. The
+main contents of this state is the mapping between PostgreSQL unique numeric
+datatype IDs (OIDs) and callbacks which will be used to decode this datatype.
+This mapping is handled by {@link epgsql_oid_db} module and is populated at
+connection set-up time by {@link epgsql_cmd_connect}.
+
+Most of the connection initialization (network connection, authentication, codecs)
+is performed by {@link epgsql_cmd_connect} command, wich is just a regualr command
+(but quite complex one) and can be replaced by own implementation if needed.
+
+== Commands ==
+
+Client can execute a number of built-in commands as well as define their own.
+See {@link epgsql_command} and all the `epgsql_cmd_*' pages.
+There exists a <a href="pluggable_commands.md">manual</a> that explains how to
+implement your own command.
+
+== Datatypes ==
+
+Epgsql supports both PostgreSQL <a href="https://www.postgresql.org/docs/current/protocol-overview.html#PROTOCOL-FORMAT-CODES">text and binary</a>
+data encodings to transfer the data (query placeholder parameters and result rows).
+There are a bunch of built-in codecs and it's possible to
+implement custom ones as well as fine-tune some of built-ins.
+See {@link epgsql_codec} and all the `epgsql_codec_*' pages for more details.
+There exists a <a href="pluggable_types.md">manual</a> that explains how to
+implement your own datatype codec.

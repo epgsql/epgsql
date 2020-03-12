@@ -1,6 +1,14 @@
+%% @doc Executes a portal.
+%%
+%% It's possible to tell the server to only return limited number of rows by
+%% providing non-zero `MaxRows' parameter.
+%% ```
 %% > Execute
 %% < DataRow*
 %% < CommandComplete | PortalSuspended
+%% '''
+%% @see epgsql_cmd_parse
+%% @see epgsql_cmd_bind
 -module(epgsql_cmd_execute).
 -behaviour(epgsql_command).
 -export([init/1, execute/2, handle_message/4]).

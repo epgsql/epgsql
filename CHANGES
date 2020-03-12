@@ -1,3 +1,42 @@
+In 4.4.0
+
+* Guards are now added to avoid silent integer truncation for numeric and
+  numeric range datatype codecs. So, an attempt to encode 100000 as `int2`
+  will now crash the connection instead of silently truncating it. #218
+* `epgsql{a,i}:cancel/1` API was documented. #224
+* Version of `execute_batch` that uses the same SQL query for each request
+  in a batch. Very convenient for batch-inserts. #209
+* It's now possible to provide `#statement{}` to `prepared_query/3`. This way
+  of calling it eliminates extra `describe` round-trip thus making it more
+  efficient. #207
+* Representation of SQL `NULL` is now fully configurable. You can choose what
+  set of Erlang terms should be interpreted as `NULL` and which term to use to
+  represent `NULL`s received from database. #212
+* It's now possible to choose between 3 representations of a `hstore` datatype:
+  map(), jiffy-style objects (default) and proplist. It can also take `map()` as
+  input now. NULL value representation is also configurable. #217
+* Edocs build was fixed. Just run `rebar3 edoc` and reference documentation for
+  all modules will be generated. But it's considered to be more "internal"
+  documentation for those who want to learn more about epgsql internals or
+  to do some hacking. It complements, but not replaces README. #214
+* `epgsql:connect` `timeout` option is more strict now - it limits TCP and SSL
+  setup time as a whole. #223
+* Test coverage report was enabled in CI. We will fail the build if coverage
+  falls below 55%. We hope to improve this metric over time. #208
+* We now send `Terminate` message to the server when doing graceful connection
+  shutdown (as recommended by protocol). #219
+* We found that `describe(_, portal, _)` API was broken since release v4.0.0, but
+  was not covered by tests. So now it was fixed and tests were added. #211
+* Error code to error name conversion code was updated (see `#error.codename`).
+  Some new codes were added (mostly related to JSON datatypes) and one has changed.
+  So, if you were matching over `#error.codename` being
+  `invalid_preceding_following_size` you have to update your code. #210
+* `#column{}` record is now fully documented. It was extended to
+  include `table_oid` and `table_attr_number` fields which point to the originating
+  database table of this column (if any). #205
+* Extended timerange datatype support #204
+* Some minor typos, datatype and CI fixes #199 #201 #206 #221
+
 In 4.3.0
 
 * Erlang 22 compatibility is tested; support for Erlang 17 was dropped. Last

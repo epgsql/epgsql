@@ -9,7 +9,7 @@
 -export([get_parameter/2, set_notice_receiver/2, get_cmd_status/1, squery/2, equery/2, equery/3]).
 -export([prepared_query/3]).
 -export([parse/2, parse/3, parse/4, describe/2, describe/3]).
--export([bind/3, bind/4, execute/2, execute/3, execute/4, execute_batch/2]).
+-export([bind/3, bind/4, execute/2, execute/3, execute/4, execute_batch/2, execute_batch/3]).
 -export([close/2, close/3, sync/1]).
 
 -include("epgsql.hrl").
@@ -124,6 +124,17 @@ execute_batch(C, Batch) ->
     Ref = epgsqli:execute_batch(C, Batch),
     receive_extended_results(C, Ref, []).
 
+execute_batch(C, #statement{columns = Cols} = Stmt, Batch) ->
+    Ref = epgsqli:execute_batch(C, Stmt, Batch),
+    {Cols, receive_extended_results(C, Ref, [])};
+execute_batch(C, Sql, Batch) ->
+    case parse(C, Sql) of
+        {ok, #statement{} = S} ->
+            execute_batch(C, S, Batch);
+        Error ->
+            Error
+    end.
+
 %% statement/portal functions
 
 describe(C, #statement{name = Name}) ->
@@ -133,9 +144,9 @@ describe(C, statement, Name) ->
     Ref = epgsqli:describe(C, statement, Name),
     sync_on_error(C, receive_describe(C, Ref, #statement{name = Name}));
 
-describe(C, Type, Name) ->
-    %% TODO unknown result format of Describe portal
-    epgsqli:describe(C, Type, Name).
+describe(C, portal, Name) ->
+    Ref = epgsqli:describe(C, portal, Name),
+    sync_on_error(C, receive_describe_portal(C, Ref)).
 
 close(C, #statement{name = Name}) ->
     close(C, statement, Name).
@@ -224,6 +235,18 @@ receive_describe(C, Ref, Statement = #statement{}) ->
             {ok, Statement#statement{columns = Columns}};
         {C, Ref, no_data} ->
             {ok, Statement#statement{columns = []}};
+        {C, Ref, Error = {error, _}} ->
+            Error;
+        {'EXIT', C, _Reason} ->
+            {error, closed}
+    end.
+
+receive_describe_portal(C, Ref) ->
+    receive
+        {C, Ref, {columns, Columns}} ->
+            {ok, Columns};
+        {C, Ref, no_data} ->
+            {ok, []};
         {C, Ref, Error = {error, _}} ->
             Error;
         {'EXIT', C, _Reason} ->

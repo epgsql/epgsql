@@ -1,9 +1,12 @@
 %%% @doc
 %%% Codec for `inet', `cidr'
-%%% https://www.postgresql.org/docs/10/static/datatype-net-types.html
-%%% $PG$/src/backend/utils/adt/network.c
 %%%
-%%% TIP: use `inet:ntoa/1' to convert `ip()' to string.
+%%% TIP: use {@link inet:ntoa/1} and {@link inet:parse_address/1} to convert
+%%% between {@link ip()} and `string()'.
+%%% <ul>
+%%%  <li>[https://www.postgresql.org/docs/10/static/datatype-net-types.html]</li>
+%%%  <li>$PG$/src/backend/utils/adt/network.c</li>
+%%% </ul>
 %%% @end
 %%% Created : 12 Oct 2017 by Sergey Prokhorov <me@seriyps.ru>
 -module(epgsql_codec_net).

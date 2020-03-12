@@ -1,3 +1,9 @@
+%%% @doc
+%%% Interface to encoder/decoder for postgresql
+%%% <a href="https://www.postgresql.org/docs/current/protocol-message-formats.html">wire-protocol</a>
+%%%
+%%% See also `include/protocol.hrl'.
+%%% @end
 %%% Copyright (C) 2009 - Will Glozer.  All rights reserved.
 %%% Copyright (C) 2011 - Anton Lebedevich.  All rights reserved.
 
@@ -25,6 +31,7 @@
 
 -opaque row_decoder() :: {[epgsql_binary:decoder()], [epgsql:column()], epgsql_binary:codec()}.
 
+%% @doc tries to extract single postgresql packet from TCP stream
 -spec decode_message(binary()) -> {byte(), binary(), binary()} | binary().
 decode_message(<<Type:8, Len:?int32, Rest/binary>> = Bin) ->
     Len2 = Len - 4,
@@ -65,7 +72,7 @@ decode_fields(<<Type:8, Rest/binary>>, Acc) ->
     decode_fields(Rest2, [{Type, Str} | Acc]).
 
 %% @doc decode ErrorResponse
-%% See http://www.postgresql.org/docs/current/interactive/protocol-error-fields.html
+%% See [http://www.postgresql.org/docs/current/interactive/protocol-error-fields.html]
 -spec decode_error(binary()) -> epgsql:query_error().
 decode_error(Bin) ->
     Fields = decode_fields(Bin),
@@ -143,17 +150,17 @@ decode_data(Bin, {Decoders, _Columns, Codec}) ->
 
 decode_data(_, [], _) -> [];
 decode_data(<<-1:?int32, Rest/binary>>, [_Dec | Decs], Codec) ->
-    [null | decode_data(Rest, Decs, Codec)];
+    [epgsql_binary:null(Codec) | decode_data(Rest, Decs, Codec)];
 decode_data(<<Len:?int32, Value:Len/binary, Rest/binary>>, [Decoder | Decs], Codec) ->
     [epgsql_binary:decode(Value, Decoder)
      | decode_data(Rest, Decs, Codec)].
 
-%% @doc decode column information
+%% @doc decode RowDescription column information
 -spec decode_columns(non_neg_integer(), binary(), epgsql_binary:codec()) -> [epgsql:column()].
 decode_columns(0, _Bin, _Codec) -> [];
 decode_columns(Count, Bin, Codec) ->
     [Name, Rest] = decode_string(Bin),
-    <<_TableOid:?int32, _AttribNum:?int16, TypeOid:?int32,
+    <<TableOid:?int32, AttribNum:?int16, TypeOid:?int32,
       Size:?int16, Modifier:?int32, Format:?int16, Rest2/binary>> = Rest,
     %% TODO: get rid of this 'type' (extra oid_db lookup)
     Type = epgsql_binary:oid_to_name(TypeOid, Codec),
@@ -163,7 +170,9 @@ decode_columns(Count, Bin, Codec) ->
       oid      = TypeOid,
       size     = Size,
       modifier = Modifier,
-      format   = Format},
+      format   = Format,
+      table_oid = TableOid,
+      table_attr_number = AttribNum},
     [Desc | decode_columns(Count - 1, Rest2, Codec)].
 
 %% @doc decode ParameterDescription
@@ -175,7 +184,7 @@ decode_parameters(<<_Count:?int16, Bin/binary>>, Codec) ->
          TypeInfo -> TypeInfo
      end || <<Oid:?int32>> <= Bin].
 
-%% @doc decode command complete msg
+%% @doc decode CcommandComplete msg
 decode_complete(<<"SELECT", 0>>)        -> select;
 decode_complete(<<"SELECT", _/binary>>) -> select;
 decode_complete(<<"BEGIN", 0>>)         -> 'begin';
@@ -217,6 +226,7 @@ encode_formats([], Count, Acc) ->
 encode_formats([#column{format = Format} | T], Count, Acc) ->
     encode_formats(T, Count + 1, <<Acc/binary, Format:?int16>>).
 
+%% @doc Returns 1 if Codec knows how to decode binary format of the type provided and 0 otherwise
 format({unknown_oid, _}, _) -> 0;
 format(#column{oid = Oid}, Codec) ->
     case epgsql_binary:supports(Oid, Codec) of
@@ -244,16 +254,18 @@ encode_parameters([P | T], Count, Formats, Values, Codec) ->
       Type :: epgsql:type_name()
             | {array, epgsql:type_name()}
             | {unknown_oid, epgsql_oid_db:oid()}.
-encode_parameter({T, undefined}, Codec) ->
-    encode_parameter({T, null}, Codec);
-encode_parameter({_, null}, _Codec) ->
-    {1, <<-1:?int32>>};
-encode_parameter({{unknown_oid, _Oid}, Value}, _Codec) ->
-    {0, encode_text(Value)};
 encode_parameter({Type, Value}, Codec) ->
-    {1, epgsql_binary:encode(Type, Value, Codec)};
-encode_parameter(Value, _Codec) ->
-    {0, encode_text(Value)}.
+    case epgsql_binary:is_null(Value, Codec) of
+        false ->
+            encode_parameter(Type, Value, Codec);
+        true ->
+            {1, <<-1:?int32>>}
+    end.
+
+encode_parameter({unknown_oid, _Oid}, Value, _Codec) ->
+    {0, encode_text(Value)};
+encode_parameter(Type, Value, Codec) ->
+    {1, epgsql_binary:encode(Type, Value, Codec)}.
 
 encode_text(B) when is_binary(B)  -> encode_bin(B);
 encode_text(A) when is_atom(A)    -> encode_bin(atom_to_binary(A, utf8));

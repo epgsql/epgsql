@@ -74,6 +74,7 @@ connect(Opts) -> {ok, Connection :: epgsql:connection()} | {error, Reason :: epg
       timeout =>  timeout(),             % socket connect timeout, default: 5000 ms
       async =>    pid() | atom(),        % process to receive LISTEN/NOTIFY msgs
       codecs =>   [{epgsql_codec:codec_mod(), any()}]}
+      nulls =>    [any(), ...],          % NULL terms
       replication => Replication :: string()} % Pass "database" to connect in replication mode
     | list().
 
@@ -96,14 +97,20 @@ Only `host` and `username` are mandatory, but most likely you would need `databa
 - `password` - DB user password. It might be provided as string / binary or as a fun that returns
    string / binary. Internally, plain password is wrapped to anonymous fun before it is sent to connection
    process, so, if `connect` command crashes, plain password will not appear in crash logs.
-- `{timeout, TimeoutMs}` parameter will trigger an `{error, timeout}` result when the
-   socket fails to connect within `TimeoutMs` milliseconds.
+- `timeout` parameter will trigger an `{error, timeout}` result when the
+   socket fails to connect within provided milliseconds.
 - `ssl` if set to `true`, perform an attempt to connect in ssl mode, but continue unencrypted
   if encryption isn't supported by server. if set to `required` connection will fail if encryption
   is not available.
 - `ssl_opts` will be passed as is to `ssl:connect/3`
 - `async` see [Server notifications](#server-notifications)
 - `codecs` see [Pluggable datatype codecs](#pluggable-datatype-codecs)
+- `nulls` terms which will be used to represent SQL `NULL`. If any of those has been encountered in
+   placeholder parameters (`$1`, `$2` etc values), it will be interpreted as `NULL`.
+   1st element of the list will be used to represent NULLs received from the server. It's not recommended
+   to use `"string"`s or lists. Try to keep this list short for performance!
+   Default is `[null, undefined]`, i.e. encode `null` or `undefined` in parameters as `NULL`
+   and decode `NULL`s as atom `null`.
 - `replication` see [Streaming replication protocol](#streaming-replication-protocol)
 
 Options may be passed as proplist or as map with the same key names.
@@ -126,21 +133,15 @@ Asynchronous connect example (applies to **epgsqli** too):
 ### Simple Query
 
 ```erlang
--type query() :: string() | iodata().
--type squery_row() :: {binary()}.
+-include_lib("epgsql/include/epgsql.hrl").
 
--record(column, {
-    name :: binary(),
-    type :: epgsql_type(),
-    size :: -1 | pos_integer(),
-    modifier :: -1 | pos_integer(),
-    format :: integer()
-}).
+-type query() :: string() | iodata().
+-type squery_row() :: tuple() % tuple of binary().
 
 -type ok_reply(RowType) ::
-    {ok, ColumnsDescription :: [#column{}], RowsValues :: [RowType]} |                            % select
+    {ok, ColumnsDescription :: [epgsql:column()], RowsValues :: [RowType]} |                            % select
     {ok, Count :: non_neg_integer()} |                                                            % update/insert/delete
-    {ok, Count :: non_neg_integer(), ColumnsDescription :: [#column{}], RowsValues :: [RowType]}. % update/insert/delete + returning
+    {ok, Count :: non_neg_integer(), ColumnsDescription :: [epgsql:column()], RowsValues :: [RowType]}. % update/insert/delete + returning
 -type error_reply() :: {error, query_error()}.
 -type reply(RowType) :: ok_reply() | error_reply().
 
@@ -159,7 +160,7 @@ epgsql:squery(C, "insert into account (name) values  ('alice'), ('bob')").
 ```erlang
 epgsql:squery(C, "select * from account").
 > {ok,
-    [{column,<<"id">>,int4,4,-1,0},{column,<<"name">>,text,-1,-1,0}],
+    [#column{name = <<"id">>, type = int4, …},#column{name = <<"name">>, type = text, …}],
     [{<<"1">>,<<"alice">>},{<<"2">>,<<"bob">>}]
 }
 ```
@@ -170,13 +171,12 @@ epgsql:squery(C,
     "    values ('joe'), (null)"
     "    returning *").
 > {ok,2,
-    [{column,<<"id">>,int4,4,-1,0}, {column,<<"name">>,text,-1,-1,0}],
+    [#column{name = <<"id">>, type = int4, …}, #column{name = <<"name">>, type = text, …}],
     [{<<"3">>,<<"joe">>},{<<"4">>,null}]
 }
 ```
 
 ```erlang
--include_lib("epgsql/include/epgsql.hrl").
 epgsql:squery(C, "SELECT * FROM _nowhere_").
 > {error,
    #error{severity = error,code = <<"42P01">>,
@@ -253,7 +253,7 @@ an error occurs, all statements result in `{error, #error{}}`.
 ```erlang
 epgsql:equery(C, "select id from account where name = $1", ["alice"]),
 > {ok,
-    [{column,<<"id">>,int4,4,-1,1}],
+    [#column{name = <<"id">>, type = int4, …}],
     [{1}]
 }
 ```
@@ -283,25 +283,26 @@ squery including final `{C, Ref, done}`.
 ### Prepared Query
 
 ```erlang
-{ok, Columns, Rows}        = epgsql:prepared_query(C, StatementName, [Parameters]).
-{ok, Count}                = epgsql:prepared_query(C, StatementName, [Parameters]).
-{ok, Count, Columns, Rows} = epgsql:prepared_query(C, StatementName, [Parameters]).
+{ok, Columns, Rows}        = epgsql:prepared_query(C, Statement :: #statement{} | string(), [Parameters]).
+{ok, Count}                = epgsql:prepared_query(C, Statement, [Parameters]).
+{ok, Count, Columns, Rows} = epgsql:prepared_query(C, Statement, [Parameters]).
 {error, Error}             = epgsql:prepared_query(C, "non_existent_query", [Parameters]).
 ```
 
-`Parameters` - optional list of values to be bound to `$1`, `$2`, `$3`, etc.
-`StatementName` - name of query given with ```erlang epgsql:parse(C, StatementName, "select ...", []).```
+- `Parameters` - optional list of values to be bound to `$1`, `$2`, `$3`, etc.
+- `Statement` - name of query given with ```erlang epgsql:parse(C, StatementName, "select ...", []).```
+               (can be empty string) or `#statement{}` record returned by `epgsql:parse`.
 
 With prepared query one can parse a query giving it a name with `epgsql:parse` on start and reuse the name
 for all further queries with different parameters.
 
 ```erlang
-epgsql:parse(C, "inc", "select $1+1", []).
-epgsql:prepared_query(C, "inc", [4]).
-epgsql:prepared_query(C, "inc", [1]).
+{ok, Stmt} = epgsql:parse(C, "inc", "select $1+1", []).
+epgsql:prepared_query(C, Stmt, [4]).
+epgsql:prepared_query(C, Stmt, [1]).
 ```
 
-Asynchronous API `epgsqla:prepared_query/3` requires you to parse statement beforehand
+Asynchronous API `epgsqla:prepared_query/3` requires you to always parse statement beforehand
 
 ```erlang
 #statement{types = Types} = Statement,
@@ -384,23 +385,54 @@ Batch execution is `bind` + `execute` for several prepared statements.
 It uses unnamed portals and `MaxRows = 0`.
 
 ```erlang
-Results = epgsql:execute_batch(C, Batch).
+Results = epgsql:execute_batch(C, BatchStmt :: [{statement(), [bind_param()]}]).
+{Columns, Results} = epgsql:execute_batch(C, statement() | sql_query(), Batch :: [ [bind_param()] ]).
 ```
 
-- `Batch`   - list of {Statement, ParameterValues}
-- `Results` - list of {ok, Count} or {ok, Count, Rows}
+- `BatchStmt` - list of `{Statement, ParameterValues}`, each item has it's own `#statement{}`
+- `Batch` - list of `ParameterValues`, each item executes the same common `#statement{}` or SQL query
+- `Columns` - list of `#column{}` descriptions of `Results` columns
+- `Results` - list of `{ok, Count}` or `{ok, Count, Rows}`
+
+There are 2 versions:
+
+`execute_batch/2` - each item in a batch has it's own named statement (but it's allowed to have duplicates)
 
 example:
 
 ```erlang
-{ok, S1} = epgsql:parse(C, "one", "select $1", [int4]),
-{ok, S2} = epgsql:parse(C, "two", "select $1 + $2", [int4, int4]),
+{ok, S1} = epgsql:parse(C, "one", "select $1::integer", []),
+{ok, S2} = epgsql:parse(C, "two", "select $1::integer + $2::integer", []),
 [{ok, [{1}]}, {ok, [{3}]}] = epgsql:execute_batch(C, [{S1, [1]}, {S2, [1, 2]}]).
+ok = epgsql:close(C, "one").
+ok = epgsql:close(C, "two").
 ```
 
-`epgsqla:execute_batch/3` sends `{C, Ref, Results}`
+`execute_batch/3` - each item in a batch executed with the same common SQL query or `#statement{}`.
+It's allowed to use unnamed statement.
 
-`epgsqli:execute_batch/3` sends
+example (the most efficient way to make batch inserts with epgsql):
+
+```erlang
+{ok, Stmt} = epgsql:parse(C, "my_insert", "INSERT INTO account (name, age) VALUES ($1, $2) RETURNING id", []).
+{[#column{name = <<"id">>}], [{ok, [{1}]}, {ok, [{2}]}, {ok, [{3}]}]} =
+    epgsql:execute_batch(C, Stmt, [ ["Joe", 35], ["Paul", 26], ["Mary", 24] ]).
+ok = epgsql:close(C, "my_insert").
+```
+
+equivalent:
+
+```erlang
+epgsql:execute_batch(C, "INSERT INTO account (name, age) VALUES ($1, $2) RETURNING id",
+                     [ ["Joe", 35], ["Paul", 26], ["Mary", 24] ]).
+```
+
+In case one of the batch items causes an error, the result returned for this particular
+item will be `{error, #error{}}` and no more results will be produced.
+
+`epgsqla:execute_batch/{2,3}` sends `{C, Ref, Results}`
+
+`epgsqli:execute_batch/{2,3}` sends
 
 - `{C, Ref, {data, Row}}`
 - `{C, Ref, {error, Reason}}`
@@ -408,9 +440,45 @@ example:
 - `{C, Ref, {complete, _Type}}`
 - `{C, Ref, done}` - execution of all queries from Batch has finished
 
+### Query cancellation
+
+```erlang
+epgsql:cancel(connection()) -> ok.
+```
+
+PostgreSQL protocol supports [cancellation](https://www.postgresql.org/docs/current/protocol-flow.html#id-1.10.5.7.9)
+of currently executing command. `cancel/1` sends a cancellation request via the
+new temporary TCP connection asynchronously, it doesn't await for the command to
+be cancelled. Instead, client should expect to get
+`{error, #error{code = <<"57014">>, codename = query_canceled}}` back from
+the command that was cancelled. However, normal response can still be received as well.
+While it's not so straightforward to use with synchronous `epgsql` API, it plays
+quite nicely with asynchronous `epgsqla` API. For example, that's how a query with
+soft timeout can be implemented:
+
+```erlang
+squery(C, SQL, Timeout) ->
+    Ref = epgsqla:squery(C, SQL),
+    receive
+       {C, Ref, Result} -> Result
+    after Timeout ->
+        ok = epgsql:cancel(C),
+        % We can still receive {ok, …} as well as
+        % {error, #error{codename = query_canceled}} or any other error
+        receive
+            {C, Ref, Result} -> Result
+        end
+    end.
+```
+
+This API should be used with extreme care when pipelining is in use: it only cancels
+currently executing command, all the subsequent pipelined commands will continue
+their normal execution. And it's not always easy to see which command exactly is
+executing when we are issuing the cancellation request.
+
 ## Data Representation
 
-Data representation may be configured using [pluggable datatype codecs](pluggable_types.md),
+Data representation may be configured using [pluggable datatype codecs](doc/pluggable_types.md),
 so following is just default mapping:
 
 PG type       | Representation
@@ -433,8 +501,8 @@ PG type       | Representation
   record      | `{int2, time, text, ...}` (decode only)
   point       |  `{10.2, 100.12}`
   int4range   | `[1,5)`
-  hstore      | `{[ {binary(), binary() \| null} ]}`
-  json/jsonb  | `<<"{ \"key\": [ 1, 1.0, true, \"string\" ] }">>` (see below for codec details)
+  hstore      | `{[ {binary(), binary() \| null} ]}` (configurable)
+  json/jsonb  | `<<"{ \"key\": [ 1, 1.0, true, \"string\" ] }">>` (configurable)
   uuid        | `<<"123e4567-e89b-12d3-a456-426655440000">>`
   inet        | `inet:ip_address()`
   cidr        | `{ip_address(), Mask :: 0..32}`
@@ -444,6 +512,8 @@ PG type       | Representation
   tstzrange   | `{{Hour, Minute, Second.Microsecond}, {Hour, Minute, Second.Microsecond}}`
   daterange   | `{{Year, Month, Day}, {Year, Month, Day}}`
 
+`null` can be configured. See `nulls` `connect/1` option.
+
 `timestamp` and `timestamptz` parameters can take `erlang:now()` format: `{MegaSeconds, Seconds, MicroSeconds}`
 
 `int4range` is a range type for ints that obeys inclusive/exclusive semantics,
@@ -452,6 +522,12 @@ and `plus_infinity`
 
 `tsrange`, `tstzrange`, `daterange` are range types for `timestamp`, `timestamptz` and `date`
 respectively. They can return `empty` atom as the result from a database if bounds are equal
+
+`hstore` type can take map or jiffy-style objects as input. Output can be tuned by
+providing `return :: map | jiffy | proplist` option to choose the format to which
+hstore should be decoded. `nulls :: [atom(), ...]` option can be used to select the
+terms which should be interpreted as SQL `NULL` - semantics is the same as
+for `connect/1` `nulls` option.
 
 `json` and `jsonb` types can optionally use a custom JSON encoding/decoding module to accept
 and return erlang-formatted JSON. The module must implement the callbacks in `epgsql_codec_json`,
@@ -584,15 +660,15 @@ Parameter's value may change during connection's lifetime.
 
 ## Streaming replication protocol
 
-See [streaming.md](streaming.md).
+See [streaming.md](doc/streaming.md).
 
 ## Pluggable commands
 
-See [pluggable_commands.md](pluggable_commands.md)
+See [pluggable_commands.md](doc/pluggable_commands.md)
 
 ## Pluggable datatype codecs
 
-See [pluggable_types.md](pluggable_types.md)
+See [pluggable_types.md](doc/pluggable_types.md)
 
 ## Mailing list
 

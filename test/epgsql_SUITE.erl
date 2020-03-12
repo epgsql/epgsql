@@ -1,6 +1,6 @@
 -module(epgsql_SUITE).
 
--include_lib("eunit/include/eunit.hrl").
+-include_lib("stdlib/include/assert.hrl").
 -include_lib("common_test/include/ct.hrl").
 -include_lib("public_key/include/public_key.hrl").
 -include("epgsql_tests.hrl").
@@ -67,7 +67,8 @@ groups() ->
             range_type,
             range8_type,
             date_time_range_type,
-            custom_types
+            custom_types,
+            custom_null
         ]},
         {generic, [parallel], [
             with_transaction
@@ -87,6 +88,9 @@ groups() ->
         cursor,
         multiple_result,
         execute_batch,
+        execute_batch_3_named_stmt,
+        execute_batch_3_unnamed_stmt,
+        execute_batch_3_sql,
         batch_error,
         single_batch,
         extended_select,
@@ -108,6 +112,7 @@ groups() ->
         describe_with_param,
         describe_named,
         describe_error,
+        describe_portal,
         portal,
         returning,
         multiple_statement,
@@ -431,6 +436,32 @@ execute_batch(Config) ->
             Module:execute_batch(C, [{S1, [1]}, {S2, [1, 2]}])
     end).
 
+execute_batch_3_named_stmt(Config) ->
+    Module = ?config(module, Config),
+    epgsql_ct:with_connection(Config, fun(C) ->
+        {ok, Stmt} = Module:parse(C, "my_stmt", "select $1 + $2", [int4, int4]),
+        ?assertMatch(
+           {[#column{type = int4, _ = _}], [{ok, [{3}]}, {ok, [{7}]}]},
+           Module:execute_batch(C, Stmt, [[1, 2], [3, 4]]))
+    end).
+
+execute_batch_3_unnamed_stmt(Config) ->
+    Module = ?config(module, Config),
+    epgsql_ct:with_connection(Config, fun(C) ->
+        {ok, Stmt} = Module:parse(C, "select $1::integer + $2::integer"),
+        ?assertMatch(
+           {[#column{type = int4, _ = _}], [{ok, [{3}]}, {ok, [{7}]}]},
+           Module:execute_batch(C, Stmt, [[2, 1], [4, 3]]))
+    end).
+
+execute_batch_3_sql(Config) ->
+    Module = ?config(module, Config),
+    epgsql_ct:with_connection(Config, fun(C) ->
+        ?assertMatch(
+           {[#column{type = int4, _ = _}], [{ok, [{3}]}, {ok, [{7}]}]},
+           Module:execute_batch(C, "select $1::integer + $2::integer", [[1, 2], [3, 4]]))
+    end).
+
 batch_error(Config) ->
     Module = ?config(module, Config),
     epgsql_ct:with_rollback(Config, fun(C) ->
@@ -514,9 +545,9 @@ parse_column_format(Config) ->
     Module = ?config(module, Config),
     epgsql_ct:with_connection(Config, fun(C) ->
         {ok, S} = Module:parse(C, "select 1::int4, false::bool, 2.0::float4"),
-        [#column{type = int4},
-         #column{type = bool},
-         #column{type = float4}] = S#statement.columns,
+        [#column{type = int4, table_oid = 0, table_attr_number = 0},
+         #column{type = bool, table_oid = 0, table_attr_number = 0},
+         #column{type = float4, table_oid = 0, table_attr_number = 0}] = S#statement.columns,
         ok = Module:bind(C, S, []),
         {ok, [{1, false, 2.0}]} = Module:execute(C, S, 0),
         ok = Module:close(C, S),
@@ -652,6 +683,23 @@ describe_error(Config) ->
 
     end).
 
+describe_portal(Config) ->
+    Module = ?config(module, Config),
+    epgsql_ct:with_connection(Config, fun(C) ->
+        {ok, Stmt} = Module:parse(C, "my_stmt", "select * from test_table1 WHERE id = $1", []),
+        ok = Module:bind(C, Stmt, "my_portal", [1]),
+        {ok, Columns} = Module:describe(C, portal, "my_portal"),
+        ?assertMatch(
+           [#column{name = <<"id">>,
+                    type = int4},
+            #column{name = <<"value">>,
+                    type = text}],
+           Columns
+          ),
+        ok = Module:close(C, Stmt),
+        ok = Module:sync(C)
+    end).
+
 portal(Config) ->
     Module = ?config(module, Config),
     epgsql_ct:with_connection(Config, fun(C) ->
@@ -732,7 +780,25 @@ numeric_type(Config) ->
     check_type(Config, float4, "1.0", 1.0, [0.0, 1.23456, -1.23456]),
     check_type(Config, float4, "'-Infinity'", minus_infinity, [minus_infinity, plus_infinity, nan]),
     check_type(Config, float8, "1.0", 1.0, [0.0, 1.23456789012345, -1.23456789012345]),
-    check_type(Config, float8, "'nan'", nan, [minus_infinity, plus_infinity, nan]).
+    check_type(Config, float8, "'nan'", nan, [minus_infinity, plus_infinity, nan]),
+    %% Check overflow protection. Connection just crashes for now instead of silently
+    %% truncating the data. Some cleaner behaviour can be introduced later.
+    epgsql_ct:with_connection(Config, fun(C) ->
+        Module = ?config(module, Config),
+        Trap = process_flag(trap_exit, true),
+        try Module:equery(C, "SELECT $1::int2", [32768]) of
+          {error, closed} ->
+                %% epgsqla/epgsqli
+                ok
+        catch exit:Reason ->
+                %% epgsql
+                ?assertMatch({{{integer_overflow, int2, _}, _}, _}, Reason),
+                receive {'EXIT', C, _} -> ok
+                after 1000 -> error(timeout)
+                end
+        end,
+        process_flag(trap_exit, Trap)
+    end).
 
 character_type(Config) ->
     Alpha = unicode:characters_to_binary([16#03B1]),
@@ -852,6 +918,7 @@ misc_type(Config) ->
     check_type(Config, bytea, "E'\001\002'", <<1,2>>, [<<>>, <<0,128,255>>]).
 
 hstore_type(Config) ->
+    Module = ?config(module, Config),
     Values = [
         {[]},
         {[{null, null}]},
@@ -867,7 +934,42 @@ hstore_type(Config) ->
     check_type(Config, hstore, "''", {[]}, []),
     check_type(Config, hstore,
                "'a => 1, b => 2.0, c => null'",
-               {[{<<"a">>, <<"1">>}, {<<"b">>, <<"2.0">>}, {<<"c">>, null}]}, Values).
+               {[{<<"a">>, <<"1">>}, {<<"b">>, <<"2.0">>}, {<<"c">>, null}]}, Values),
+    epgsql_ct:with_connection(
+      Config,
+      fun(C) ->
+              %% Maps as input
+              [begin
+                   {ok, _, [{Res}]} = Module:equery(C, "select $1::hstore", [maps:from_list(KV)]),
+                   ?assert(compare(hstore, Res, Jiffy))
+               end || {KV} = Jiffy <- Values],
+              %% Maps as output
+              {ok, [hstore]} = epgsql:update_type_cache(
+                                 C, [{epgsql_codec_hstore, #{return => map}}]),
+              [begin
+                   {ok, _, [{Res}]} = Module:equery(C, "select $1::hstore", [maps:from_list(KV)]),
+                   HstoreMap = maps:from_list([{format_hstore_key(K), format_hstore_value(V)} || {K, V} <- KV]),
+                   ?assertEqual(HstoreMap, Res)
+               end || {KV} <- Values],
+              %% Proplist as output
+              {ok, [hstore]} = epgsql:update_type_cache(
+                                 C, [{epgsql_codec_hstore, #{return => proplist}}]),
+              [begin
+                   {ok, _, [{Res}]} = Module:equery(C, "select $1::hstore", [Jiffy]),
+                   HstoreProplist = [{format_hstore_key(K), format_hstore_value(V)} || {K, V} <- KV],
+                   ?assertEqual(lists:sort(HstoreProplist), lists:sort(Res))
+               end || {KV} = Jiffy <- Values],
+              %% Custom nulls
+              Nulls = [nil, 'NULL', aaaa],
+              {ok, [hstore]} = epgsql:update_type_cache(
+                                 C, [{epgsql_codec_hstore, #{return => map,
+                                                             nulls => Nulls}}]),
+              K = <<"k">>,
+              [begin
+                   {ok, _, [{Res}]} = Module:equery(C, "select $1::hstore", [#{K => V}]),
+                   ?assertEqual(#{K => nil}, Res)
+               end || V <- Nulls]
+      end).
 
 net_type(Config) ->
     check_type(Config, cidr, "'127.0.0.1/32'", {{127,0,0,1}, 32}, [{{127,0,0,1}, 32}, {{0,0,0,0,0,0,0,1}, 128}]),
@@ -884,18 +986,24 @@ array_type(Config) ->
         {ok, _, [{[1, 2]}]} = Module:equery(C, "select ($1::int[])[1:2]", [[1, 2, 3]]),
         {ok, _, [{[{1, <<"one">>}, {2, <<"two">>}]}]} =
             Module:equery(C, "select Array(select (id, value) from test_table1)", []),
-        Select = fun(Type, A) ->
+        {ok, _, [{ [[1], [null], [3], [null]] }]} =
+            Module:equery(C, "select $1::int2[]", [ [[1], [null], [3], [undefined]] ]),
+        Select = fun(Type, AIn) ->
             Query = "select $1::" ++ atom_to_list(Type) ++ "[]",
-            {ok, _Cols, [{A2}]} = Module:equery(C, Query, [A]),
-            case lists:all(fun({V, V2}) -> compare(Type, V, V2) end, lists:zip(A, A2)) of
+            {ok, _Cols, [{AOut}]} = Module:equery(C, Query, [AIn]),
+            case lists:all(fun({VIn, VOut}) ->
+                                   compare(Type, VIn, VOut)
+                           end, lists:zip(AIn, AOut)) of
                 true  -> ok;
-                false -> ?assertMatch(A, A2)
+                false -> ?assertEqual(AIn, AOut)
             end
         end,
         Select(int2,   []),
         Select(int2,   [1, 2, 3, 4]),
         Select(int2,   [[1], [2], [3], [4]]),
         Select(int2,   [[[[[[1, 2]]]]]]),
+        Select(int2,   [1, null, 3, undefined]),
+        Select(int2,   [[1], [null], [3], [null]]),
         Select(bool,   [true]),
         Select(char,   [$a, $b, $c]),
         Select(int4,   [[1, 2]]),
@@ -936,7 +1044,10 @@ record_type(Config) ->
         Select("select (1, '{2,3}'::int[])", {{1, [2, 3]}}),
 
         %% Array of records inside record
-        Select("select (0, ARRAY(select (id, value) from test_table1))", {{0,[{1,<<"one">>},{2,<<"two">>}]}})
+        Select("select (0, ARRAY(select (id, value) from test_table1))", {{0,[{1,<<"one">>},{2,<<"two">>}]}}),
+
+        %% Record with NULLs
+        Select("select (1, NULL::integer, 2)", {{1, null, 2}})
     end).
 
 custom_types(Config) ->
@@ -952,6 +1063,33 @@ custom_types(Config) ->
         {ok, 1} = Module:execute(C, S),
         ?assertMatch({ok, _, [{bar}]}, Module:equery(C, "SELECT col FROM t_foo"))
     end).
+
+custom_null(Config) ->
+    Module = ?config(module, Config),
+    epgsql_ct:with_connection(Config, fun(C) ->
+        Test3 = fun(Type, In, Out) ->
+                        Q = ["SELECT $1::", Type],
+                        {ok, _, [{Res}]} = Module:equery(C, Q, [In]),
+                        ?assertEqual(Out, Res)
+                end,
+        Test = fun(Type, In) ->
+                       Test3(Type, In, In)
+               end,
+        Test("int2", nil),
+        Test3("int2", 'NULL', nil),
+        Test("text", nil),
+        Test3("text", 'NULL', nil),
+        Test3("text", null, <<"null">>),
+        Test("int2[]", [nil, 1, nil, 2]),
+        Test3("text[]", [null, <<"ok">>], [<<"null">>, <<"ok">>]),
+        Test3("int2[]", ['NULL', 1, nil, 2], [nil, 1, nil, 2]),
+        Test("int2[]", [[nil], [1], [nil], [2]]),
+        Test3("int2[]", [['NULL'], [1], [nil], [2]], [[nil], [1], [nil], [2]]),
+        ?assertMatch(
+           {ok, _, [{ {1, nil, {2, nil, 3}} }]},
+           Module:equery(C, "SELECT (1, NULL, (2, NULL, 3))", []))
+    end,
+    [{nulls, [nil, 'NULL']}]).
 
 text_format(Config) ->
     Module = ?config(module, Config),
@@ -1026,7 +1164,7 @@ connection_closed_by_server(Config) ->
                     {'EXIT', C2, {shutdown, #error{code = <<"57P01">>}}} ->
                         P ! ok;
                     Other ->
-                        ?debugFmt("Unexpected msg: ~p~n", [Other]),
+                        ct:pal("Unexpected msg: ~p~n", [Other]),
                         P ! error
                 end
             end)
@@ -1186,7 +1324,8 @@ range_type(Config) ->
         check_type(Config, int4range, "int4range(10, 20)", {10, 20}, [
             {1, 58}, {-1, 12}, {-985521, 5412687}, {minus_infinity, 0},
             {984655, plus_infinity}, {minus_infinity, plus_infinity}
-        ])
+        ]),
+        check_type(Config, int4range, "int4range(10, 10)", empty, [])
    end, []).
 
 range8_type(Config) ->
@@ -1195,17 +1334,26 @@ range8_type(Config) ->
             {1, 58}, {-1, 12}, {-9223372036854775808, 5412687},
             {minus_infinity, 9223372036854775807},
             {984655, plus_infinity}, {minus_infinity, plus_infinity}
-        ])
+        ]),
+        check_type(Config, int8range, "int8range(10, 10)", empty, [])
     end, []).
 
 date_time_range_type(Config) ->
     epgsql_ct:with_min_version(Config, [9, 2], fun(_C) ->
         check_type(Config, tsrange, "tsrange('2008-01-02 03:04:05', '2008-02-02 03:04:05')", {{{2008,1,2},{3,4,5.0}}, {{2008,2,2},{3,4,5.0}}}, []),
-       check_type(Config, tsrange, "tsrange('2008-01-02 03:04:05', '2008-01-02 03:04:05')", empty, []),
-
-       check_type(Config, daterange, "daterange('2008-01-02', '2008-02-02')", {{2008,1,2}, {2008, 2, 2}}, [{{-4712,1,1}, {5874897,1,1}}
-]),
-      check_type(Config, tstzrange, "tstzrange('2011-01-02 03:04:05+3', '2011-01-02 04:04:05+3')", {{{2011, 1, 2}, {0, 4, 5.0}}, {{2011, 1, 2}, {1, 4, 5.0}}}, [{{{2011, 1, 2}, {0, 4, 5.0}}, {{2011, 1, 2}, {1, 4, 5.0}}}])
+        check_type(Config, tsrange, "tsrange('2008-01-02 03:04:05', '2008-02-02 03:04:05', '[]')", {{{2008,1,2},{3,4,5.0}}, {{2008,2,2},{3,4,5.0}}}, []),
+        check_type(Config, tsrange, "tsrange('2008-01-02 03:04:05', '2008-02-02 03:04:05', '()')", {{{2008,1,2},{3,4,5.0}}, {{2008,2,2},{3,4,5.0}}}, []),
+        check_type(Config, tsrange, "tsrange('2008-01-02 03:04:05', '2008-02-02 03:04:05', '[)')", {{{2008,1,2},{3,4,5.0}}, {{2008,2,2},{3,4,5.0}}}, []),
+        check_type(Config, tsrange, "tsrange('2008-01-02 03:04:05', '2008-02-02 03:04:05', '(]')", {{{2008,1,2},{3,4,5.0}}, {{2008,2,2},{3,4,5.0}}}, []),
+        check_type(Config, tsrange, "tsrange('2008-01-02 03:04:05', '2008-01-02 03:04:05')", empty, []),
+        check_type(Config, daterange, "daterange('2008-01-02', '2008-02-02')", {{2008,1,2}, {2008, 2, 2}}, [{{-4712,1,1}, {5874897,1,1}}]),
+        check_type(Config, tstzrange, "tstzrange('2011-01-02 03:04:05+3', '2011-01-02 04:04:05+3')", {{{2011, 1, 2}, {0, 4, 5.0}}, {{2011, 1, 2}, {1, 4, 5.0}}}, [{{{2011, 1, 2}, {0, 4, 5.0}}, {{2011, 1, 2}, {1, 4, 5.0}}}]),
+        check_type(Config, tstzrange, "tstzrange('2008-01-02 03:04:05', null)", {{{2008,1,2},{3,4,5.0}}, plus_infinity}, []),
+        check_type(Config, tstzrange, "tstzrange('2008-01-02 03:04:05', null, '[]')", {{{2008,1,2},{3,4,5.0}}, plus_infinity}, []),
+        check_type(Config, tstzrange, "tstzrange('2008-01-02 03:04:05', null, '()')", {{{2008,1,2},{3,4,5.0}}, plus_infinity}, []),
+        check_type(Config, tstzrange, "tstzrange(null, '2008-01-02 03:04:05')", {minus_infinity, {{2008,1,2},{3,4,5.0}}}, []),
+        check_type(Config, tstzrange, "tstzrange(null, '2008-01-02 03:04:05', '[]')", {minus_infinity, {{2008,1,2},{3,4,5.0}}}, []),
+        check_type(Config, tstzrange, "tstzrange(null, '2008-01-02 03:04:05', '()')", {minus_infinity, {{2008,1,2},{3,4,5.0}}}, [])
 
    end, []).
 

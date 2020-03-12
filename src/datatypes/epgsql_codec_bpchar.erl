@@ -1,9 +1,16 @@
 %%% @doc
-%%% Codec for `bpchar', `char' (CHAR(N), char).
-%%% ```SELECT 1::char''' ```SELECT 'abc'::char(10)'''
-%%% For 'text', 'varchar' see epgsql_codec_text.erl.
-%%% https://www.postgresql.org/docs/10/static/datatype-character.html
-%%% $PG$/src/backend/utils/adt/varchar.c
+%%% Codec for blank-padded fixed-size character type
+%%%
+%%% `CHAR' (single-byte) is represented as `byte()';
+%%% `CHARACTER(N) / CHAR(N)' as binary string
+%%%
+%%% <code>SELECT 1::char;</code> <code>SELECT 'abc'::char(10)</code>
+%%%
+%%% For 'text', 'varchar' see {@link epgsql_codec_text}.
+%%% <ul>
+%%%  <li>[https://www.postgresql.org/docs/10/static/datatype-character.html]</li>
+%%%  <li>$PG$/src/backend/utils/adt/varchar.c</li>
+%%% </ul>
 %%% @end
 %%% Created : 12 Oct 2017 by Sergey Prokhorov <me@seriyps.ru>
 

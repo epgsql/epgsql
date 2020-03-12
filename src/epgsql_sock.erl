@@ -1,25 +1,39 @@
-%%% Copyright (C) 2009 - Will Glozer.  All rights reserved.
-%%% Copyright (C) 2011 - Anton Lebedevich.  All rights reserved.
-
-%%% @doc GenServer holding all connection state (including socket).
+%%% @doc GenServer holding all the connection state (including socket).
 %%%
-%%% See https://www.postgresql.org/docs/current/static/protocol-flow.html
-%%% Commands in PostgreSQL are pipelined: you don't need to wait for reply to
-%%% be able to send next command.
+%%% See [https://www.postgresql.org/docs/current/static/protocol-flow.html]
+%%%
+%%% Commands in PostgreSQL protocol are pipelined: you don't have to wait for
+%%% reply to be able to send next command.
 %%% Commands are processed (and responses to them are generated) in FIFO order.
 %%% eg, if you execute 2 SimpleQuery: #1 and #2, first you get all response
 %%% packets for #1 and then all for #2:
+%%% ```
 %%% > SQuery #1
 %%% > SQuery #2
 %%% < RowDescription #1
-%%% < DataRow #1
+%%% < DataRow #1.1
+%%% < ...
+%%% < DataRow #1.N
 %%% < CommandComplete #1
 %%% < RowDescription #2
-%%% < DataRow #2
+%%% < DataRow #2.1
+%%% < ...
+%%% < DataRow #2.N
 %%% < CommandComplete #2
-%%%
-%%% See epgsql_cmd_connect for network connection and authentication setup
-
+%%% '''
+%%% `epgsql_sock' is capable of utilizing the pipelining feature - as soon as
+%%% it receives a new command, it sends it to the server immediately and then
+%%% it puts command's callbacks and state into internal queue of all the commands
+%%% which were sent to the server and waiting for response. So it knows in which
+%%% order it should call each pipelined command's `handle_message' callback.
+%%% But it can be easily broken if high-level command is poorly implemented or
+%%% some conflicting low-level commands (such as `parse', `bind', `execute') are
+%%% executed in a wrong order. In this case server and epgsql states become out of
+%%% sync and {@link epgsql_cmd_sync} have to be executed in order to recover.
+%%% @see epgsql_cmd_connect. epgsql_cmd_connect for network connection and authentication setup
+%%% @end
+%%% Copyright (C) 2009 - Will Glozer.  All rights reserved.
+%%% Copyright (C) 2011 - Anton Lebedevich.  All rights reserved.
 
 -module(epgsql_sock).
 
@@ -46,7 +60,7 @@
          get_parameter_internal/2,
          get_replication_state/1, set_packet_handler/2]).
 
--export_type([transport/0, pg_sock/0]).
+-export_type([transport/0, pg_sock/0, error/0]).
 
 -include("epgsql.hrl").
 -include("protocol.hrl").
@@ -58,6 +72,8 @@
 
 -type tcp_socket() :: port(). %gen_tcp:socket() isn't exported prior to erl 18
 -type repl_state() :: #repl{}.
+
+-type error() :: {error, sync_required | closed | sock_closed | sock_error}.
 
 -record(state, {mod :: gen_tcp | ssl | undefined,
                 sock :: tcp_socket() | ssl:sslsocket() | undefined,
@@ -205,6 +221,7 @@ handle_cast({{Method, From, Ref} = Transport, Command, Args}, State)
     command_new(Transport, Command, Args, State);
 
 handle_cast(stop, State) ->
+    send(State, ?TERMINATE, []),
     {stop, normal, flush_queue(State, {error, closed})};
 
 handle_cast(cancel, State = #state{backend = {Pid, Key},

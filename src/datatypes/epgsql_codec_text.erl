@@ -1,9 +1,18 @@
 %%% @doc
 %%% Codec for `text', `varchar', `bytea'.
-%%% For 'char' see epgsql_codec_bpchar.erl.
-%%% https://www.postgresql.org/docs/10/static/datatype-character.html
-%%% $PG$/src/backend/utils/adt/varchar.c
-%%% $PG$/src/backend/utils/adt/varlena.c
+%%%
+%%% If input for `text' or `varchar' is provided as a list, not binary, and it
+%%% contains not just `byte()', an attempt to perform unicode conversion will be made.
+%%%
+%%% Also, `integer()', `float()' and `atom()' are automatically converted to
+%%% strings, but this kind of conversion might be eventualy removed.
+%%% <ul>
+%%%  <li>[https://www.postgresql.org/docs/10/static/datatype-character.html]</li>
+%%%  <li>$PG$/src/backend/utils/adt/varchar.c</li>
+%%%  <li>$PG$/src/backend/utils/adt/varlena.c</li>
+%%% </ul>
+%%% @end
+%%% @see epgsql_codec_bpchar. epgsql_codec_bpchar - for 'char' and 'char(N)'
 %%% @end
 %%% Created : 12 Oct 2017 by Sergey Prokhorov <me@seriyps.ru>
 

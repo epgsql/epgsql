@@ -1,6 +1,8 @@
+%%% @doc Connects to the server and performs all the necessary handshakes.
+%%%
 %%% Special kind of command - it's exclusive: no other commands can run until
 %%% this one finishes.
-%%% It also uses some 'private' epgsql_sock's APIs
+%%% It also uses some "private" epgsql_sock's APIs
 %%%
 -module(epgsql_cmd_connect).
 -behaviour(epgsql_command).
@@ -47,19 +49,20 @@ init(#{host := _, username := _} = Opts) ->
 
 execute(PgSock, #connect{opts = #{host := Host} = Opts, stage = connect} = State) ->
     Timeout = maps:get(timeout, Opts, 5000),
+    Deadline = deadline(Timeout),
     Port = maps:get(port, Opts, 5432),
     SockOpts = [{active, false}, {packet, raw}, binary, {nodelay, true}, {keepalive, true}],
     case gen_tcp:connect(Host, Port, SockOpts, Timeout) of
         {ok, Sock} ->
-            client_handshake(Sock, PgSock, State);
+            client_handshake(Sock, PgSock, State, Deadline);
         {error, Reason} = Error ->
             {stop, Reason, Error, PgSock}
     end;
 execute(PgSock, #connect{stage = auth, auth_send = {PacketId, Data}} = St) ->
-    epgsql_sock:send(PgSock, PacketId, Data),
+    ok = epgsql_sock:send(PgSock, PacketId, Data),
     {ok, PgSock, St#connect{auth_send = undefined}}.
 
-client_handshake(Sock, PgSock, #connect{opts = #{username := Username} = Opts} = State) ->
+client_handshake(Sock, PgSock, #connect{opts = #{username := Username} = Opts} = State, Deadline) ->
     %% Increase the buffer size.  Following the recommendation in the inet man page:
     %%
     %%    It is recommended to have val(buffer) >=
@@ -69,7 +72,7 @@ client_handshake(Sock, PgSock, #connect{opts = #{username := Username} = Opts} =
         inet:getopts(Sock, [recbuf, sndbuf]),
     inet:setopts(Sock, [{buffer, max(RecBufSize, SndBufSize)}]),
 
-    case maybe_ssl(Sock, maps:get(ssl, Opts, false), Opts, PgSock) of
+    case maybe_ssl(Sock, maps:get(ssl, Opts, false), Opts, PgSock, Deadline) of
         {error, Reason} ->
             {stop, Reason, {error, Reason}, PgSock};
         PgSock1 ->
@@ -86,8 +89,7 @@ client_handshake(Sock, PgSock, #connect{opts = #{username := Username} = Opts} =
                          epgsql_sock:init_replication_state(PgSock1)};
                     _ -> {Opts3, PgSock1}
                 end,
-
-            epgsql_sock:send(PgSock2, [<<196608:?int32>>, Opts4, 0]),
+            ok = epgsql_sock:send(PgSock2, [<<196608:?int32>>, Opts4, 0]),
             PgSock3 = case Opts of
                           #{async := Async} ->
                               epgsql_sock:set_attr(async, Async, PgSock2);
@@ -105,7 +107,7 @@ opts_hide_password(Opts) -> Opts.
 
 
 %% @doc this function wraps plaintext password to a lambda function, so, if
-%% epgsql_sock process crashes when executing `connect` command, password will
+%% epgsql_sock process crashes when executing `connect' command, password will
 %% not appear in a crash log
 -spec hide_password(iodata()) -> fun( () -> iodata() ).
 hide_password(Password) when is_list(Password);
@@ -117,15 +119,15 @@ hide_password(PasswordFun) when is_function(PasswordFun, 0) ->
     PasswordFun.
 
 
-maybe_ssl(S, false, _, PgSock) ->
+maybe_ssl(S, false, _, PgSock, _Deadline) ->
     epgsql_sock:set_net_socket(gen_tcp, S, PgSock);
-maybe_ssl(S, Flag, Opts, PgSock) ->
+maybe_ssl(S, Flag, Opts, PgSock, Deadline) ->
     ok = gen_tcp:send(S, <<8:?int32, 80877103:?int32>>),
-    Timeout = maps:get(timeout, Opts, 5000),
-    {ok, <<Code>>} = gen_tcp:recv(S, 1, Timeout),
-    case Code of
-        $S  ->
+    Timeout0 = timeout(Deadline),
+    case gen_tcp:recv(S, 1, Timeout0) of
+        {ok, <<$S>>}  ->
             SslOpts = maps:get(ssl_opts, Opts, []),
+            Timeout = timeout(Deadline),
             case ssl:connect(S, SslOpts, Timeout) of
                 {ok, S2}        ->
                     epgsql_sock:set_net_socket(ssl, S2, PgSock);
@@ -133,13 +135,15 @@ maybe_ssl(S, Flag, Opts, PgSock) ->
                     Err = {ssl_negotiation_failed, Reason},
                     {error, Err}
             end;
-        $N ->
+        {ok, <<$N>>} ->
             case Flag of
                 true ->
                     epgsql_sock:set_net_socket(gen_tcp, S, PgSock);
                 required ->
                     {error, ssl_not_available}
-            end
+            end;
+        {error, Reason} ->
+            {error, Reason}
     end.
 
 %% Auth sub-protocol
@@ -226,7 +230,7 @@ auth_scram(_, _, _) ->
 handle_message(?AUTHENTICATION_REQUEST, <<?AUTH_OK:?int32>>, Sock, State) ->
     {noaction, Sock, State#connect{stage = initialization,
                                    auth_fun = undefined,
-                                   auth_state = undefned,
+                                   auth_state = undefined,
                                    auth_send = undefined}};
 
 handle_message(?AUTHENTICATION_REQUEST, Message, Sock, #connect{stage = Stage} = St) when Stage =/= auth ->
@@ -242,8 +246,9 @@ handle_message(?CANCELLATION_KEY, <<Pid:?int32, Key:?int32>>, Sock, _State) ->
     {noaction, epgsql_sock:set_attr(backend, {Pid, Key}, Sock)};
 
 %% ReadyForQuery
-handle_message(?READY_FOR_QUERY, _, Sock, _State) ->
-    Codec = epgsql_binary:new_codec(Sock, []),
+handle_message(?READY_FOR_QUERY, _, Sock, #connect{opts = Opts}) ->
+    CodecOpts = maps:with([nulls], Opts),
+    Codec = epgsql_binary:new_codec(Sock, CodecOpts),
     Sock1 = epgsql_sock:set_attr(codec, Codec, Sock),
     {finish, connected, connected, Sock1};
 
@@ -274,3 +279,9 @@ hex(Bin) ->
                (N) when N < 16 -> $W + N
             end,
     <<<<(HChar(H)), (HChar(L))>> || <<H:4, L:4>> <= Bin>>.
+
+deadline(Timeout) ->
+    erlang:monotonic_time(milli_seconds) + Timeout.
+
+timeout(Deadline) ->
+    erlang:max(0, Deadline - erlang:monotonic_time(milli_seconds)).

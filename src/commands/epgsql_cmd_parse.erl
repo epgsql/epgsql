@@ -1,8 +1,12 @@
+%% @doc Asks server to parse SQL query and send information aboud bind-parameters and result columns.
+%%
+%% ```
 %% > Parse
 %% < ParseComplete
 %% > Describe
 %% < ParameterDescription
 %% < RowDescription | NoData
+%% '''
 -module(epgsql_cmd_parse).
 -behaviour(epgsql_command).
 -export([init/1, execute/2, handle_message/4]).
