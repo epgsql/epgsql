@@ -112,6 +112,9 @@ Only `host` and `username` are mandatory, but most likely you would need `databa
    Default is `[null, undefined]`, i.e. encode `null` or `undefined` in parameters as `NULL`
    and decode `NULL`s as atom `null`.
 - `replication` see [Streaming replication protocol](#streaming-replication-protocol)
+- `application_name` is an optional string parameter. It is usually set by an application upon
+   connection to the server. The name will be displayed in the `pg_stat_activity`
+   view and included in CSV log entries.
 
 Options may be passed as proplist or as map with the same key names.
 
