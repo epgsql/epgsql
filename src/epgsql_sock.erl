@@ -92,7 +92,8 @@
                 sync_required :: boolean() | undefined,
                 txstatus :: byte() | undefined,  % $I | $T | $E,
                 complete_status :: atom() | {atom(), integer()} | undefined,
-                repl :: repl_state() | undefined}).
+                repl :: repl_state() | undefined,
+                connect_opts :: epgsql:connect_opts()}).
 
 -opaque pg_sock() :: #state{}.
 
@@ -158,7 +159,9 @@ set_attr(codec, Codec, State) ->
 set_attr(sync_required, Value, State) ->
     State#state{sync_required = Value};
 set_attr(replication_state, Value, State) ->
-    State#state{repl = Value}.
+    State#state{repl = Value};
+set_attr(connect_opts, ConnectOpts, State) ->
+    State#state{connect_opts = ConnectOpts}.
 
 %% XXX: be careful!
 -spec set_packet_handler(atom(), pg_sock()) -> pg_sock().
@@ -232,6 +235,7 @@ handle_cast(cancel, State = #state{backend = {Pid, Key},
                          end,
     SockOpts = [{active, false}, {packet, raw}, binary],
     %% TODO timeout
+    %% TODO DO NOT use gen_tcp
     {ok, Sock} = gen_tcp:connect(Addr, Port, SockOpts),
     Msg = <<16:?int32, 80877102:?int32, Pid:?int32, Key:?int32>>,
     ok = gen_tcp:send(Sock, Msg),
@@ -372,8 +376,8 @@ send(#state{mod = Mod, sock = Sock}, Type, Data) ->
 -spec send_multi(pg_sock(), [{byte(), iodata()}]) -> ok | {error, any()}.
 send_multi(#state{mod = Mod, sock = Sock}, List) ->
     do_send(Mod, Sock, lists:map(fun({Type, Data}) ->
-        epgsql_wire:encode_command(Type, Data)
-    end, List)).
+                                    epgsql_wire:encode_command(Type, Data)
+                                 end, List)).
 
 do_send(gen_tcp, Sock, Bin) ->
     %% Why not gen_tcp:send/2?
