@@ -228,18 +228,20 @@ handle_cast(stop, State) ->
     {stop, normal, flush_queue(State, {error, closed})};
 
 handle_cast(cancel, State = #state{backend = {Pid, Key},
-                                   sock = TimedOutSock}) ->
-    {ok, {Addr, Port}} = case State#state.mod of
-                             gen_tcp -> inet:peername(TimedOutSock);
-                             ssl -> ssl:peername(TimedOutSock)
-                         end,
+                                   connect_opts = ConnectOpts,
+                                   mod = Mode}) ->
     SockOpts = [{active, false}, {packet, raw}, binary],
-    %% TODO timeout
-    %% TODO DO NOT use gen_tcp
-    {ok, Sock} = gen_tcp:connect(Addr, Port, SockOpts),
     Msg = <<16:?int32, 80877102:?int32, Pid:?int32, Key:?int32>>,
-    ok = gen_tcp:send(Sock, Msg),
-    gen_tcp:close(Sock),
+    case epgsql_cmd_connect:open_socket(SockOpts, ConnectOpts) of
+      {ok, Mode, Sock} when Mode == gen_tcp ->
+          ok = gen_tcp:send(Sock, Msg),
+          gen_tcp:close(Sock);
+      {ok, Mode, Sock} when Mode == ssl ->
+          ok = ssl:send(Sock, Msg),
+          ssl:close(Sock);
+      {error, _Reason} ->
+          noop
+    end,
     {noreply, State}.
 
 handle_info({Closed, Sock}, #state{sock = Sock} = State)

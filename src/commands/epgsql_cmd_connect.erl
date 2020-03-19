@@ -49,21 +49,21 @@ init(#{host := _, username := _} = Opts) ->
 
 execute(PgSock, #connect{opts = #{username := Username} = Opts, stage = connect} = State) ->
     SockOpts = [{active, false}, {packet, raw}, binary, {nodelay, true}, {keepalive, true}],
-    epgsql_sock:set_attr(connect_opts, Opts, PgSock),
+    PgSock1 = epgsql_sock:set_attr(connect_opts, Opts, PgSock),
     case open_socket(SockOpts, Opts) of
         {ok, Mode, Sock} ->
-            PgSock1 = epgsql_sock:set_net_socket(Mode, Sock, PgSock),
+            PgSock2 = epgsql_sock:set_net_socket(Mode, Sock, PgSock1),
             Opts2 = ["user", 0, Username, 0],
             Opts3 = case maps:find(database, Opts) of
                         error -> Opts2;
                         {ok, Database}  -> [Opts2 | ["database", 0, Database, 0]]
                     end,
-           {Opts4, PgSock2} =
+           {Opts4, PgSock3} =
                case Opts of
                    #{replication := Replication}  ->
                        {[Opts3 | ["replication", 0, Replication, 0]],
-                        epgsql_sock:init_replication_state(PgSock1)};
-                   _ -> {Opts3, PgSock1}
+                        epgsql_sock:init_replication_state(PgSock2)};
+                   _ -> {Opts3, PgSock2}
                end,
             Opts5 = case Opts of
                         #{application_name := ApplicationName}  ->
@@ -72,12 +72,12 @@ execute(PgSock, #connect{opts = #{username := Username} = Opts, stage = connect}
                             Opts4
                     end,
            ok = epgsql_sock:send(PgSock2, [<<196608:?int32>>, Opts5, 0]),
-           PgSock3 = case Opts of
+           PgSock4 = case Opts of
                          #{async := Async} ->
-                             epgsql_sock:set_attr(async, Async, PgSock2);
-                         _ -> PgSock2
+                             epgsql_sock:set_attr(async, Async, PgSock3);
+                         _ -> PgSock3
                      end,
-           {ok, PgSock3, State#connect{stage = maybe_auth}};
+           {ok, PgSock4, State#connect{stage = maybe_auth}};
         {error, Reason} = Error ->
             {stop, Reason, Error, PgSock}
     end;
@@ -95,7 +95,7 @@ open_socket(SockOpts, #{host := Host} = ConnectOpts) ->
        {error, _Reason} = Error ->
            Error
     end.
-  
+
 client_handshake(Sock, ConnectOpts, Deadline) ->
     %% Increase the buffer size.  Following the recommendation in the inet man page:
     %%

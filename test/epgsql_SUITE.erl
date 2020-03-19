@@ -45,6 +45,8 @@ groups() ->
             connect_to_invalid_database,
             connect_with_other_error,
             connect_with_ssl,
+            cancel_query_for_connection_with_ssl,
+            cancel_query_for_connection_with_gen_tcp,
             connect_with_client_cert,
             connect_with_invalid_client_cert,
             connect_to_closed_port,
@@ -283,6 +285,63 @@ connect_with_ssl(Config) ->
         end,
         "epgsql_test",
         [{ssl, true}]).
+
+cancel_query_for_connection_with_ssl(Config) ->
+    Module = ?config(module, Config),
+    {Host, Port} = epgsql_ct:connection_data(Config),
+    Module = ?config(module, Config),
+    Args2 = [{port, Port}, {database, "epgsql_test_db1"} | [ {ssl, true}, {timeout, 1000} ]],
+    {ok, C} = Module:connect(Host, "epgsql_test", Args2),
+    ?assertMatch({ok, _Cols, [{true}]},
+                Module:equery(C, "select ssl_is_used()")),
+    process_flag(trap_exit, true),
+    Self = self(),
+    spawn_link(fun() ->
+                   ?assertMatch({error, #error{codename = query_canceled}},
+                                Module:equery(C, "SELECT pg_sleep(5)")),
+                   Self ! done
+               end),
+    %% this will never match but introduces 1 second latency needed
+    %% for the test not to be flaky
+    receive none ->
+        noop
+    after 1000 ->
+        epgsql:cancel(C),
+        receive done ->
+            ?assert(true)
+        after 5000 ->
+            epgsql:close(C),
+            ?assert(false)
+        end
+    end.
+
+cancel_query_for_connection_with_gen_tcp(Config) ->
+    Module = ?config(module, Config),
+    {Host, Port} = epgsql_ct:connection_data(Config),
+    Module = ?config(module, Config),
+    Args2 = [{port, Port}, {database, "epgsql_test_db1"} | [ {timeout, 1000} ]],
+    {ok, C} = Module:connect(Host, "epgsql_test", Args2),
+  
+    process_flag(trap_exit, true),
+    Self = self(),
+    spawn_link(fun() ->
+                   ?assertMatch({error, #error{codename = query_canceled}},
+                                Module:equery(C, "SELECT pg_sleep(5)")),
+                   Self ! done
+               end),
+    %% this is will never match but it introduces the 1 second latency needed
+    %% for the test not to be flaky
+    receive none ->
+        noop
+    after 1000 ->
+        epgsql:cancel(C),
+        receive done ->
+            ?assert(true)
+        after 5000 ->
+            epgsql:close(C),
+            ?assert(false)
+        end
+    end.
 
 connect_with_client_cert(Config) ->
     Module = ?config(module, Config),
