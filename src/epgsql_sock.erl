@@ -93,7 +93,7 @@
                 txstatus :: byte() | undefined,  % $I | $T | $E,
                 complete_status :: atom() | {atom(), integer()} | undefined,
                 repl :: repl_state() | undefined,
-                connect_opts :: epgsql:connect_opts()}).
+                connect_opts :: epgsql:connect_opts() | undefined}).
 
 -opaque pg_sock() :: #state{}.
 
