@@ -451,7 +451,7 @@ epgsql:cancel(connection()) -> ok.
 
 PostgreSQL protocol supports [cancellation](https://www.postgresql.org/docs/current/protocol-flow.html#id-1.10.5.7.9)
 of currently executing command. `cancel/1` sends a cancellation request via the
-new temporary TCP connection asynchronously, it doesn't await for the command to
+new temporary TCP/TLS_over_TCP connection asynchronously, it doesn't await for the command to
 be cancelled. Instead, client should expect to get
 `{error, #error{code = <<"57014">>, codename = query_canceled}}` back from
 the command that was cancelled. However, normal response can still be received as well.
