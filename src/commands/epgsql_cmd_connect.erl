@@ -49,7 +49,8 @@ init(#{host := _, username := _} = Opts) ->
 
 execute(PgSock, #connect{opts = #{username := Username} = Opts, stage = connect} = State) ->
     SockOpts = [{active, false}, {packet, raw}, binary, {nodelay, true}, {keepalive, true}],
-    PgSock1 = epgsql_sock:set_attr(connect_opts, Opts, PgSock),
+    FilteredOpts = filter_sensitive_info(Opts),
+    PgSock1 = epgsql_sock:set_attr(connect_opts, FilteredOpts, PgSock),
     case open_socket(SockOpts, Opts) of
         {ok, Mode, Sock} ->
             PgSock2 = epgsql_sock:set_net_socket(Mode, Sock, PgSock1),
@@ -142,6 +143,10 @@ opts_hide_password(#{password := Password} = Opts) ->
     Opts#{password => HiddenPassword};
 opts_hide_password(Opts) -> Opts.
 
+%% @doc password and username are sensitive data that should not be stored in a
+%% permanent state that might crash during code upgrade
+filter_sensitive_info(Opts0) ->
+  maps:without([password, username], Opts0).
 
 %% @doc this function wraps plaintext password to a lambda function, so, if
 %% epgsql_sock process crashes when executing `connect' command, password will
