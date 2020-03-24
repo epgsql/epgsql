@@ -89,7 +89,13 @@ client_handshake(Sock, PgSock, #connect{opts = #{username := Username} = Opts} =
                          epgsql_sock:init_replication_state(PgSock1)};
                     _ -> {Opts3, PgSock1}
                 end,
-            ok = epgsql_sock:send(PgSock2, [<<196608:?int32>>, Opts4, 0]),
+            Opts5 = case Opts of
+                        #{application_name := ApplicationName}  ->
+                            [Opts3 | ["application_name", 0, ApplicationName, 0]];
+                        _ ->
+                            Opts4
+                    end,
+            ok = epgsql_sock:send(PgSock2, [<<196608:?int32>>, Opts5, 0]),
             PgSock3 = case Opts of
                           #{async := Async} ->
                               epgsql_sock:set_attr(async, Async, PgSock2);

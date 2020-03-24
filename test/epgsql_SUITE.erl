@@ -34,6 +34,7 @@ groups() ->
     Groups = [
         {connect, [parrallel], [
             connect,
+            connect_with_application_name,
             connect_to_db,
             connect_as,
             connect_with_cleartext,
@@ -178,6 +179,18 @@ uuid_to_bin_string(<<U0:32, U1:16, U2:16, U3:16, U4:48>>) ->
 
 connect(Config) ->
     epgsql_ct:connect_only(Config, []).
+
+connect_with_application_name(Config) ->
+    Module = ?config(module, Config),
+    Fun = fun(C) ->
+              Query = "select application_name from pg_stat_activity",
+              {ok, _Columns, Rows} = Module:equery(C, Query),
+              ?assert(lists:member({<<"app_test">>}, Rows))
+          end,
+    epgsql_ct:with_connection(Config,
+                              Fun,
+                              "epgsql_test",
+                              [{application_name, "app_test"}]).
 
 connect_to_db(Connect) ->
     epgsql_ct:connect_only(Connect, [{database, "epgsql_test_db1"}]).
