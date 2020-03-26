@@ -307,24 +307,19 @@ cancel_query_for_connection_with_ssl(Config) ->
     {ok, C} = Module:connect(Host, "epgsql_test", Args2),
     ?assertMatch({ok, _Cols, [{true}]},
                 Module:equery(C, "select ssl_is_used()")),
-    process_flag(trap_exit, true),
     Self = self(),
     spawn_link(fun() ->
                    ?assertMatch(?QUERY_CANCELED, Module:equery(C, "SELECT pg_sleep(5)")),
                    Self ! done
                end),
-    %% this will never match but introduces 1 second latency needed
-    %% for the test not to be flaky
-    receive none ->
-        noop
-    after 1000 ->
-        epgsql:cancel(C),
-        receive done ->
-            ?assert(true)
-        after 5000 ->
-            epgsql:close(C),
-            ?assert(false)
-        end
+    %% this timer is needed for the test not to be flaky
+    timer:sleep(1000),
+    epgsql:cancel(C),
+    receive done ->
+        ?assert(true)
+    after 5000 ->
+        epgsql:close(C),
+        ?assert(false)
     end,
     epgsql_ct:flush().
 
@@ -342,18 +337,14 @@ cancel_query_for_connection_with_gen_tcp(Config) ->
                    ?assertMatch(?QUERY_CANCELED, Module:equery(C, "SELECT pg_sleep(5)")),
                    Self ! done
                end),
-    %% this is will never match but it introduces the 1 second latency needed
-    %% for the test not to be flaky
-    receive none ->
-        noop
-    after 1000 ->
-        epgsql:cancel(C),
-        receive done ->
-            ?assert(true)
-        after 5000 ->
-            epgsql:close(C),
-            ?assert(false)
-        end
+    %% this timer is needed for the test not to be flaky
+    timer:sleep(1000),
+    epgsql:cancel(C),
+    receive done ->
+        ?assert(true)
+    after 5000 ->
+        epgsql:close(C),
+        ?assert(false)
     end,
     epgsql_ct:flush().
 
