@@ -36,7 +36,8 @@
 -type response() :: [{ok, Count :: non_neg_integer(), Rows :: [tuple()]}
                      | {ok, Count :: non_neg_integer()}
                      | {ok, Rows :: [tuple()]}
-                     | {error, epgsql:query_error()}].
+                     | {error, [{error, epgsql:query_error()} | {error, skipped}]}
+                     ].
 -type state() :: #batch{}.
 
 -spec init(arguments()) -> state().
@@ -110,13 +111,14 @@ handle_message(?COMMAND_COMPLETE, Bin, Sock,
                      {ok, Rows}
              end,
     {add_result, Result, {complete, Complete}, Sock, State#batch{batch = Batch}};
-handle_message(?READY_FOR_QUERY, _Status, Sock, #batch{batch = B} = _State) when
-      length(B) =< 1 ->
+handle_message(?READY_FOR_QUERY, _Status, Sock, _State) ->
     Results = epgsql_sock:get_results(Sock),
     {finish, Results, done, Sock};
 handle_message(?ERROR, Error, Sock, #batch{batch = [_ | Batch]} = State) ->
     Result = {error, Error},
-    {add_result, Result, Result, Sock, State#batch{batch = Batch}};
+    Skipped = lists:duplicate(length(Batch), {error, skipped}),
+    FinalResult = {error, [Result | Skipped]},
+    {add_result, FinalResult, FinalResult, Sock, State#batch{batch = Batch}};
 handle_message(_, _, _, _) ->
     unknown.
 

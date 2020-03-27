@@ -430,8 +430,10 @@ epgsql:execute_batch(C, "INSERT INTO account (name, age) VALUES ($1, $2) RETURNI
                      [ ["Joe", 35], ["Paul", 26], ["Mary", 24] ]).
 ```
 
-In case one of the batch items causes an error, the result returned for this particular
-item will be `{error, #error{}}` and no more results will be produced.
+In case one of the batch items causes an error, the returned result will be
+`{error, [{error, #error{}} | {error, skipped}]}`. The first element of the list
+will represent the received error. The remaining elements will represent
+every skipped command.
 
 `epgsqla:execute_batch/{2,3}` sends `{C, Ref, Results}`
 
