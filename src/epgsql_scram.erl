@@ -76,7 +76,7 @@ get_client_final(SrvFirst, ClientNonce, UserName, Password) ->
     Salt = proplists:get_value(salt, SrvFirst),
     I = proplists:get_value(i, SrvFirst),
 
-    SaltedPassword = hi(normalize(Password), Salt, I),
+    SaltedPassword = hi(epgsql_sasl_prep_profile:validate(Password), Salt, I),
     ClientKey = hmac(SaltedPassword, "Client Key"),
     StoredKey = h(ClientKey),
     ClientFirstBare = client_first_bare(UserName, ClientNonce),
@@ -99,15 +99,6 @@ parse_server_final(<<"e=", ServerError/binary>>) ->
     {error, ServerError}.
 
 %% Helpers
-
-%% TODO: implement according to rfc3454
-normalize(Str) ->
-    lists:all(fun is_ascii_non_control/1, unicode:characters_to_list(Str, utf8))
-        orelse error({scram_non_ascii_password, Str}),
-    Str.
-
-is_ascii_non_control(C) when C > 16#1F, C < 16#7F -> true;
-is_ascii_non_control(_) -> false.
 
 check_nonce(ClientNonce, ServerNonce) ->
     Size = size(ClientNonce),
@@ -158,9 +149,5 @@ exchange_test() ->
     {CF, ServerProof} = get_client_final(SF, Nonce, Username, Password),
     ?assertEqual(ClientFinal, iolist_to_binary(CF)),
     ?assertEqual({ok, ServerProof}, parse_server_final(ServerFinal)).
-
-normalize_test() ->
-    ?assertEqual(<<"123 !~">>, normalize(<<"123 !~">>)),
-    ?assertError({scram_non_ascii_password, _}, normalize(<<"привет"/utf8>>)).
 
 -endif.
