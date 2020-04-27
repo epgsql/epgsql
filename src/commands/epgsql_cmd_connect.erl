@@ -72,7 +72,7 @@ execute(PgSock, #connect{opts = #{username := Username} = Opts, stage = connect}
                         _ ->
                             Opts4
                     end,
-           ok = epgsql_sock:send(PgSock2, [<<196608:?int32>>, Opts5, 0]),
+           ok = epgsql_sock:send(PgSock3, [<<196608:?int32>>, Opts5, 0]),
            PgSock4 = case Opts of
                          #{async := Async} ->
                              epgsql_sock:set_attr(async, Async, PgSock3);
