@@ -92,7 +92,8 @@
                 sync_required :: boolean() | undefined,
                 txstatus :: byte() | undefined,  % $I | $T | $E,
                 complete_status :: atom() | {atom(), integer()} | undefined,
-                repl :: repl_state() | undefined}).
+                repl :: repl_state() | undefined,
+                connect_opts :: epgsql:connect_opts() | undefined}).
 
 -opaque pg_sock() :: #state{}.
 
@@ -158,7 +159,9 @@ set_attr(codec, Codec, State) ->
 set_attr(sync_required, Value, State) ->
     State#state{sync_required = Value};
 set_attr(replication_state, Value, State) ->
-    State#state{repl = Value}.
+    State#state{repl = Value};
+set_attr(connect_opts, ConnectOpts, State) ->
+    State#state{connect_opts = ConnectOpts}.
 
 %% XXX: be careful!
 -spec set_packet_handler(atom(), pg_sock()) -> pg_sock().
@@ -225,17 +228,17 @@ handle_cast(stop, State) ->
     {stop, normal, flush_queue(State, {error, closed})};
 
 handle_cast(cancel, State = #state{backend = {Pid, Key},
-                                   sock = TimedOutSock}) ->
-    {ok, {Addr, Port}} = case State#state.mod of
-                             gen_tcp -> inet:peername(TimedOutSock);
-                             ssl -> ssl:peername(TimedOutSock)
-                         end,
+                                   connect_opts = ConnectOpts,
+                                   mod = Mode}) ->
     SockOpts = [{active, false}, {packet, raw}, binary],
-    %% TODO timeout
-    {ok, Sock} = gen_tcp:connect(Addr, Port, SockOpts),
     Msg = <<16:?int32, 80877102:?int32, Pid:?int32, Key:?int32>>,
-    ok = gen_tcp:send(Sock, Msg),
-    gen_tcp:close(Sock),
+    case epgsql_cmd_connect:open_socket(SockOpts, ConnectOpts) of
+      {ok, Mode, Sock} ->
+          ok = apply(Mode, send, [Sock, Msg]),
+          apply(Mode, close, [Sock]);
+      {error, _Reason} ->
+          noop
+    end,
     {noreply, State}.
 
 handle_info({Closed, Sock}, #state{sock = Sock} = State)
@@ -372,8 +375,8 @@ send(#state{mod = Mod, sock = Sock}, Type, Data) ->
 -spec send_multi(pg_sock(), [{byte(), iodata()}]) -> ok | {error, any()}.
 send_multi(#state{mod = Mod, sock = Sock}, List) ->
     do_send(Mod, Sock, lists:map(fun({Type, Data}) ->
-        epgsql_wire:encode_command(Type, Data)
-    end, List)).
+                                    epgsql_wire:encode_command(Type, Data)
+                                 end, List)).
 
 do_send(gen_tcp, Sock, Bin) ->
     %% Why not gen_tcp:send/2?
