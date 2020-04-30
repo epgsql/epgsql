@@ -1,14 +1,16 @@
 %%% coding: utf-8
 %%% @doc
-%%% sal_prep profile helper module that will validate a utf-8
+%%% This is a helper module that will validate a utf-8
 %%% string based on sasl_prep profile as defined in
 %%% https://tools.ietf.org/html/rfc4013
 %%% @end
 
 -module(epgsql_sasl_prep_profile).
 
--export([validate/1]).
+-export([ validate/1
+        ]).
 
+-spec validate(iolist()) -> iolist().
 validate(Str) ->
     lists:foreach(fun(F) ->
                       lists:any(F, unicode:characters_to_list(Str, utf8))
@@ -27,6 +29,7 @@ validate(Str) ->
 
 %% @doc Return true if the given character is a non-ASCII space character
 %% as defined by https://tools.ietf.org/html/rfc3454#appendix-C.1.2
+-spec is_non_asci_space_character(char()) -> boolean().
 is_non_asci_space_character(C) ->
     C == 16#00A0
         orelse C == 16#1680
@@ -37,11 +40,13 @@ is_non_asci_space_character(C) ->
 
 %% @doc Return true if the given character is an ASCII control character
 %% as defined by https://tools.ietf.org/html/rfc3454#appendix-C.2.1
+-spec is_ascii_control_character(char()) -> boolean().
 is_ascii_control_character(C) ->
     C =< 16#001F orelse C == 16#007F.
 
 %% @doc Return true if the given character is a non-ASCII control character
 %% as defined by https://tools.ietf.org/html/rfc3454#appendix-C.2.2
+-spec is_non_ascii_control_character(char()) -> boolean().
 is_non_ascii_control_character(C) ->
     (16#0080 =< C andalso C =< 16#009F)
         orelse C == 16#06DD
@@ -62,6 +67,7 @@ is_non_ascii_control_character(C) ->
 
 %% @doc Return true if the given character is a private use character
 %% as defined by https://tools.ietf.org/html/rfc3454#appendix-C.3
+-spec is_private_use_characters(char()) -> boolean().
 is_private_use_characters(C) ->
     (16#E000 =< C andalso C =< 16#F8FF)
          orelse (16#F000 =< C andalso C =< 16#FFFFD)
@@ -69,6 +75,7 @@ is_private_use_characters(C) ->
 
 %% @doc Return true if the given character is a non-character code point
 %% as defined by https://tools.ietf.org/html/rfc3454#appendix-C.4
+-spec is_non_character_code_points(char()) -> boolean().
 is_non_character_code_points(C) ->
     (16#FDD0 =< C andalso C =< 16#FDEF)
         orelse (16#FFFE =< C andalso C =< 16#FFFF)
@@ -91,11 +98,13 @@ is_non_character_code_points(C) ->
 
 %% @doc Return true if the given character is a surrogate code point as defined by
 %% https://tools.ietf.org/html/rfc3454#appendix-C.5
+-spec is_surrogate_code_points(char()) -> boolean().
 is_surrogate_code_points(C) ->
     16#D800 =< C andalso C =< 16#DFFF.
 
 %% @doc Return true if the given character is inappropriate for plain text characters
 %% as defined by https://tools.ietf.org/html/rfc3454#appendix-C.6
+-spec is_inappropriate_for_plain_text_char(char()) -> boolean().
 is_inappropriate_for_plain_text_char(C) ->
     C == 16#FFF9
         orelse C == 16#FFFA
@@ -105,11 +114,13 @@ is_inappropriate_for_plain_text_char(C) ->
 
 %% @doc Return true if the given character is inappropriate for canonical representation
 %% as defined by https://tools.ietf.org/html/rfc3454#appendix-C.7
+-spec is_inappropriate_for_canonical_representation_char(char()) -> boolean().
 is_inappropriate_for_canonical_representation_char(C) ->
     16#2FF0 =< C andalso C =< 16#2FFB.
 
 %% @doc Return true if the given character is change display properties or deprecated
 %% characters as defined by https://tools.ietf.org/html/rfc3454#appendix-C.8
+-spec is_change_display_properties_or_deprecated_char(char()) -> boolean().
 is_change_display_properties_or_deprecated_char(C) ->
     C == 16#0340
         orelse C == 16#0341
@@ -129,6 +140,7 @@ is_change_display_properties_or_deprecated_char(C) ->
 
 %% @doc Return true if the given character is a tagging character as defined by
 %% https://tools.ietf.org/html/rfc3454#appendix-C.9
+-spec is_tagging_char(char()) -> boolean().
 is_tagging_char(C) ->
     C == 16#E0001 orelse
         (16#E0020 =< C andalso C =< 16#E007F).
@@ -140,6 +152,8 @@ normalize_test() ->
     ?assertEqual(<<"123 !~">>, validate(<<"123 !~">>)),
     ?assertEqual(<<"привет"/utf8>>, validate(<<"привет"/utf8>>)),
     ?assertEqual(<<"Χαίρετε"/utf8>>, validate(<<"Χαίρετε"/utf8>>)),
-    ?assertEqual(<<"你好"/utf8>>, validate(<<"你好"/utf8>>)).
+    ?assertEqual(<<"你好"/utf8>>, validate(<<"你好"/utf8>>)),
+    ?assertError({non_valid_scram_password, _},
+                 validate(<<"boom in the last char  ́"/utf8>>)).
 
 -endif.
