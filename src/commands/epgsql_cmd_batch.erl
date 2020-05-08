@@ -36,7 +36,7 @@
 -type response() :: [{ok, Count :: non_neg_integer(), Rows :: [tuple()]}
                      | {ok, Count :: non_neg_integer()}
                      | {ok, Rows :: [tuple()]}
-                     | {error, [{error, epgsql:query_error()} | {error, skipped}]}
+                     | {error, epgsql:query_error()}
                      ].
 -type state() :: #batch{}.
 
@@ -116,9 +116,7 @@ handle_message(?READY_FOR_QUERY, _Status, Sock, _State) ->
     {finish, Results, done, Sock};
 handle_message(?ERROR, Error, Sock, #batch{batch = [_ | Batch]} = State) ->
     Result = {error, Error},
-    Skipped = lists:duplicate(length(Batch), {error, skipped}),
-    FinalResult = {error, [Result | Skipped]},
-    {add_result, FinalResult, FinalResult, Sock, State#batch{batch = Batch}};
+    {add_result, Result, Result, Sock, State#batch{batch = Batch}};
 handle_message(_, _, _, _) ->
     unknown.
 

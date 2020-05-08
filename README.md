@@ -430,10 +430,11 @@ epgsql:execute_batch(C, "INSERT INTO account (name, age) VALUES ($1, $2) RETURNI
                      [ ["Joe", 35], ["Paul", 26], ["Mary", 24] ]).
 ```
 
-In case one of the batch items causes an error, the returned result will be
-`{error, [{error, #error{}} | {error, skipped}]}`. The first element of the list
-will represent the received error. The remaining elements will represent
-every skipped command.
+In case one of the batch items causes an error, all the remaining queries of
+that batch will be ignored. So, last element of the result list will be 
+`{error, #error{}}` and the length of the result list might be shorter that 
+the length of the batch. For a better illustration of such scenario please 
+refer to `epgsql_SUITE:batch_error/1`
 
 `epgsqla:execute_batch/{2,3}` sends `{C, Ref, Results}`
 
