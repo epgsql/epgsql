@@ -12,8 +12,9 @@
 
 -spec validate(iolist()) -> iolist().
 validate(Str) ->
+    CharL = unicode:characters_to_list(Str, utf8),
     lists:foreach(fun(F) ->
-                      lists:any(F, unicode:characters_to_list(Str, utf8))
+                      lists:any(F, CharL)
                           andalso error({non_valid_scram_password, Str})
                   end, [ fun is_non_asci_space_character/1
                        , fun is_ascii_control_character/1
