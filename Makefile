@@ -4,7 +4,7 @@ MINIMAL_COVERAGE = 55
 all: compile
 
 $(REBAR):
-	wget https://s3.amazonaws.com/rebar3/rebar3
+	wget https://github.com/erlang/rebar3/releases/download/3.13.2/rebar3
 	chmod +x rebar3
 
 compile: src/epgsql_errcodes.erl $(REBAR)
