@@ -48,7 +48,7 @@ init(#{host := _, username := _} = Opts) ->
     #connect{opts = Opts}.
 
 execute(PgSock, #connect{opts = #{username := Username} = Opts, stage = connect} = State) ->
-    SockOpts = [{active, false}, {packet, raw}, binary, {nodelay, true}, {keepalive, true}],
+    SockOpts = prepare_tcp_opts(maps:get(tcp_opts, Opts, [])),
     FilteredOpts = filter_sensitive_info(Opts),
     PgSock1 = epgsql_sock:set_attr(connect_opts, FilteredOpts, PgSock),
     case open_socket(SockOpts, Opts) of
@@ -100,14 +100,19 @@ open_socket(SockOpts, #{host := Host} = ConnectOpts) ->
     end.
 
 client_handshake(Sock, ConnectOpts, Deadline) ->
-    %% Increase the buffer size.  Following the recommendation in the inet man page:
-    %%
-    %%    It is recommended to have val(buffer) >=
-    %%    max(val(sndbuf),val(recbuf)).
-
-    {ok, [{recbuf, RecBufSize}, {sndbuf, SndBufSize}]} =
-        inet:getopts(Sock, [recbuf, sndbuf]),
-    inet:setopts(Sock, [{buffer, max(RecBufSize, SndBufSize)}]),
+    case maps:is_key(tcp_opts, ConnectOpts) of
+        false ->
+            %% Increase the buffer size.  Following the recommendation in the inet man page:
+            %%
+            %%    It is recommended to have val(buffer) >=
+            %%    max(val(sndbuf),val(recbuf)).
+            {ok, [{recbuf, RecBufSize}, {sndbuf, SndBufSize}]} =
+                inet:getopts(Sock, [recbuf, sndbuf]),
+            inet:setopts(Sock, [{buffer, max(RecBufSize, SndBufSize)}]);
+        true ->
+            %% All TCP options are provided by the user
+            noop
+    end,
     maybe_ssl(Sock, maps:get(ssl, ConnectOpts, false), ConnectOpts, Deadline).
 
 maybe_ssl(Sock, false, _ConnectOpts, _Deadline) ->
@@ -281,6 +286,24 @@ handle_message(?ERROR, #error{code = Code} = Err, Sock, #connect{stage = Stage} 
     {stop, normal, {error, Why}, Sock};
 handle_message(_, _, _, _) ->
     unknown.
+
+prepare_tcp_opts([]) ->
+    [{active, false}, {packet, raw}, {mode, binary}, {nodelay, true}, {keepalive, true}];
+prepare_tcp_opts(Opts0) ->
+    case lists:filter(fun(binary) -> true;
+                         (list) -> true;
+                         ({mode, _}) -> true;
+                         ({packet, _}) -> true;
+                         ({packet_size, _}) -> true;
+                         ({header, _}) -> true;
+                         ({active, _}) -> true;
+                         (_) -> false
+                      end, Opts0) of
+        [] ->
+            [{active, false}, {packet, raw}, {mode, binary} | Opts0];
+        Forbidden ->
+            error({forbidden_tcp_opts, Forbidden})
+    end.
 
 
 get_password(Opts) ->
