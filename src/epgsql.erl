@@ -58,6 +58,7 @@
     {port,     PortNum    :: inet:port_number()}   |
     {ssl,      IsEnabled  :: boolean() | required} |
     {ssl_opts, SslOptions :: [ssl:ssl_option()]}   | % see OTP ssl app, ssl_api.hrl
+    {tcp_opts, TcpOptions :: [gen_tcp:option()]}   | % see OTP ssl app, ssl_api.hrl
     {timeout,  TimeoutMs  :: timeout()}            | % default: 5000 ms
     {async,    Receiver   :: pid() | atom()}       | % process to receive LISTEN/NOTIFY msgs
     {codecs,   Codecs     :: [{epgsql_codec:codec_mod(), any()}]} |
@@ -74,6 +75,7 @@
           port => inet:port_number(),
           ssl => boolean() | required,
           ssl_opts => [ssl:ssl_option()],
+          tcp_opts => [gen_tcp:option()],
           timeout => timeout(),
           async => pid() | atom(),
           codecs => [{epgsql_codec:codec_mod(), any()}],

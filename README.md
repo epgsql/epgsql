@@ -71,6 +71,7 @@ connect(Opts) -> {ok, Connection :: epgsql:connection()} | {error, Reason :: epg
       port =>     inet:port_number(),
       ssl =>      boolean() | required,
       ssl_opts => [ssl:ssl_option()],    % @see OTP ssl app, ssl_api.hrl
+      tcp_opts => [gen_tcp:option()],    % @see OTP gen_tcp module documentation
       timeout =>  timeout(),             % socket connect timeout, default: 5000 ms
       async =>    pid() | atom(),        % process to receive LISTEN/NOTIFY msgs
       codecs =>   [{epgsql_codec:codec_mod(), any()}]}
@@ -84,7 +85,10 @@ connect(Host, Username, Password, Opts) -> {ok, C} | {error, Reason}.
 example:
 
 ```erlang
-{ok, C} = epgsql:connect("localhost", "username", "psss", #{
+{ok, C} = epgsql:connect(#{
+    host => "localhost",
+    username => "username",
+    password => "psss",
     database => "test_db",
     timeout => 4000
 }),
@@ -103,6 +107,10 @@ Only `host` and `username` are mandatory, but most likely you would need `databa
   if encryption isn't supported by server. if set to `required` connection will fail if encryption
   is not available.
 - `ssl_opts` will be passed as is to `ssl:connect/3`
+- `tcp_opts` will be passed as is to `gen_tcp:connect/3`. Some options are forbidden, such as
+  `mode`, `packet`, `header`, `active`. When `tcp_opts` is not provided, epgsql does some tuning
+  (eg, sets TCP `keepalive` and auto-tunes `buffer`), but when `tcp_opts` is provided, no
+  additional tweaks are added by epgsql itself, other than necessary ones (`active`, `packet` and `mode`).
 - `async` see [Server notifications](#server-notifications)
 - `codecs` see [Pluggable datatype codecs](#pluggable-datatype-codecs)
 - `nulls` terms which will be used to represent SQL `NULL`. If any of those has been encountered in
