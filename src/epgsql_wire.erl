@@ -34,14 +34,14 @@
          encode_flush/0,
          encode_sync/0]).
 
--export_type([row_decoder/0, packet_type/0, packet_type/1]).
+-export_type([row_decoder/0, packet_type/0]).
 
 -include("epgsql.hrl").
 -include("protocol.hrl").
 
 -opaque row_decoder() :: {[epgsql_binary:decoder()], [epgsql:column()], epgsql_binary:codec()}.
 -type packet_type() :: byte().                 % see protocol.hrl
--type packet_type(Exact) :: Exact.
+%% -type packet_type(Exact) :: Exact.   % TODO: uncomment when OTP-18 is dropped
 
 %% @doc tries to extract single postgresql packet from TCP stream
 -spec decode_message(binary()) -> {packet_type(), binary(), binary()} | binary().
@@ -324,7 +324,7 @@ encode_query(SQL) ->
 %% Results in `ParseComplete' response.
 %%
 %% @param ColumnEncoding see {@link encode_types/2}
--spec encode_parse(iodata(), iodata(), iodata()) -> {packet_type(?PARSE), iodata()}.
+-spec encode_parse(iodata(), iodata(), iodata()) -> {packet_type(), iodata()}.
 encode_parse(Name, SQL, ColumnEncoding) ->
     {?PARSE, [encode_string(Name), encode_string(SQL), ColumnEncoding]}.
 
@@ -332,8 +332,8 @@ encode_parse(Name, SQL, ColumnEncoding) ->
 %%
 %% @param What might be `?PORTAL' (results in `RowDescription' response) or `?PREPARED_STATEMENT'
 %%   (results in `ParameterDescription' followed by `RowDescription' or `NoData' response)
--spec encode_describe(?PREPARED_STATEMENT | ?PORTAL | statement | portal, iodata()) ->
-          {packet_type(?DESCRIBE), iodata()}.
+-spec encode_describe(byte() | statement | portal, iodata()) ->
+          {packet_type(), iodata()}.
 encode_describe(What, Name) when What =:= ?PREPARED_STATEMENT;
                                  What =:= ?PORTAL ->
     {?DESCRIBE, [What, encode_string(Name)]};
@@ -344,7 +344,7 @@ encode_describe(What, Name) when is_atom(What) ->
 %%
 %% @param BinParams see {@link encode_parameters/2}.
 %% @param BinFormats  see {@link encode_formats/1}
--spec encode_bind(iodata(), iodata(), iodata(), iodata()) -> {packet_type(?BIND), iodata()}.
+-spec encode_bind(iodata(), iodata(), iodata(), iodata()) -> {packet_type(), iodata()}.
 encode_bind(PortalName, StmtName, BinParams, BinFormats) ->
     {?BIND, [encode_string(PortalName), encode_string(StmtName), BinParams, BinFormats]}.
 
@@ -355,7 +355,7 @@ encode_bind(PortalName, StmtName, BinParams, BinFormats) ->
 %%
 %% @param PortalName  might be an empty string (anonymous portal) or name of the named portal
 %% @param MaxRows  how many rows server should send (0 means all of them)
--spec encode_execute(iodata(), non_neg_integer()) -> {packet_type(?EXECUTE), iodata()}.
+-spec encode_execute(iodata(), non_neg_integer()) -> {packet_type(), iodata()}.
 encode_execute(PortalName, MaxRows) ->
     {?EXECUTE, [encode_string(PortalName), <<MaxRows:?int32>>]}.
 
@@ -364,8 +364,8 @@ encode_execute(PortalName, MaxRows) ->
 %% Results in `CloseComplete' response
 %%
 %% @param What see {@link encode_describe/2}
--spec encode_close(?PREPARED_STATEMENT | ?PORTAL | statement | portal, iodata()) ->
-          {packet_type(?CLOSE), iodata()}.
+-spec encode_close(byte() | statement | portal, iodata()) ->
+          {packet_type(), iodata()}.
 encode_close(What, Name) when What =:= ?PREPARED_STATEMENT;
                               What =:= ?PORTAL ->
     {?CLOSE, [What, encode_string(Name)]};
@@ -376,14 +376,14 @@ encode_close(What, Name) when is_atom(What) ->
 %%
 %% It doesn't cause any specific response packet, but tells PostgreSQL server to flush it's send
 %% network buffers
--spec encode_flush() -> {packet_type(?FLUSH), iodata()}.
+-spec encode_flush() -> {packet_type(), iodata()}.
 encode_flush() ->
     {?FLUSH, []}.
 
 %% @doc encodes `Sync' packet.
 %%
 %% Results in `ReadyForQuery' response
--spec encode_sync() -> {packet_type(?SYNC), iodata()}.
+-spec encode_sync() -> {packet_type(), iodata()}.
 encode_sync() ->
     {?SYNC, []}.
 
