@@ -290,6 +290,12 @@ command_exec(Transport, Command, CmdState, State) ->
     case epgsql_command:execute(Command, State, CmdState) of
         {ok, State1, CmdState1} ->
             {noreply, command_enqueue(Transport, Command, CmdState1, State1)};
+        {send, PktType, PktData, State1, CmdState1} ->
+            ok = send(State1, PktType, PktData),
+            {noreply, command_enqueue(Transport, Command, CmdState1, State1)};
+        {send_multi, Packets, State1, CmdState1} when is_list(Packets) ->
+            ok = send_multi(State1, Packets),
+            {noreply, command_enqueue(Transport, Command, CmdState1, State1)};
         {stop, StopReason, Response, State1} ->
             reply(Transport, Response, Response),
             {stop, StopReason, State1}
@@ -368,11 +374,11 @@ setopts(#state{mod = Mod, sock = Sock}, Opts) ->
 send(#state{mod = Mod, sock = Sock}, Data) ->
     do_send(Mod, Sock, epgsql_wire:encode_command(Data)).
 
--spec send(pg_sock(), byte(), iodata()) -> ok | {error, any()}.
+-spec send(pg_sock(), epgsql_wire:packet_type(), iodata()) -> ok | {error, any()}.
 send(#state{mod = Mod, sock = Sock}, Type, Data) ->
     do_send(Mod, Sock, epgsql_wire:encode_command(Type, Data)).
 
--spec send_multi(pg_sock(), [{byte(), iodata()}]) -> ok | {error, any()}.
+-spec send_multi(pg_sock(), [{epgsql_wire:packet_type(), iodata()}]) -> ok | {error, any()}.
 send_multi(#state{mod = Mod, sock = Sock}, List) ->
     do_send(Mod, Sock, lists:map(fun({Type, Data}) ->
                                     epgsql_wire:encode_command(Type, Data)

@@ -43,15 +43,14 @@ execute(Sock, #equery{stmt = Stmt, params = TypedParams} = St) ->
     Codec = epgsql_sock:get_codec(Sock),
     Bin1 = epgsql_wire:encode_parameters(TypedParams, Codec),
     Bin2 = epgsql_wire:encode_formats(Columns),
-    epgsql_sock:send_multi(
-      Sock,
+    Commands =
       [
-       {?BIND, ["", 0, StatementName, 0, Bin1, Bin2]},
-       {?EXECUTE, ["", 0, <<0:?int32>>]},
-       {?CLOSE, [?PREPARED_STATEMENT, StatementName, 0]},
-       {?SYNC, []}
-      ]),
-    {ok, Sock, St}.
+       epgsql_wire:encode_bind("", StatementName, Bin1, Bin2),
+       epgsql_wire:encode_execute("", 0),
+       epgsql_wire:encode_close(statement, StatementName),
+       epgsql_wire:encode_sync()
+      ],
+    {send_multi, Commands, Sock, St}.
 
 handle_message(?BIND_COMPLETE, <<>>, Sock, #equery{stmt = Stmt} = State) ->
     #statement{columns = Columns} = Stmt,

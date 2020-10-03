@@ -22,13 +22,12 @@ init(Name) ->
     #desc_portal{name = Name}.
 
 execute(Sock, #desc_portal{name = Name} = St) ->
-    epgsql_sock:send_multi(
-      Sock,
+    Commands =
       [
-       {?DESCRIBE, [?PORTAL, Name, 0]},
-       {?FLUSH, []}
-      ]),
-    {ok, Sock, St}.
+       epgsql_wire:encode_describe(portal, Name),
+       epgsql_wire:encode_flush()
+      ],
+    {send_multi, Commands, Sock, St}.
 
 handle_message(?ROW_DESCRIPTION, <<Count:?int16, Bin/binary>>, Sock, _St) ->
     Codec = epgsql_sock:get_codec(Sock),

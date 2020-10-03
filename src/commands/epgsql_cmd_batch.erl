@@ -58,10 +58,9 @@ execute(Sock, #batch{batch = Batch, statement = undefined} = State) ->
                   BinFormats = epgsql_wire:encode_formats(Columns),
                   add_command(StatementName, Types, Parameters, BinFormats, Codec, Acc)
           end,
-          [{?SYNC, []}],
+          [epgsql_wire:encode_sync()],
           Batch),
-    epgsql_sock:send_multi(Sock, Commands),
-    {ok, Sock, State};
+    {send_multi, Commands, Sock, State};
 execute(Sock, #batch{batch = Batch,
                      statement = #statement{name = StatementName,
                                             columns = Columns,
@@ -74,16 +73,15 @@ execute(Sock, #batch{batch = Batch,
           fun(Parameters, Acc) ->
                   add_command(StatementName, Types, Parameters, BinFormats, Codec, Acc)
           end,
-          [{?SYNC, []}],
+          [epgsql_wire:encode_sync()],
           Batch),
-    epgsql_sock:send_multi(Sock, Commands),
-    {ok, Sock, State}.
+    {send_multi, Commands, Sock, State}.
 
 add_command(StmtName, Types, Params, BinFormats, Codec, Acc) ->
     TypedParameters = lists:zip(Types, Params),
     BinParams = epgsql_wire:encode_parameters(TypedParameters, Codec),
-    [{?BIND, [0, StmtName, 0, BinParams, BinFormats]},
-     {?EXECUTE, [0, <<0:?int32>>]} | Acc].
+    [epgsql_wire:encode_bind("", StmtName, BinParams, BinFormats),
+     epgsql_wire:encode_execute("", 0) | Acc].
 
 handle_message(?BIND_COMPLETE, <<>>, Sock, State) ->
     Columns = current_cols(State),

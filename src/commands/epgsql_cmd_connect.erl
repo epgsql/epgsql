@@ -82,9 +82,8 @@ execute(PgSock, #connect{opts = #{username := Username} = Opts, stage = connect}
         {error, Reason} = Error ->
             {stop, Reason, Error, PgSock}
     end;
-execute(PgSock, #connect{stage = auth, auth_send = {PacketId, Data}} = St) ->
-    ok = epgsql_sock:send(PgSock, PacketId, Data),
-    {ok, PgSock, St#connect{auth_send = undefined}}.
+execute(PgSock, #connect{stage = auth, auth_send = {PacketType, Data}} = St) ->
+    {send, PacketType, Data, PgSock, St#connect{auth_send = undefined}}.
 
 -spec open_socket([{atom(), any()}], epgsql:connect_opts()) ->
     {ok , gen_tcp | ssl, port() | ssl:sslsocket()} | {error, any()}.

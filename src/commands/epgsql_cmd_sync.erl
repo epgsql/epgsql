@@ -1,6 +1,7 @@
 %% @doc Synchronize client and server states for multi-command combinations
 %%
 %% Should be executed if APIs start to return `{error, sync_required}'.
+%% See [https://www.postgresql.org/docs/current/protocol-flow.html#PROTOCOL-FLOW-EXT-QUERY]
 %% ```
 %% > Sync
 %% < ReadyForQuery
@@ -20,9 +21,9 @@ init(_) ->
     undefined.
 
 execute(Sock, St) ->
-    epgsql_sock:send(Sock, ?SYNC, []),
     Sock1 = epgsql_sock:set_attr(sync_required, false, Sock),
-    {ok, Sock1, St}.
+    {Type, Data} = epgsql_wire:encode_sync(),
+    {send, Type, Data, Sock1, St}.
 
 handle_message(?READY_FOR_QUERY, _, Sock, _State) ->
     {finish, ok, ok, Sock};

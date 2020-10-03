@@ -26,13 +26,12 @@ init(Name) ->
     #desc_stmt{name = Name}.
 
 execute(Sock, #desc_stmt{name = Name} = St) ->
-    epgsql_sock:send_multi(
-      Sock,
+    Commands =
       [
-       {?DESCRIBE, [?PREPARED_STATEMENT, Name, 0]},
-       {?FLUSH, []}
-      ]),
-    {ok, Sock, St}.
+       epgsql_wire:encode_describe(statement, Name),
+       epgsql_wire:encode_flush()
+      ],
+    {send_multi, Commands, Sock, St}.
 
 handle_message(?PARAMETER_DESCRIPTION, Bin, Sock, State) ->
     Codec = epgsql_sock:get_codec(Sock),
