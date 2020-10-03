@@ -356,6 +356,9 @@ encode_bind(PortalName, StmtName, BinParams, BinFormats) ->
 %% @param PortalName  might be an empty string (anonymous portal) or name of the named portal
 %% @param MaxRows  how many rows server should send (0 means all of them)
 -spec encode_execute(iodata(), non_neg_integer()) -> {packet_type(), iodata()}.
+encode_execute("", 0) ->
+    %% optimization: literal for most common case
+    {?EXECUTE, [0, <<0:?int32>>]};
 encode_execute(PortalName, MaxRows) ->
     {?EXECUTE, [encode_string(PortalName), <<MaxRows:?int32>>]}.
 
