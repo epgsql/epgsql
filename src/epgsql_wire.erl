@@ -24,15 +24,16 @@
          format/2,
          encode_parameters/2,
          encode_standby_status_update/3]).
--export_type([row_decoder/0]).
+-export_type([row_decoder/0, packet_type/0]).
 
 -include("epgsql.hrl").
 -include("protocol.hrl").
 
 -opaque row_decoder() :: {[epgsql_binary:decoder()], [epgsql:column()], epgsql_binary:codec()}.
+-type packet_type() :: byte().                 % see protocol.hrl
 
 %% @doc tries to extract single postgresql packet from TCP stream
--spec decode_message(binary()) -> {byte(), binary(), binary()} | binary().
+-spec decode_message(binary()) -> {packet_type(), binary(), binary()} | binary().
 decode_message(<<Type:8, Len:?int32, Rest/binary>> = Bin) ->
     Len2 = Len - 4,
     case Rest of
@@ -282,6 +283,7 @@ encode_command(Data) ->
     [<<(Size + 4):?int32>> | Data].
 
 %% @doc Encode PG command with type and size prefix
+-spec encode_command(packet_type(), iodata()) -> iodata().
 encode_command(Type, Data) ->
     Size = iolist_size(Data),
     [<<Type:8, (Size + 4):?int32>> | Data].

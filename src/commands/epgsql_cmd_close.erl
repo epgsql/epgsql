@@ -26,13 +26,11 @@ execute(Sock, #close{type = Type, name = Name} = St) ->
         statement -> ?PREPARED_STATEMENT;
         portal    -> ?PORTAL
     end,
-    epgsql_sock:send_multi(
-      Sock,
-      [
+    Packets = [
        {?CLOSE, [Type2, Name, 0]},
        {?FLUSH, []}
-      ]),
-    {ok, Sock, St}.
+      ],
+    {send_multi, Packets, Sock, St}.
 
 handle_message(?CLOSE_COMPLETE, <<>>, Sock, _St) ->
     {finish, ok, ok, Sock};

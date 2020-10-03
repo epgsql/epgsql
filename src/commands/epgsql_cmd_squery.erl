@@ -38,8 +38,7 @@ init(Sql) ->
     #squery{query = Sql}.
 
 execute(Sock, #squery{query = Q} = State) ->
-    epgsql_sock:send(Sock, ?SIMPLEQUERY, [Q, 0]),
-    {ok, Sock, State}.
+    {send, ?SIMPLEQUERY, [Q, 0], Sock, State}.
 
 handle_message(?ROW_DESCRIPTION, <<Count:?int16, Bin/binary>>, Sock, State) ->
     Codec = epgsql_sock:get_codec(Sock),

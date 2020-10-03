@@ -60,8 +60,7 @@ execute(Sock, #batch{batch = Batch, statement = undefined} = State) ->
           end,
           [{?SYNC, []}],
           Batch),
-    epgsql_sock:send_multi(Sock, Commands),
-    {ok, Sock, State};
+    {send_multi, Commands, Sock, State};
 execute(Sock, #batch{batch = Batch,
                      statement = #statement{name = StatementName,
                                             columns = Columns,
@@ -76,8 +75,7 @@ execute(Sock, #batch{batch = Batch,
           end,
           [{?SYNC, []}],
           Batch),
-    epgsql_sock:send_multi(Sock, Commands),
-    {ok, Sock, State}.
+    {send_multi, Commands, Sock, State}.
 
 add_command(StmtName, Types, Params, BinFormats, Codec, Acc) ->
     TypedParameters = lists:zip(Types, Params),

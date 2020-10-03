@@ -49,12 +49,14 @@ passed to all subsequent callbacks. No PostgreSQL interactions should be done he
 ```erlang
 execute(pg_sock(), state()) ->
     {ok, pg_sock(), state()}
+  | {send, epgsql_wire:packet_type(), iodata(), pg_sock(), state()}
+  | {send_multi, [{epgsql_wire:packet_type(), iodata()}], pg_sock(), state()}
   | {stop, Reason :: any(), Response :: any(), pg_sock()}.
-
 ```
 
 Client -> Server packets should be sent from this callback by `epgsql_sock:send_multi/2` or
-`epgsql_sock:send/3`. `epgsql_wire` module is usually used to create wire protocol packets.
+`epgsql_sock:send/3` or by returning equivalent `send` or `send_multi` values.
+`epgsql_wire` module is usually used to create wire protocol packets.
 Please note that many packets might be sent at once. See `epgsql_cmd_equery` as an example.
 
 This callback might be executed more than once for a single command execution if your command

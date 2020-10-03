@@ -32,16 +32,15 @@ init({Stmt, PortalName, MaxRows}) ->
     #execute{stmt = Stmt, portal_name = PortalName, max_rows = MaxRows}.
 
 execute(Sock, #execute{stmt = Stmt, portal_name = PortalName, max_rows = MaxRows} = State) ->
-    epgsql_sock:send_multi(
-      Sock,
-      [
-       {?EXECUTE, [PortalName, 0, <<MaxRows:?int32>>]},
-       {?FLUSH, []}
-      ]),
     #statement{columns = Columns} = Stmt,
     Codec = epgsql_sock:get_codec(Sock),
     Decoder = epgsql_wire:build_decoder(Columns, Codec),
-    {ok, Sock, State#execute{decoder = Decoder}}.
+    Commands =
+      [
+       {?EXECUTE, [PortalName, 0, <<MaxRows:?int32>>]},
+       {?FLUSH, []}
+      ],
+    {send_multi, Commands, Sock, State#execute{decoder = Decoder}}.
 
 handle_message(?DATA_ROW, <<_Count:?int16, Bin/binary>>, Sock,
                #execute{decoder = Decoder} = St) ->

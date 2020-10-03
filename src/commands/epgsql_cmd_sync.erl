@@ -20,9 +20,8 @@ init(_) ->
     undefined.
 
 execute(Sock, St) ->
-    epgsql_sock:send(Sock, ?SYNC, []),
     Sock1 = epgsql_sock:set_attr(sync_required, false, Sock),
-    {ok, Sock1, St}.
+    {send, ?SYNC, [], Sock1, St}.
 
 handle_message(?READY_FOR_QUERY, _, Sock, _State) ->
     {finish, ok, ok, Sock};
