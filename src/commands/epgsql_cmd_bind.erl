@@ -31,8 +31,8 @@ execute(Sock, #bind{stmt = Stmt, portal = PortalName, params = Params} = St) ->
     Bin1 = epgsql_wire:encode_parameters(TypedParams, Codec),
     Bin2 = epgsql_wire:encode_formats(Columns),
     Commands = [
-       {?BIND, [PortalName, 0, StatementName, 0, Bin1, Bin2]},
-       {?FLUSH, []}
+       epgsql_wire:encode_bind(PortalName, StatementName, Bin1, Bin2),
+       epgsql_wire:encode_flush()
       ],
     {send_multi, Commands, Sock, St}.
 

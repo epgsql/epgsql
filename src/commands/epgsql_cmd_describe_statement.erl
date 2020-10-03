@@ -28,8 +28,8 @@ init(Name) ->
 execute(Sock, #desc_stmt{name = Name} = St) ->
     Commands =
       [
-       {?DESCRIBE, [?PREPARED_STATEMENT, Name, 0]},
-       {?FLUSH, []}
+       epgsql_wire:encode_describe(statement, Name),
+       epgsql_wire:encode_flush()
       ],
     {send_multi, Commands, Sock, St}.
 

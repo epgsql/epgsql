@@ -59,7 +59,8 @@ execute(Sock, #start_repl{slot = ReplicationSlot, callback = Callback,
                        align_lsn = AlignLsn},
     Sock2 = epgsql_sock:set_attr(replication_state, Repl3, Sock),
                          %% handler = on_replication},
-    {send, ?SIMPLEQUERY, [Sql2, 0], Sock2, St}.
+    {PktType, PktData} = epgsql_wire:encode_query(Sql2),
+    {send, PktType, PktData, Sock2, St}.
 
 %% CopyBothResponse
 handle_message(?COPY_BOTH_RESPONSE, _Data, Sock, _State) ->

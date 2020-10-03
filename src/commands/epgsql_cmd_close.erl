@@ -22,13 +22,9 @@ init({Type, Name}) ->
     #close{type = Type, name = Name}.
 
 execute(Sock, #close{type = Type, name = Name} = St) ->
-    Type2 = case Type of
-        statement -> ?PREPARED_STATEMENT;
-        portal    -> ?PORTAL
-    end,
     Packets = [
-       {?CLOSE, [Type2, Name, 0]},
-       {?FLUSH, []}
+       epgsql_wire:encode_close(Type, Name),
+       epgsql_wire:encode_flush()
       ],
     {send_multi, Packets, Sock, St}.
 

@@ -39,9 +39,9 @@ execute(Sock, #pquery{stmt = Stmt, params = TypedParams} = St) ->
     Bin2 = epgsql_wire:encode_formats(Columns),
     Commands =
       [
-       {?BIND, ["", 0, StatementName, 0, Bin1, Bin2]},
-       {?EXECUTE, ["", 0, <<0:?int32>>]},
-       {?SYNC, []}
+       epgsql_wire:encode_bind("", StatementName, Bin1, Bin2),
+       epgsql_wire:encode_execute("", 0),
+       epgsql_wire:encode_sync()
       ],
     {send_multi, Commands, Sock, St}.
 

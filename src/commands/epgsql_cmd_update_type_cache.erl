@@ -22,7 +22,8 @@ execute(Sock, #upd{codecs = Codecs} = State) ->
     CodecEntries = epgsql_codec:init_mods(Codecs, Sock),
     TypeNames = [element(1, Entry) || Entry <- CodecEntries],
     Query = epgsql_oid_db:build_query(TypeNames),
-    {send, ?SIMPLEQUERY, [Query, 0], Sock, State#upd{codec_entries = CodecEntries}}.
+    {PktType, PktData} = epgsql_wire:encode_query(Query),
+    {send, PktType, PktData, Sock, State#upd{codec_entries = CodecEntries}}.
 
 handle_message(?ROW_DESCRIPTION, <<Count:?int16, Bin/binary>>, Sock, State) ->
     Codec = epgsql_sock:get_codec(Sock),

@@ -37,8 +37,8 @@ execute(Sock, #execute{stmt = Stmt, portal_name = PortalName, max_rows = MaxRows
     Decoder = epgsql_wire:build_decoder(Columns, Codec),
     Commands =
       [
-       {?EXECUTE, [PortalName, 0, <<MaxRows:?int32>>]},
-       {?FLUSH, []}
+       epgsql_wire:encode_execute(PortalName, MaxRows),
+       epgsql_wire:encode_flush()
       ],
     {send_multi, Commands, Sock, State#execute{decoder = Decoder}}.
 

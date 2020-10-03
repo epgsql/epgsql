@@ -24,8 +24,8 @@ init(Name) ->
 execute(Sock, #desc_portal{name = Name} = St) ->
     Commands =
       [
-       {?DESCRIBE, [?PORTAL, Name, 0]},
-       {?FLUSH, []}
+       epgsql_wire:encode_describe(portal, Name),
+       epgsql_wire:encode_flush()
       ],
     {send_multi, Commands, Sock, St}.
 

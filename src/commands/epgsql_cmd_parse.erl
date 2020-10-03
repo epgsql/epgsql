@@ -38,9 +38,9 @@ execute(Sock, #parse{name = Name, sql = Sql, types = Types} = St) ->
     Bin = epgsql_wire:encode_types(Types, Codec),
     Commands =
       [
-       {?PARSE, [Name, 0, Sql, 0, Bin]},
-       {?DESCRIBE, [?PREPARED_STATEMENT, Name, 0]},
-       {?FLUSH, []}
+       epgsql_wire:encode_parse(Name, Sql, Bin),
+       epgsql_wire:encode_describe(statement, Name),
+       epgsql_wire:encode_flush()
       ],
     {send_multi, Commands, Sock, St}.
 
