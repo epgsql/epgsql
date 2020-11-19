@@ -1,3 +1,14 @@
+In 4.5.0
+
+* Add support for `application_name` connection parameter #226
+* Execute request cancelation over TLS, when main connection is TLS as well #227
+* Handle skipped commands in execute_batch #228
+* Add sasl_prep implementation for validating passwords according to sasl specification #229
+* OTP-23 in CI #237
+* switch to `crypto:mac/4` since `crypto:hmac/3` is deprecated #239
+* Add `tcp_opts` connect option #242
+* Command API improvements #243
+
 In 4.4.0
 
 * Guards are now added to avoid silent integer truncation for numeric and
