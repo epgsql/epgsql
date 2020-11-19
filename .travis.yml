@@ -11,6 +11,7 @@ install: "true"
 language: erlang
 matrix:
   include:
+    - otp_release: 23.0
     - otp_release: 22.2
     - otp_release: 21.3
     - otp_release: 20.3

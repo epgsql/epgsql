@@ -36,7 +36,8 @@
 -type response() :: [{ok, Count :: non_neg_integer(), Rows :: [tuple()]}
                      | {ok, Count :: non_neg_integer()}
                      | {ok, Rows :: [tuple()]}
-                     | {error, epgsql:query_error()}].
+                     | {error, epgsql:query_error()}
+                     ].
 -type state() :: #batch{}.
 
 -spec init(arguments()) -> state().
@@ -57,10 +58,9 @@ execute(Sock, #batch{batch = Batch, statement = undefined} = State) ->
                   BinFormats = epgsql_wire:encode_formats(Columns),
                   add_command(StatementName, Types, Parameters, BinFormats, Codec, Acc)
           end,
-          [{?SYNC, []}],
+          [epgsql_wire:encode_sync()],
           Batch),
-    epgsql_sock:send_multi(Sock, Commands),
-    {ok, Sock, State};
+    {send_multi, Commands, Sock, State};
 execute(Sock, #batch{batch = Batch,
                      statement = #statement{name = StatementName,
                                             columns = Columns,
@@ -73,16 +73,15 @@ execute(Sock, #batch{batch = Batch,
           fun(Parameters, Acc) ->
                   add_command(StatementName, Types, Parameters, BinFormats, Codec, Acc)
           end,
-          [{?SYNC, []}],
+          [epgsql_wire:encode_sync()],
           Batch),
-    epgsql_sock:send_multi(Sock, Commands),
-    {ok, Sock, State}.
+    {send_multi, Commands, Sock, State}.
 
 add_command(StmtName, Types, Params, BinFormats, Codec, Acc) ->
     TypedParameters = lists:zip(Types, Params),
     BinParams = epgsql_wire:encode_parameters(TypedParameters, Codec),
-    [{?BIND, [0, StmtName, 0, BinParams, BinFormats]},
-     {?EXECUTE, [0, <<0:?int32>>]} | Acc].
+    [epgsql_wire:encode_bind("", StmtName, BinParams, BinFormats),
+     epgsql_wire:encode_execute("", 0) | Acc].
 
 handle_message(?BIND_COMPLETE, <<>>, Sock, State) ->
     Columns = current_cols(State),
@@ -110,8 +109,7 @@ handle_message(?COMMAND_COMPLETE, Bin, Sock,
                      {ok, Rows}
              end,
     {add_result, Result, {complete, Complete}, Sock, State#batch{batch = Batch}};
-handle_message(?READY_FOR_QUERY, _Status, Sock, #batch{batch = B} = _State) when
-      length(B) =< 1 ->
+handle_message(?READY_FOR_QUERY, _Status, Sock, _State) ->
     Results = epgsql_sock:get_results(Sock),
     {finish, Results, done, Sock};
 handle_message(?ERROR, Error, Sock, #batch{batch = [_ | Batch]} = State) ->

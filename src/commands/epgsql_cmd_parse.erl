@@ -1,5 +1,10 @@
 %% @doc Asks server to parse SQL query and send information aboud bind-parameters and result columns.
 %%
+%% Empty `Name' creates a "disposable" anonymous prepared statement.
+%% Non-empty `Name' creates a named prepared statement (name is not shared between connections),
+%% which should be explicitly closed when no logner needed (but will be terminated automatically
+%% when connection is closed).
+%% Non-empty name can't be rebound to another query; it should be closed for being available again.
 %% ```
 %% > Parse
 %% < ParseComplete
@@ -31,14 +36,13 @@ init({Name, Sql, Types}) ->
 execute(Sock, #parse{name = Name, sql = Sql, types = Types} = St) ->
     Codec = epgsql_sock:get_codec(Sock),
     Bin = epgsql_wire:encode_types(Types, Codec),
-    epgsql_sock:send_multi(
-      Sock,
+    Commands =
       [
-       {?PARSE, [Name, 0, Sql, 0, Bin]},
-       {?DESCRIBE, [?PREPARED_STATEMENT, Name, 0]},
-       {?FLUSH, []}
-      ]),
-    {ok, Sock, St}.
+       epgsql_wire:encode_parse(Name, Sql, Bin),
+       epgsql_wire:encode_describe(statement, Name),
+       epgsql_wire:encode_flush()
+      ],
+    {send_multi, Commands, Sock, St}.
 
 handle_message(?PARSE_COMPLETE, <<>>, Sock, _State) ->
     {noaction, Sock};

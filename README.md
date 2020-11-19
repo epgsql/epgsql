@@ -71,6 +71,7 @@ connect(Opts) -> {ok, Connection :: epgsql:connection()} | {error, Reason :: epg
       port =>     inet:port_number(),
       ssl =>      boolean() | required,
       ssl_opts => [ssl:ssl_option()],    % @see OTP ssl app, ssl_api.hrl
+      tcp_opts => [gen_tcp:option()],    % @see OTP gen_tcp module documentation
       timeout =>  timeout(),             % socket connect timeout, default: 5000 ms
       async =>    pid() | atom(),        % process to receive LISTEN/NOTIFY msgs
       codecs =>   [{epgsql_codec:codec_mod(), any()}]}
@@ -84,7 +85,10 @@ connect(Host, Username, Password, Opts) -> {ok, C} | {error, Reason}.
 example:
 
 ```erlang
-{ok, C} = epgsql:connect("localhost", "username", "psss", #{
+{ok, C} = epgsql:connect(#{
+    host => "localhost",
+    username => "username",
+    password => "psss",
     database => "test_db",
     timeout => 4000
 }),
@@ -103,6 +107,10 @@ Only `host` and `username` are mandatory, but most likely you would need `databa
   if encryption isn't supported by server. if set to `required` connection will fail if encryption
   is not available.
 - `ssl_opts` will be passed as is to `ssl:connect/3`
+- `tcp_opts` will be passed as is to `gen_tcp:connect/3`. Some options are forbidden, such as
+  `mode`, `packet`, `header`, `active`. When `tcp_opts` is not provided, epgsql does some tuning
+  (eg, sets TCP `keepalive` and auto-tunes `buffer`), but when `tcp_opts` is provided, no
+  additional tweaks are added by epgsql itself, other than necessary ones (`active`, `packet` and `mode`).
 - `async` see [Server notifications](#server-notifications)
 - `codecs` see [Pluggable datatype codecs](#pluggable-datatype-codecs)
 - `nulls` terms which will be used to represent SQL `NULL`. If any of those has been encountered in
@@ -112,6 +120,9 @@ Only `host` and `username` are mandatory, but most likely you would need `databa
    Default is `[null, undefined]`, i.e. encode `null` or `undefined` in parameters as `NULL`
    and decode `NULL`s as atom `null`.
 - `replication` see [Streaming replication protocol](#streaming-replication-protocol)
+- `application_name` is an optional string parameter. It is usually set by an application upon
+   connection to the server. The name will be displayed in the `pg_stat_activity`
+   view and included in CSV log entries.
 
 Options may be passed as proplist or as map with the same key names.
 
@@ -427,8 +438,11 @@ epgsql:execute_batch(C, "INSERT INTO account (name, age) VALUES ($1, $2) RETURNI
                      [ ["Joe", 35], ["Paul", 26], ["Mary", 24] ]).
 ```
 
-In case one of the batch items causes an error, the result returned for this particular
-item will be `{error, #error{}}` and no more results will be produced.
+In case one of the batch items causes an error, all the remaining queries of
+that batch will be ignored. So, last element of the result list will be 
+`{error, #error{}}` and the length of the result list might be shorter that 
+the length of the batch. For a better illustration of such scenario please 
+refer to `epgsql_SUITE:batch_error/1`
 
 `epgsqla:execute_batch/{2,3}` sends `{C, Ref, Results}`
 
@@ -448,7 +462,7 @@ epgsql:cancel(connection()) -> ok.
 
 PostgreSQL protocol supports [cancellation](https://www.postgresql.org/docs/current/protocol-flow.html#id-1.10.5.7.9)
 of currently executing command. `cancel/1` sends a cancellation request via the
-new temporary TCP connection asynchronously, it doesn't await for the command to
+new temporary TCP/TLS_over_TCP connection asynchronously, it doesn't await for the command to
 be cancelled. Instead, client should expect to get
 `{error, #error{code = <<"57014">>, codename = query_canceled}}` back from
 the command that was cancelled. However, normal response can still be received as well.
