@@ -28,6 +28,8 @@
          with_transaction/2,
          with_transaction/3,
          sync_on_error/2,
+         copy_from_stdin/2,
+         copy_done/1,
          standby_status_update/3,
          start_replication/5,
          start_replication/6,
@@ -447,6 +449,23 @@ sync_on_error(C, Error = {error, _}) ->
 
 sync_on_error(_C, R) ->
     R.
+
+%% @doc Switches epgsql into COPY-mode
+%%
+%% Erlang IO-protocol can be used to transfer "raw" COPY data to the server (see, eg,
+%% `io:put_chars/2' and `file:write/2' etc).
+%% @param SQL have to be `COPY ... FROM STDIN ...' statement
+-spec copy_from_stdin(connection(), sql_query()) ->
+          epgsql_cmd_copy_from_stdin:response().
+copy_from_stdin(C, SQL) ->
+    epgsql_sock:sync_command(C, epgsql_cmd_copy_from_stdin, SQL).
+
+%% @doc Tells server that the transfer of COPY data is done
+%%
+%% Stops copy-mode and returns number of inserted rows
+-spec copy_done(connection()) -> epgsql_cmd_copy_done:response().
+copy_done(C) ->
+    epgsql_sock:sync_command(C, epgsql_cmd_copy_done, []).
 
 -spec standby_status_update(connection(), lsn(), lsn()) -> ok.
 %% @doc sends last flushed and applied WAL positions to the server in a standby status update message via

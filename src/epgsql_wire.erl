@@ -29,6 +29,7 @@
          encode_parse/3,
          encode_describe/2,
          encode_bind/4,
+         encode_copy_done/0,
          encode_execute/2,
          encode_close/2,
          encode_flush/0,
@@ -213,6 +214,7 @@ decode_complete(Bin) ->
         ["DELETE", Rows]       -> {delete, list_to_integer(Rows)};
         ["MOVE", Rows]         -> {move, list_to_integer(Rows)};
         ["FETCH", Rows]        -> {fetch, list_to_integer(Rows)};
+        ["COPY", Rows]         -> {copy, list_to_integer(Rows)};
         [Type | _Rest]         -> lower_atom(Type)
     end.
 
@@ -389,6 +391,11 @@ encode_flush() ->
 -spec encode_sync() -> {packet_type(), iodata()}.
 encode_sync() ->
     {?SYNC, []}.
+
+%% @doc encodes `CopyDone' packet.
+-spec encode_copy_done() -> {packet_type(), iodata()}.
+encode_copy_done() ->
+    {?COPY_DONE, []}.
 
 obj_atom_to_byte(statement) -> ?PREPARED_STATEMENT;
 obj_atom_to_byte(portal) -> ?PORTAL.
