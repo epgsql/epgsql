@@ -263,7 +263,7 @@ handle_info({inet_reply, _, ok}, State) ->
 handle_info({inet_reply, _, Status}, State) ->
     {stop, Status, flush_queue(State, {error, Status})};
 
-handle_info({io_request, From, ReplyAs, Request}, #state{handler = on_copy_from_stdin} = State) ->
+handle_info({io_request, From, ReplyAs, Request}, State) ->
     Response = handle_io_request(Request, State),
     io_reply(Response, From, ReplyAs),
     {noreply, State}.
@@ -501,6 +501,12 @@ flush_queue(State, Error) ->
 %%
 %% COPY FROM STDIN is implemented as Erlang
 %% <a href="https://erlang.org/doc/apps/stdlib/io_protocol.html">io protocol</a>.
+handle_io_request(_, #state{handler = Handler}) when Handler =/= on_copy_from_stdin ->
+    %% Received IO request when `epgsql_cmd_copy_from_stdin' haven't yet been called or it was
+    %% terminated with error and already sent `ReadyForQuery'
+    {error, not_in_copy_mode};
+handle_io_request(_, #state{subproto_state = #copy{last_error = Err}}) when Err =/= undefined ->
+    {error, Err};
 handle_io_request({put_chars, Encoding, Chars}, State) ->
     send(State, ?COPY_DATA, encode_chars(Encoding, Chars));
 handle_io_request({put_chars, Encoding, Mod, Fun, Args}, State) ->
@@ -604,13 +610,18 @@ on_message(Msg, Payload, State) ->
 
 %% @doc Handle "copy subprotocol" for COPY .. FROM STDIN
 %%
-%% Activated by `epgsql_cmd_copy_from_stdin' and deactivated by `epgsql_cmd_copy_done'
-on_copy_from_stdin(?COMMAND_COMPLETE, Bin, State) ->
-    _Complete = epgsql_wire:decode_complete(Bin),
-    {noreply, State#state{subproto_state = undefined, handler = on_message}};
-on_copy_from_stdin(?ERROR, Err, State) ->
+%% Activated by `epgsql_cmd_copy_from_stdin', deactivated by `epgsql_cmd_copy_done' or error
+on_copy_from_stdin(?READY_FOR_QUERY, <<Status:8>>,
+                   #state{subproto_state = #copy{last_error = Err,
+                                                 initiator = Pid}} = State) when Err =/= undefined ->
+    %% Reporting error from here and not from ?ERROR so it's easier to be in sync state
+    Pid ! {epgsql, self(), {error, Err}},
+    {noreply, State#state{subproto_state = undefined,
+                          handler = on_message,
+                          txstatus = Status}};
+on_copy_from_stdin(?ERROR, Err, #state{subproto_state = SubState} = State) ->
     Reason = epgsql_wire:decode_error(Err),
-    {stop, {error, Reason}, State};
+    {noreply, State#state{subproto_state = SubState#copy{last_error = Reason}}};
 on_copy_from_stdin(M, Data, Sock) when M == ?NOTICE;
                                        M == ?NOTIFICATION;
                                        M == ?PARAMETER_STATUS ->

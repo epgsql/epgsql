@@ -15,11 +15,13 @@
 
 %% -include("epgsql.hrl").
 -include("protocol.hrl").
+-include("../epgsql_copy.hrl").
 
 init(_) ->
     [].
 
 execute(Sock0, St) ->
+    #copy{} = epgsql_sock:get_subproto_state(Sock0), % assert we are in copy-mode
     {PktType, PktData} = epgsql_wire:encode_copy_done(),
     Sock1 = epgsql_sock:set_packet_handler(on_message, Sock0),
     Sock = epgsql_sock:set_attr(subproto_state, undefined, Sock1),

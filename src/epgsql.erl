@@ -454,11 +454,18 @@ sync_on_error(_C, R) ->
 %%
 %% Erlang IO-protocol can be used to transfer "raw" COPY data to the server (see, eg,
 %% `io:put_chars/2' and `file:write/2' etc).
+%%
+%% In case COPY-payload is invalid, asynchronous message of the form
+%% `{epgsql, connection(), {error, epgsql:query_error()}}' (similar to asynchronous notification,
+%% see {@link set_notice_receiver/2}) will be sent to the process that called `copy_from_stdin'
+%% and all the subsequent IO-protocol requests will return error.
+%% It's important to not call `copy_done' if such error is detected!
+%%
 %% @param SQL have to be `COPY ... FROM STDIN ...' statement
 -spec copy_from_stdin(connection(), sql_query()) ->
           epgsql_cmd_copy_from_stdin:response().
 copy_from_stdin(C, SQL) ->
-    epgsql_sock:sync_command(C, epgsql_cmd_copy_from_stdin, SQL).
+    epgsql_sock:sync_command(C, epgsql_cmd_copy_from_stdin, {SQL, self()}).
 
 %% @doc Tells server that the transfer of COPY data is done
 %%

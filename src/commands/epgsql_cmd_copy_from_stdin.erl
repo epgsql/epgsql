@@ -31,10 +31,10 @@
 -include("../epgsql_copy.hrl").
 
 -record(copy_stdin,
-        {query :: iodata()}).
+        {query :: iodata(), initiator :: pid()}).
 
-init(SQL) ->
-    #copy_stdin{query = SQL}.
+init({SQL, Initiator}) ->
+    #copy_stdin{query = SQL, initiator = Initiator}.
 
 execute(Sock, #copy_stdin{query = SQL} = St) ->
     undefined = epgsql_sock:get_subproto_state(Sock), % assert we are not in copy-mode already
@@ -42,7 +42,8 @@ execute(Sock, #copy_stdin{query = SQL} = St) ->
     {send, PktType, PktData, Sock, St}.
 
 %% CopyBothResponseщ
-handle_message(?COPY_IN_RESPONSE, <<BinOrText, NumColumns:?int16, Formats/binary>>, Sock, _State) ->
+handle_message(?COPY_IN_RESPONSE, <<BinOrText, NumColumns:?int16, Formats/binary>>, Sock,
+               #copy_stdin{initiator = Initiator}) ->
     ColumnFormats =
         [case Format of
              0 -> text;
@@ -59,7 +60,7 @@ handle_message(?COPY_IN_RESPONSE, <<BinOrText, NumColumns:?int16, Formats/binary
         _ ->
             ok
     end,
-    CopyState = #copy{},
+    CopyState = #copy{initiator = Initiator},
     Sock1 = epgsql_sock:set_attr(subproto_state, CopyState, Sock),
     Res = {ok, ColumnFormats},
     {finish, Res, Res, epgsql_sock:set_packet_handler(on_copy_from_stdin, Sock1)};
