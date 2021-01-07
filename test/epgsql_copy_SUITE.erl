@@ -10,6 +10,7 @@
 
     from_stdin_text/1,
     from_stdin_csv/1,
+    from_stdin_binary/1,
     from_stdin_io_apis/1,
     from_stdin_with_terminator/1,
     from_stdin_corrupt_data/1
@@ -25,6 +26,7 @@ all() ->
     [
      from_stdin_text,
      from_stdin_csv,
+     from_stdin_binary,
      from_stdin_io_apis,
      from_stdin_with_terminator,
      from_stdin_corrupt_data
@@ -106,6 +108,56 @@ from_stdin_csv(Config) ->
                    Module:equery(C,
                                  "SELECT id, value FROM test_table1"
                                  " WHERE id IN (20, 21, 22, 23, 24) ORDER BY id"))
+        end).
+
+%% @doc Test that COPY in binary format works
+from_stdin_binary(Config) ->
+    Module = ?config(module, Config),
+    epgsql_ct:with_connection(
+        Config,
+        fun(C) ->
+                ?assertEqual(
+                   {ok, [binary, binary]},
+                   Module:copy_from_stdin(
+                     C, "COPY test_table1 (id, value) FROM STDIN WITH (FORMAT binary)",
+                     {binary, [int4, text]})),
+                %% Batch of rows
+                ?assertEqual(
+                   ok,
+                   Module:copy_send_rows(
+                     C,
+                     [{60, <<"hello world">>},
+                      {61, null},
+                      {62, "line 62"}],
+                     5000)),
+                %% Single row
+                ?assertEqual(
+                   ok,
+                   Module:copy_send_rows(
+                     C,
+                     [{63, <<"line 63">>}],
+                     1000)),
+                %% Rows as lists
+                ?assertEqual(
+                   ok,
+                   Module:copy_send_rows(
+                     C,
+                     [
+                      [64, <<"line 64">>],
+                      [65, <<"line 65">>]
+                     ],
+                     infinity)),
+                ?assertEqual({ok, 6}, Module:copy_done(C)),
+                ?assertMatch(
+                   {ok, _, [{60, <<"hello world">>},
+                            {61, null},
+                            {62, <<"line 62">>},
+                            {63, <<"line 63">>},
+                            {64, <<"line 64">>},
+                            {65, <<"line 65">>}]},
+                   Module:equery(C,
+                                 "SELECT id, value FROM test_table1"
+                                 " WHERE id IN (60, 61, 62, 63, 64, 65) ORDER BY id"))
         end).
 
 %% @doc Tests that different IO-protocol APIs work
@@ -228,6 +280,7 @@ from_stdin_corrupt_data(Config) ->
                 ?assertEqual({error, {fun_return_not_characters, node()}},
                              io:request(C, {put_chars, unicode, erlang, node, []})),
                 ?assertEqual({ok, 0}, Module:copy_done(C)),
+                %%
                 %% Corrupt text format
                 ?assertEqual(
                    {ok, [text, text]},
@@ -248,6 +301,7 @@ from_stdin_corrupt_data(Config) ->
                 ?assertEqual({error, not_in_copy_mode},
                              io:request(C, {put_chars, unicode, "queque\n"})),
                 ?assertError(badarg, io:format(C, "~w\n~s\n", [60, "wasd"])),
+                %%
                 %% Corrupt CSV format
                 ?assertEqual(
                    {ok, [text, text]},
@@ -256,6 +310,26 @@ from_stdin_corrupt_data(Config) ->
                 ?assertEqual(ok, io:put_chars(
                                    C,
                                    "42\n43\nwasd\n")),
+                ?assertMatch(
+                   #error{codename = bad_copy_file_format,
+                          severity = error},
+                   receive
+                       {epgsql, C, {error, Err}} ->
+                           Err
+                   after 5000 ->
+                           timeout
+                   end),
+                %%
+                %% Corrupt binary format
+                ?assertEqual(
+                   {ok, [binary, binary]},
+                   Module:copy_from_stdin(
+                     C, "COPY test_table1 (id, value) FROM STDIN WITH (FORMAT binary)",
+                     {binary, [int4, text]})),
+                ?assertEqual(
+                   ok,
+                   Module:copy_send_rows(C, [{44, <<"line 44">>}], 1000)),
+                ?assertEqual(ok, io:put_chars(C, "45\tThis is not ok!\n")),
                 ?assertMatch(
                    #error{codename = bad_copy_file_format,
                           severity = error},

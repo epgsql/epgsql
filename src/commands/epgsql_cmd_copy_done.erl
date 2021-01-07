@@ -21,11 +21,18 @@ init(_) ->
     [].
 
 execute(Sock0, St) ->
-    #copy{} = epgsql_sock:get_subproto_state(Sock0), % assert we are in copy-mode
-    {PktType, PktData} = epgsql_wire:encode_copy_done(),
+    #copy{format = Format} = epgsql_sock:get_subproto_state(Sock0), % assert we are in copy-mode
     Sock1 = epgsql_sock:set_packet_handler(on_message, Sock0),
     Sock = epgsql_sock:set_attr(subproto_state, undefined, Sock1),
-    {send, PktType, PktData, Sock, St}.
+    {PktType, PktData} = epgsql_wire:encode_copy_done(),
+    case Format of
+        text ->
+            {send, PktType, PktData, Sock, St};
+        binary ->
+            Pkts = [{?COPY_DATA, epgsql_wire:encode_copy_trailer()},
+                    {PktType, PktData}],
+            {send_multi, Pkts, Sock, St}
+    end.
 
 handle_message(?COMMAND_COMPLETE, Bin, Sock, St) ->
     Complete = epgsql_wire:decode_complete(Bin),

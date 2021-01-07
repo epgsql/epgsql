@@ -30,6 +30,10 @@
 %%% some conflicting low-level commands (such as `parse', `bind', `execute') are
 %%% executed in a wrong order. In this case server and epgsql states become out of
 %%% sync and {@link epgsql_cmd_sync} have to be executed in order to recover.
+%%%
+%%% {@link epgsql_cmd_copy_from_stdin} and {@link epgsql_cmd_start_replication} switches the
+%%% "state machine" of connection process to a special "COPY mode" subprotocol.
+%%% See [https://www.postgresql.org/docs/current/protocol-flow.html#PROTOCOL-COPY].
 %%% @see epgsql_cmd_connect. epgsql_cmd_connect for network connection and authentication setup
 %%% @end
 %%% Copyright (C) 2009 - Will Glozer.  All rights reserved.
@@ -46,7 +50,9 @@
          get_parameter/2,
          set_notice_receiver/2,
          get_cmd_status/1,
-         cancel/1]).
+         cancel/1,
+         copy_send_rows/3,
+         standby_status_update/3]).
 
 -export([handle_call/3, handle_cast/2, handle_info/2]).
 -export([init/1, code_change/3, terminate/2]).
@@ -133,6 +139,12 @@ get_cmd_status(C) ->
 cancel(S) ->
     gen_server:cast(S, cancel).
 
+copy_send_rows(C, Rows, Timeout) ->
+    gen_server:call(C, {copy_send_rows, Rows}, Timeout).
+
+standby_status_update(C, FlushedLSN, AppliedLSN) ->
+    gen_server:call(C, {standby_status_update, FlushedLSN, AppliedLSN}).
+
 
 %% -- command APIs --
 
@@ -218,7 +230,12 @@ handle_call({standby_status_update, FlushedLSN, AppliedLSN}, _From,
     send(State, ?COPY_DATA, epgsql_wire:encode_standby_status_update(ReceivedLSN, FlushedLSN, AppliedLSN)),
     Repl1 = Repl#repl{last_flushed_lsn = FlushedLSN,
                       last_applied_lsn = AppliedLSN},
-    {reply, ok, State#state{subproto_state = Repl1}}.
+    {reply, ok, State#state{subproto_state = Repl1}};
+
+handle_call({copy_send_rows, Rows}, _From,
+           #state{handler = Handler, subproto_state = CopyState} = State) ->
+    Response = handle_copy_send_rows(Rows, Handler, CopyState, State),
+    {reply, Response, State}.
 
 handle_cast({{Method, From, Ref} = Transport, Command, Args}, State)
   when ((Method == cast) or (Method == incremental)),
@@ -538,6 +555,24 @@ try_requests([], _, LastRes) ->
 
 io_reply(Result, From, ReplyAs) ->
     From ! {io_reply, ReplyAs, Result}.
+
+%% @doc Handler for `copy_send_rows' API
+%%
+%% Only supports binary protocol right now.
+%% But, in theory, can be used for text / csv formats as well, but we would need to add
+%% some more callbacks to `epgsql_type' behaviour (eg, `encode_text')
+handle_copy_send_rows(_Rows, Handler, _CopyState, _State) when Handler =/= on_copy_from_stdin ->
+    {error, not_in_copy_mode};
+handle_copy_send_rows(_, _, #copy{format = Format}, _) when Format =/= binary ->
+    %% copy_send_rows only supports "binary" format
+    {error, not_binary_format};
+handle_copy_send_rows(_, _, #copy{last_error = LastError}, _) when LastError =/= undefined ->
+    %% server already reported error in data stream asynchronously
+    {error, LastError};
+handle_copy_send_rows(Rows, _, #copy{binary_types = Types}, State) ->
+    Data = [epgsql_wire:encode_copy_row(Values, Types, get_codec(State))
+            || Values <- Rows],
+    ok = send(State, ?COPY_DATA, Data).
 
 encode_chars(_, Bin) when is_binary(Bin) ->
     Bin;

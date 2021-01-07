@@ -23,7 +23,10 @@
          encode_formats/1,
          format/2,
          encode_parameters/2,
-         encode_standby_status_update/3]).
+         encode_standby_status_update/3,
+         encode_copy_header/0,
+         encode_copy_row/3,
+         encode_copy_trailer/0]).
 %% Encoders for Client -> Server packets
 -export([encode_query/1,
          encode_parse/3,
@@ -253,7 +256,8 @@ format(#column{oid = Oid}, Codec) ->
     end.
 
 %% @doc encode parameters for 'Bind'
--spec encode_parameters([], epgsql_binary:codec()) -> iolist().
+-spec encode_parameters([{epgsql:epgsql_type(), epgsql:bind_param()}],
+                        epgsql_binary:codec()) -> iolist().
 encode_parameters(Parameters, Codec) ->
     encode_parameters(Parameters, 0, <<>>, [], Codec).
 
@@ -311,6 +315,39 @@ encode_standby_status_update(ReceivedLSN, FlushedLSN, AppliedLSN) ->
     %% microseconds since midnight on 2000-01-01
     Timestamp = ((MegaSecs * 1000000 + Secs) * 1000000 + MicroSecs) - 946684800*1000000,
     <<$r:8, ReceivedLSN:?int64, FlushedLSN:?int64, AppliedLSN:?int64, Timestamp:?int64, 0:8>>.
+
+%% @doc encode binary copy data file header
+%%
+%% See [https://www.postgresql.org/docs/current/sql-copy.html#id-1.9.3.55.9.4.5]
+encode_copy_header() ->
+    <<
+      "PGCOPY\n", 8#377, "\r\n", 0,             % "signature"
+      0:?int32,                                 % flags
+      0:?int32                                  % length of the extensions area
+    >>.
+
+%% @doc encode binary copy data file row / tuple
+%%
+%% See [https://www.postgresql.org/docs/current/sql-copy.html#id-1.9.3.55.9.4.6]
+encode_copy_row(ValuesTuple, Types, Codec) when is_tuple(ValuesTuple) ->
+    encode_copy_row(tuple_to_list(ValuesTuple), Types, Codec);
+encode_copy_row(Values, Types, Codec) ->
+    NumCols = length(Types),
+    [<<NumCols:?int16>>
+    | [
+       case epgsql_binary:is_null(Value, Codec) of
+           true ->
+               <<-1:?int32>>;
+           false ->
+               epgsql_binary:encode(Type, Value, Codec)
+       end || {Type, Value} <- lists:zip(Types, Values) % TODO: parallel iteration ninstead
+      ]].
+
+%% @doc encode binary copy data file header
+%%
+%% See [https://www.postgresql.org/docs/current/sql-copy.html#id-1.9.3.55.9.4.7]
+encode_copy_trailer() ->
+    <<-1:?int16>>.
 
 %%
 %% Encoders for various PostgreSQL protocol client-side packets
