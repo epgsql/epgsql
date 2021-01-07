@@ -105,6 +105,12 @@
 
 -opaque pg_sock() :: #state{}.
 
+-ifndef(OTP_RELEASE).                           % pre-OTP21
+-define(WITH_STACKTRACE(T, R, S), T:R -> S = erlang:get_stacktrace(), ).
+-else.
+-define(WITH_STACKTRACE(T, R, S), T:R:S ->).
+-endif.
+
 %% -- client interface --
 
 start_link() ->
@@ -533,7 +539,7 @@ handle_io_request({put_chars, Encoding, Mod, Fun, Args}, State) ->
             handle_io_request({put_chars, Encoding, Chars}, State);
         Other ->
             {error, {fun_return_not_characters, Other}}
-    catch T:R:S ->
+    catch ?WITH_STACKTRACE(T, R, S)
             {error, {fun_exception, {T, R, S}}}
     end;
 handle_io_request({setopts, _}, _State) ->

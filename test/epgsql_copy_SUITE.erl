@@ -186,8 +186,9 @@ from_stdin_io_apis(Config) ->
                 ?assertEqual(ok, io:put_chars(C, [<<"37">>, $\t, <<"line 37">>, <<$\n>>])),
                 ?assertEqual(ok, file:write(C, [["38", <<$\t>>], [<<"line 38">>, $\n]])),
                 %% Raw IO-protocol message-passing
-                C ! {io_request, self(), ?FUNCTION_NAME, {put_chars, unicode, "39\tline 39\n"}},
-                ?assertEqual(ok, receive {io_reply, ?FUNCTION_NAME, Resp} -> Resp
+                Ref = erlang:make_ref(),
+                C ! {io_request, self(), Ref, {put_chars, unicode, "39\tline 39\n"}},
+                ?assertEqual(ok, receive {io_reply, Ref, Resp} -> Resp
                                  after 5000 ->
                                          timeout
                                  end),
