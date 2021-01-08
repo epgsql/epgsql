@@ -41,9 +41,15 @@
 -define(PARAMETER_DESCRIPTION, $t).
 -define(ROW_DESCRIPTION, $T).
 -define(READY_FOR_QUERY, $Z).
--define(COPY_BOTH_RESPONSE, $W).
--define(COPY_DATA, $d).
 -define(TERMINATE, $X).
+
+% Copy protocol
+-define(COPY_DATA, $d).
+-define(COPY_DONE, $c).
+-define(COPY_FAIL, $f).
+-define(COPY_IN_RESPONSE, $G).
+-define(COPY_OUT_RESPONSE, $H).
+-define(COPY_BOTH_RESPONSE, $W).
 
 % CopyData replication messages
 -define(X_LOG_DATA, $w).

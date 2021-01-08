@@ -28,6 +28,10 @@
          with_transaction/2,
          with_transaction/3,
          sync_on_error/2,
+         copy_from_stdin/2,
+         copy_from_stdin/3,
+         copy_send_rows/3,
+         copy_done/1,
          standby_status_update/3,
          start_replication/5,
          start_replication/6,
@@ -448,11 +452,58 @@ sync_on_error(C, Error = {error, _}) ->
 sync_on_error(_C, R) ->
     R.
 
+%% @equiv copy_from_stdin(C, SQL, text)
+copy_from_stdin(C, SQL) ->
+    copy_from_stdin(C, SQL, text).
+
+%% @doc Switches epgsql into COPY-mode
+%%
+%% When `Format' is `text', Erlang IO-protocol should be used to transfer "raw" COPY data to the
+%% server (see, eg, `io:put_chars/2' and `file:write/2' etc).
+%%
+%% When `Format' is `{binary, Types}', {@link copy_send_rows/3} should be used instead.
+%%
+%% In case COPY-payload is invalid, asynchronous message of the form
+%% `{epgsql, connection(), {error, epgsql:query_error()}}' (similar to asynchronous notification,
+%% see {@link set_notice_receiver/2}) will be sent to the process that called `copy_from_stdin'
+%% and all the subsequent IO-protocol requests will return error.
+%% It's important to not call `copy_done' if such error is detected!
+%%
+%% @param SQL have to be `COPY ... FROM STDIN ...' statement
+%% @param Format data transfer format specification: `text' or `{binary, epgsql_type()}'. Have to
+%%        match `WHERE (FORMAT ???)' from SQL (`text' for `text'/`csv' OR `{binary, ..}' for `binary').
+%% @returns in case of success, `{ok, [text | binary]}' tuple is returned. List describes the expected
+%%        payload format for each column of input. In current implementation all the atoms in a list
+%%        will be the same and will match the atom in `Format' parameter. It may change in the future
+%%        if PostgreSQL will introduce alternative payload formats.
+-spec copy_from_stdin(connection(), sql_query(), text | {binary, [epgsql_type()]}) ->
+          epgsql_cmd_copy_from_stdin:response().
+copy_from_stdin(C, SQL, Format) ->
+    epgsql_sock:sync_command(C, epgsql_cmd_copy_from_stdin, {SQL, self(), Format}).
+
+%% @doc Send a batch of rows to `COPY .. FROM STDIN WITH (FORMAT binary)' in Erlang format
+%%
+%% Erlang values will be converted to postgres types same way as parameters of, eg, {@link equery/3}
+%% using data type specification from 3rd argument of {@link copy_from_stdin/3} (number of columns in
+%% each element of `Rows' should match the number of elements in `{binary, Types}').
+%% @param Rows might be a list of tuples or list of lists. List of lists is slightly more efficient.
+-spec copy_send_rows(connection(), [tuple() | [bind_param()]], timeout()) -> ok | {error, ErrReason} when
+      ErrReason :: not_in_copy_mode | not_binary_format | query_error().
+copy_send_rows(C, Rows, Timeout) ->
+    epgsql_sock:copy_send_rows(C, Rows, Timeout).
+
+%% @doc Tells server that the transfer of COPY data is done
+%%
+%% Stops copy-mode and returns the number of inserted rows.
+-spec copy_done(connection()) -> epgsql_cmd_copy_done:response().
+copy_done(C) ->
+    epgsql_sock:sync_command(C, epgsql_cmd_copy_done, []).
+
 -spec standby_status_update(connection(), lsn(), lsn()) -> ok.
 %% @doc sends last flushed and applied WAL positions to the server in a standby status update message via
 %% given `Connection'
 standby_status_update(Connection, FlushedLSN, AppliedLSN) ->
-    gen_server:call(Connection, {standby_status_update, FlushedLSN, AppliedLSN}).
+    epgsql_sock:standby_status_update(Connection, FlushedLSN, AppliedLSN).
 
 handle_x_log_data(Mod, StartLSN, EndLSN, WALRecord, Repl) ->
     Mod:handle_x_log_data(StartLSN, EndLSN, WALRecord, Repl).
