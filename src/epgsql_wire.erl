@@ -334,14 +334,16 @@ encode_copy_row(ValuesTuple, Types, Codec) when is_tuple(ValuesTuple) ->
 encode_copy_row(Values, Types, Codec) ->
     NumCols = length(Types),
     [<<NumCols:?int16>>
-    | [
-       case epgsql_binary:is_null(Value, Codec) of
-           true ->
-               <<-1:?int32>>;
-           false ->
-               epgsql_binary:encode(Type, Value, Codec)
-       end || {Type, Value} <- lists:zip(Types, Values) % TODO: parallel iteration ninstead
-      ]].
+    | lists:zipwith(
+        fun(Type, Value) ->
+                case epgsql_binary:is_null(Value, Codec) of
+                    true ->
+                        <<-1:?int32>>;
+                    false ->
+                        epgsql_binary:encode(Type, Value, Codec)
+                end
+        end, Types, Values)
+    ].
 
 %% @doc encode binary copy data file header
 %%

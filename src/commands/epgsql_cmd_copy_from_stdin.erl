@@ -32,7 +32,7 @@
 -export([init/1, execute/2, handle_message/4]).
 -export_type([response/0]).
 
--type response() :: ok | {error, epgsql:query_error()}.
+-type response() :: {ok, [text | binary]} | {error, epgsql:query_error()}.
 
 -include("epgsql.hrl").
 -include("protocol.hrl").
@@ -61,13 +61,9 @@ execute(Sock, #copy_stdin{query = SQL, format = Format} = St) ->
 %% CopyBothResponses
 handle_message(?COPY_IN_RESPONSE, <<BinOrText, NumColumns:?int16, Formats/binary>>, Sock,
                #copy_stdin{initiator = Initiator, format = RequestedFormat}) ->
-    ColumnFormats =
-        [case Format of
-             0 -> text;
-             1 -> binary
-         end || <<Format:?int16>> <= Formats],
+    ColumnFormats = [format_to_atom(Format) || <<Format:?int16>> <= Formats],
     length(ColumnFormats) =:= NumColumns orelse error(invalid_copy_in_response),
-    CopyState = init_copy_state(BinOrText, RequestedFormat, ColumnFormats, Initiator),
+    CopyState = init_copy_state(format_to_atom(BinOrText), RequestedFormat, ColumnFormats, Initiator),
     Sock1 = epgsql_sock:set_attr(subproto_state, CopyState, Sock),
     Res = {ok, ColumnFormats},
     {finish, Res, Res, epgsql_sock:set_packet_handler(on_copy_from_stdin, Sock1)};
@@ -77,14 +73,14 @@ handle_message(?ERROR, Error, _Sock, _State) ->
 handle_message(_, _, _, _) ->
     unknown.
 
-init_copy_state(0, text, ColumnFormats, Initiator) ->
-    %% When BinOrText is 0, all "columns" should be 0 format as well.
+init_copy_state(text, text, ColumnFormats, Initiator) ->
+    %% When BinOrText is `text', all "columns" should be `text' format as well.
     %% See https://www.postgresql.org/docs/current/protocol-message-formats.html
     %% CopyInResponse
     (lists:member(binary, ColumnFormats) == false)
         orelse error(invalid_copy_in_response),
     #copy{initiator = Initiator, format = text};
-init_copy_state(1, {binary, ColumnTypes}, ColumnFormats, Initiator) ->
+init_copy_state(binary, {binary, ColumnTypes}, ColumnFormats, Initiator) ->
     %% https://www.postgresql.org/docs/current/protocol-flow.html#PROTOCOL-COPY
     %% "As of the present implementation, all columns in a given COPY operation will use the same
     %% format, but the message design does not assume this."
@@ -101,3 +97,6 @@ init_copy_state(ServerExpectedFormat, RequestedFormat, _, _Initiator) ->
     %% `epgsql:copy_from_stdin(C, "COPY ... WITH (FORMAT binary)", text)' or maybe PostgreSQL
     %% got some new format epgsql is not aware of
     error({format_mismatch, RequestedFormat, ServerExpectedFormat}).
+
+format_to_atom(0) -> text;
+format_to_atom(1) -> binary.

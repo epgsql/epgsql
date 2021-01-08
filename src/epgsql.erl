@@ -472,6 +472,10 @@ copy_from_stdin(C, SQL) ->
 %% @param SQL have to be `COPY ... FROM STDIN ...' statement
 %% @param Format data transfer format specification: `text' or `{binary, epgsql_type()}'. Have to
 %%        match `WHERE (FORMAT ???)' from SQL (`text' for `text'/`csv' OR `{binary, ..}' for `binary').
+%% @returns in case of success, `{ok, [text | binary]}' tuple is returned. List describes the expected
+%%        payload format for each column of input. In current implementation all the atoms in a list
+%%        will be the same and will match the atom in `Format' parameter. It may change in the future
+%%        if PostgreSQL will introduce alternative payload formats.
 -spec copy_from_stdin(connection(), sql_query(), text | {binary, [epgsql_type()]}) ->
           epgsql_cmd_copy_from_stdin:response().
 copy_from_stdin(C, SQL, Format) ->

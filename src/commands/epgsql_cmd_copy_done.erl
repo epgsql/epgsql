@@ -35,12 +35,8 @@ execute(Sock0, St) ->
     end.
 
 handle_message(?COMMAND_COMPLETE, Bin, Sock, St) ->
-    Complete = epgsql_wire:decode_complete(Bin),
-    Res = case Complete of
-        {copy, Count} -> {ok, Count};
-        copy -> ok
-    end,
-    {add_result, Res, {complete, Complete}, Sock, St};
+    Complete = {copy, Count} = epgsql_wire:decode_complete(Bin),
+    {add_result, {ok, Count}, {complete, Complete}, Sock, St};
 handle_message(?ERROR, Error, Sock, St) ->
     Result = {error, Error},
     {add_result, Result, Result, Sock, St};
