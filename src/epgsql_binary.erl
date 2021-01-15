@@ -1,5 +1,19 @@
 %%% @doc
 %%% Interface to encoder/decoder for binary postgres data representation
+%%%
+%%% Because decoding is almost always done in batches (eg, query returns multiple rows of the same
+%%% structure), decoding is organized in 2 phases:
+%%% <ol>
+%%%   <li>{@link oid_to_decoder/3} builds an intermediate {@link decoder()} structure for a
+%%%   particular column and they are organized in a list to decode a row of columns</li>
+%%%   <li>{@link decode/2} is used to decode binary data to Erlang structures using
+%%%   {@link decoder()} structure</li>
+%%% </ol>
+%%%
+%%% Encoding, on other hand, is normally only done once (you only encode placeholder parameters
+%%% once for each query), so, it's done in one step using {@link encode/3}.
+%%% But 2-step encoder helpers also exist: {@link type_to_encoder/2} and {@link encode/2}. They
+%%% are used by, eg, `COPY .. FROM STDIN' and {@link epgsql_cmd_execute_batch}.
 %%% @end
 %%% @see epgsql_codec
 %%% @see epgsql_wire
@@ -17,12 +31,16 @@
          typeinfo_to_oid_info/2,
          oid_to_name/2,
          oid_to_info/2,
+         supports/2]).
+-export([type_to_encoder/2,
+         encode/2,
+         encode/3,
          oid_to_decoder/3,
-         decode/2, encode/3, supports/2]).
+         decode/2]).
 %% Composite type decoders
 -export([decode_record/3, decode_array/3]).
 
--export_type([codec/0, decoder/0]).
+-export_type([codec/0, decoder/0, encoder/0]).
 
 -include("protocol.hrl").
 -define(DEFAULT_NULLS, [null, undefined]).
@@ -36,6 +54,7 @@
          null_term :: any() }).
 -record(array_encoder,
         {element_encoder :: epgsql_codec:codec_entry(),
+         element_oid :: epgsql_oid_db:oid(),
          n_dims = 0 :: non_neg_integer(),
          lengths = [] :: [non_neg_integer()],
          has_null = false :: boolean(),
@@ -48,6 +67,7 @@
 -opaque decoder() :: {fun((binary(), epgsql:type_name(), epgsql_codec:codec_state()) -> any()),
                       epgsql:type_name(),
                       epgsql_codec:codec_state()}.
+-opaque encoder() :: epgsql_codec:codec_entry().
 
 -type type() :: epgsql:type_name() | {array, epgsql:type_name()}.
 -type maybe_unknown_type() :: type() | {unknown_oid, epgsql_oid_db:oid()}.
@@ -229,7 +249,6 @@ decode_elements(<<Len:?int32, Value:Len/binary, Rest/binary>>, Acc, N,
     decode_elements(Rest, [Value2 | Acc], N - 1, ArDecoder).
 
 
-
 %% Record decoding
 %% $PG$/src/backend/utils/adt/rowtypes.c
 decode_record(<<Size:?int32, Bin/binary>>, record, Codec) ->
@@ -247,34 +266,48 @@ decode_record1(<<Oid:?int32, Len:?int32, ValueBin:Len/binary, Rest/binary>>, Siz
 %% Encode
 %%
 
-%% Convert erlang value to PG binary of type, specified by type name
--spec encode(epgsql:type_name() | {array, epgsql:type_name()}, any(), codec()) -> iolist().
+%% @doc Convert Erlang value to PG binary of type, specified by type name
+-spec encode(epgsql:type_name() | {array, epgsql:type_name()}, epgsql:bind_param(), codec()) -> iodata().
 encode(TypeName, Value, Codec) ->
-    Type = type_to_type_info(TypeName, Codec),
-    encode_with_type(Type, Value, Codec).
+    NameModState = type_to_encoder(TypeName, Codec),
+    encode(Value, NameModState).
 
-encode_with_type(Type, Value, Codec) ->
+%% @doc Prepare {@link encoder()} structure that can convert Erlang types to PG binary
+%%
+%% To be used with {@link encode/2}.
+%% It only makes sense when you need to encode same PG type many times. Otherwise see {@link encode/3}
+-spec type_to_encoder(epgsql:type_name() | {array, epgsql:type_name()}, codec()) -> encoder().
+type_to_encoder(TypeName, Codec) ->
+    Type = type_to_type_info(TypeName, Codec),
     NameModState = epgsql_oid_db:type_to_codec_entry(Type),
     case epgsql_oid_db:type_to_oid_info(Type) of
         {_ArrayOid, _, true} ->
-            %FIXME: check if this OID is the same as was returned by 'Describe'
+            %%FIXME: check if this OID is the same as was returned by 'Describe'
             ElementOid = epgsql_oid_db:type_to_element_oid(Type),
-            encode_array(Value, ElementOid,
-                         #array_encoder{
-                            element_encoder = NameModState,
-                            codec = Codec});
+            {array,
+             ?MODULE,
+             #array_encoder{
+                element_encoder = NameModState,
+                element_oid = ElementOid,
+                codec = Codec}};
         {_Oid, _, false} ->
-            encode_value(Value, NameModState)
+            NameModState
     end.
 
-encode_value(Value, {Name, Mod, State}) ->
+%% @doc Encodes Erlang value to Postgres binary with prepared `encoder()'
+%%
+%% @see type_to_encoder/2
+-spec encode(epgsql:bind_param(), encoder()) -> iodata().
+encode(Array, {array, ?MODULE, ArrayEncoder}) ->
+    encode_array(Array, ArrayEncoder);
+encode(Value, {Name, Mod, State}) ->
     Payload = epgsql_codec:encode(Mod, Value, Name, State),
     [<<(iolist_size(Payload)):?int32>> | Payload].
 
 
 %% Number of dimensions determined at encode-time by introspection of data, so,
 %% we can't encode array of lists (eg. strings).
-encode_array(Array, Oid, ArrayEncoder) ->
+encode_array(Array, #array_encoder{element_oid = Oid} = ArrayEncoder) ->
     {Data, {NDims, Lengths, HasNull}} = encode_array_dims(Array, ArrayEncoder),
     Lens = [<<N:?int32, 1:?int32>> || N <- lists:reverse(Lengths)],
     HasNullInt = case HasNull of
@@ -298,7 +331,7 @@ encode_array_dims([H | _] = Array,
     F = fun(El, {Len, HasNull1}) ->
                 case is_null(El, Codec) of
                     false ->
-                        {encode_value(El, ValueEncoder), {Len + 1, HasNull1}};
+                        {encode(El, ValueEncoder), {Len + 1, HasNull1}};
                     true ->
                         {<<-1:?int32>>, {Len + 1, true}}
                 end

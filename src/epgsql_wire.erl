@@ -16,7 +16,6 @@
          decode_parameters/2,
          encode_command/1,
          encode_command/2,
-         build_decoder/2,
          decode_data/2,
          decode_complete/1,
          encode_types/2,
@@ -25,8 +24,10 @@
          encode_parameters/2,
          encode_standby_status_update/3,
          encode_copy_header/0,
-         encode_copy_row/3,
+         encode_copy_row_with_encoder/3,
          encode_copy_trailer/0]).
+-export([build_decoder/2,
+         build_copy_row_encoder/2]).
 %% Encoders for Client -> Server packets
 -export([encode_query/1,
          encode_parse/3,
@@ -38,12 +39,14 @@
          encode_flush/0,
          encode_sync/0]).
 
--export_type([row_decoder/0, packet_type/0]).
+-export_type([row_decoder/0, copy_row_encoder/0, packet_type/0]).
 
 -include("epgsql.hrl").
 -include("protocol.hrl").
 
 -opaque row_decoder() :: {[epgsql_binary:decoder()], [epgsql:column()], epgsql_binary:codec()}.
+-opaque copy_row_encoder() :: {ColumnEncoders :: [fun( (epgsql:bind_param()) -> iodata() )],
+                               NumParameters :: non_neg_integer()}.
 -type packet_type() :: byte().                 % see protocol.hrl
 %% -type packet_type(Exact) :: Exact.   % TODO: uncomment when OTP-18 is dropped
 
@@ -222,7 +225,8 @@ decode_complete(Bin) ->
     end.
 
 
-%% @doc encode types
+%% @doc encode parameter types specification for `Parse' packet
+-spec encode_types([epgsql:type_name() | {array, epgsql:type_name()}], epgsql_binary:codec()) -> binary().
 encode_types(Types, Codec) ->
     encode_types(Types, 0, <<>>, Codec).
 
@@ -236,7 +240,13 @@ encode_types([Type | T], Count, Acc, Codec) ->
     end,
     encode_types(T, Count + 1, <<Acc/binary, Oid:?int32>>, Codec).
 
-%% @doc encode expected column formats
+%% @doc encode expected result set column formats
+%% ```
+%% <<
+%%  NumberOfColumns,
+%%  ColumnFormat * NumberOfColumns (ColumnFormat: 0 -> text; 1 -> binary)
+%% >>
+%% '''
 -spec encode_formats([epgsql:column()]) -> binary().
 encode_formats(Columns) ->
     encode_formats(Columns, 0, <<>>).
@@ -256,10 +266,16 @@ format(#column{oid = Oid}, Codec) ->
     end.
 
 %% @doc encode parameters for 'Bind'
+%% ```
+%% <<NumberOfParameters,
+%%   ParameterFormat * NumberOfParameters, (ParameterFormat: 0 -> text; 1 -> binary)
+%%   NumberOfParameters,
+%%   (ParamLength, ParamValue) * NumberOfparameters>>
+%% '''
 -spec encode_parameters([{epgsql:epgsql_type(), epgsql:bind_param()}],
                         epgsql_binary:codec()) -> iolist().
-encode_parameters(Parameters, Codec) ->
-    encode_parameters(Parameters, 0, <<>>, [], Codec).
+encode_parameters(TypedParameters, Codec) ->
+    encode_parameters(TypedParameters, 0, <<>>, [], Codec).
 
 encode_parameters([], Count, Formats, Values, _Codec) ->
     [<<Count:?int16>>, Formats, <<Count:?int16>> | lists:reverse(Values)];
@@ -316,6 +332,24 @@ encode_standby_status_update(ReceivedLSN, FlushedLSN, AppliedLSN) ->
     Timestamp = ((MegaSecs * 1000000 + Secs) * 1000000 + MicroSecs) - 946684800*1000000,
     <<$r:8, ReceivedLSN:?int64, FlushedLSN:?int64, AppliedLSN:?int64, Timestamp:?int64, 0:8>>.
 
+%%
+%% COPY protocol
+%%
+
+%% @doc Builds "row encoder" that can be used to efficiently encode multiple COPY rows
+%%
+%% @see encode_copy_row_with_encoder/3
+-spec build_copy_row_encoder([epgsql:epgsql_type()], epgsql_binary:codec()) -> copy_row_encoder().
+build_copy_row_encoder(Types, Codec) ->
+    ColumnEncoders =
+        lists:map(fun(TypeName) ->
+                          ValueEncoder = epgsql_binary:type_to_encoder(TypeName, Codec),
+                          fun(Value) ->
+                                   epgsql_binary:encode(Value, ValueEncoder)
+                          end
+                  end, Types),
+    {ColumnEncoders, length(ColumnEncoders)}.
+
 %% @doc encode binary copy data file header
 %%
 %% See [https://www.postgresql.org/docs/current/sql-copy.html#id-1.9.3.55.9.4.5]
@@ -328,21 +362,23 @@ encode_copy_header() ->
 
 %% @doc encode binary copy data file row / tuple
 %%
+%% It uses pre-built {@link copy_row_encoder()} for eficiency
 %% See [https://www.postgresql.org/docs/current/sql-copy.html#id-1.9.3.55.9.4.6]
-encode_copy_row(ValuesTuple, Types, Codec) when is_tuple(ValuesTuple) ->
-    encode_copy_row(tuple_to_list(ValuesTuple), Types, Codec);
-encode_copy_row(Values, Types, Codec) ->
-    NumCols = length(Types),
+-spec encode_copy_row_with_encoder(
+        [epgsql:bind_param()] | tuple(), copy_row_encoder(), epgsql_binary:codec()) -> iodata().
+encode_copy_row_with_encoder(ValuesTuple, Encoder, Codec) when is_tuple(ValuesTuple) ->
+    encode_copy_row_with_encoder(tuple_to_list(ValuesTuple), Encoder, Codec);
+encode_copy_row_with_encoder(Values, {ColumnEncoders, NumCols}, Codec) when is_list(Values) ->
     [<<NumCols:?int16>>
     | lists:zipwith(
-        fun(Type, Value) ->
+        fun(Encoder, Value) ->
                 case epgsql_binary:is_null(Value, Codec) of
                     true ->
                         <<-1:?int32>>;
                     false ->
-                        epgsql_binary:encode(Type, Value, Codec)
+                        Encoder(Value)
                 end
-        end, Types, Values)
+        end, ColumnEncoders, Values)
     ].
 
 %% @doc encode binary copy data file header

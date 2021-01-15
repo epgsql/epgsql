@@ -5,5 +5,5 @@
          initiator :: pid(),
          last_error :: undefined | epgsql:query_error(),
          format :: binary | text,
-         binary_types :: [epgsql:epgsql_type()] | undefined
+         binary_encoder :: epgsql_wire:copy_row_encoder() | undefined
         }).

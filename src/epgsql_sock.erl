@@ -665,8 +665,8 @@ handle_copy_send_rows(_, _, #copy{format = Format}, _) when Format =/= binary ->
 handle_copy_send_rows(_, _, #copy{last_error = LastError}, _) when LastError =/= undefined ->
     %% server already reported error in data stream asynchronously
     {error, LastError};
-handle_copy_send_rows(Rows, _, #copy{binary_types = Types}, State) ->
-    Data = [epgsql_wire:encode_copy_row(Values, Types, get_codec(State))
+handle_copy_send_rows(Rows, _, #copy{binary_encoder = Encoder}, State) ->
+    Data = [epgsql_wire:encode_copy_row_with_encoder(Values, Encoder, get_codec(State))
             || Values <- Rows],
     ok = send(State, ?COPY_DATA, Data).
 
