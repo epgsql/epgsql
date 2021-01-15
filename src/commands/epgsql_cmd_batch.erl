@@ -48,6 +48,7 @@ init(Batch) when is_list(Batch) ->
     #batch{batch = Batch}.
 
 execute(Sock, #batch{batch = Batch, statement = undefined} = State) ->
+    %% Each query has it's own statement
     Codec = epgsql_sock:get_codec(Sock),
     Commands =
         lists:foldr(
@@ -56,7 +57,9 @@ execute(Sock, #batch{batch = Batch, statement = undefined} = State) ->
                              columns = Columns,
                              types = Types} = Statement,
                   BinFormats = epgsql_wire:encode_formats(Columns),
-                  add_command(StatementName, Types, Parameters, BinFormats, Codec, Acc)
+                  TypedParameters = lists:zip(Types, Parameters),
+                  BinParams = epgsql_wire:encode_parameters(TypedParameters, Codec),
+                  add_command(StatementName, BinParams, BinFormats, Acc)
           end,
           [epgsql_wire:encode_sync()],
           Batch),
@@ -65,21 +68,22 @@ execute(Sock, #batch{batch = Batch,
                      statement = #statement{name = StatementName,
                                             columns = Columns,
                                             types = Types}} = State) ->
+    %% All queries share the same statement
     Codec = epgsql_sock:get_codec(Sock),
     BinFormats = epgsql_wire:encode_formats(Columns),
-    %% TODO: build some kind of encoder and reuse it for each batch item
+    %% optimization: builds encoder to reuse it for each batch item
+    ParamsEncoder = epgsql_wire:build_parameters_encoder(Types, Codec),
     Commands =
         lists:foldr(
           fun(Parameters, Acc) ->
-                  add_command(StatementName, Types, Parameters, BinFormats, Codec, Acc)
+                  BinParams = epgsql_wire:encode_parameters_with_encoder(Parameters, ParamsEncoder, Codec),
+                  add_command(StatementName, BinParams, BinFormats, Acc)
           end,
           [epgsql_wire:encode_sync()],
           Batch),
     {send_multi, Commands, Sock, State}.
 
-add_command(StmtName, Types, Params, BinFormats, Codec, Acc) ->
-    TypedParameters = lists:zip(Types, Params),
-    BinParams = epgsql_wire:encode_parameters(TypedParameters, Codec),
+add_command(StmtName, BinParams, BinFormats, Acc) ->
     [epgsql_wire:encode_bind("", StmtName, BinParams, BinFormats),
      epgsql_wire:encode_execute("", 0) | Acc].
 

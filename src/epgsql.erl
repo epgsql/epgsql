@@ -333,9 +333,11 @@ parse(C, Sql, Types) ->
 %% @param Name name of the prepared statement. Empty string creates so called "anonymous statement".
 %%   Only one anonymous statement could exist at a time. Next creation of anonymous statement would
 %%   owerwrite the old one.
-%% @param Types list of type names for placeholder parameters. Can be an empty list. It's the same
-%%   as specifying the type in SQL string as `$1::integer, $2::timestamp' etc, but more efficient.
--spec parse(connection(), iolist(), sql_query(), [epgsql_type()]) ->
+%% @param Types list of type names for placeholder parameters. Can be an empty list. Could also use
+%%   `undefined' if particular column's type is unknown (server will try to deduct it).
+%%   This parameter is the same as specifying the type cast in SQL string, like
+%%   `$1::integer, $2::timestamp' etc, but more efficient.
+-spec parse(connection(), iolist(), sql_query(), [epgsql_type() | undefined]) ->
                    epgsql_cmd_parse:response().
 parse(C, Name, Sql, Types) ->
     sync_on_error(

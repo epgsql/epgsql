@@ -22,12 +22,14 @@
          encode_formats/1,
          format/2,
          encode_parameters/2,
+         encode_parameters_with_encoder/3,
          encode_standby_status_update/3,
          encode_copy_header/0,
          encode_copy_row_with_encoder/3,
          encode_copy_trailer/0]).
 -export([build_decoder/2,
-         build_copy_row_encoder/2]).
+         build_copy_row_encoder/2,
+         build_parameters_encoder/2]).
 %% Encoders for Client -> Server packets
 -export([encode_query/1,
          encode_parse/3,
@@ -39,7 +41,7 @@
          encode_flush/0,
          encode_sync/0]).
 
--export_type([row_decoder/0, copy_row_encoder/0, packet_type/0]).
+-export_type([row_decoder/0, copy_row_encoder/0, parameters_encoder/0, packet_type/0]).
 
 -include("epgsql.hrl").
 -include("protocol.hrl").
@@ -47,6 +49,9 @@
 -opaque row_decoder() :: {[epgsql_binary:decoder()], [epgsql:column()], epgsql_binary:codec()}.
 -opaque copy_row_encoder() :: {ColumnEncoders :: [fun( (epgsql:bind_param()) -> iodata() )],
                                NumParameters :: non_neg_integer()}.
+-opaque parameters_encoder() :: {ParameterEncoders :: [fun( (epgsql:bind_param()) -> iodata() )],
+                                 Formats :: [0 | 1],
+                                 NumParameters :: non_neg_integer()}.
 -type packet_type() :: byte().                 % see protocol.hrl
 %% -type packet_type(Exact) :: Exact.   % TODO: uncomment when OTP-18 is dropped
 
@@ -258,12 +263,62 @@ encode_formats([#column{format = Format} | T], Count, Acc) ->
     encode_formats(T, Count + 1, <<Acc/binary, Format:?int16>>).
 
 %% @doc Returns 1 if Codec knows how to decode binary format of the type provided and 0 otherwise
-format({unknown_oid, _}, _) -> 0;
+-spec format(epgsql:column(), epgsql_binary:codec()) -> 0 | 1.
 format(#column{oid = Oid}, Codec) ->
     case epgsql_binary:supports(Oid, Codec) of
         true  -> 1;                             %binary
         false -> 0                              %text
     end.
+
+%% @doc Builds reusable encoder that can be used to encode BIND parameters
+%%
+%% In case you need to bind parameters to the same statement multiple times.
+%% To be used with {@link encode_parameters_with_encoder/2}
+-spec build_parameters_encoder([epgsql:epgsql_type()], epgsql_binary:codec()) -> parameters_encoder().
+build_parameters_encoder(Types, Codec) ->
+    build_param_encoder(Types, Codec, [], [], 0).
+
+build_param_encoder([{unknown_oid, _Oid} | Types], Codec, Encoders, Formats, Count) ->
+    build_param_encoder(Types, Codec, [fun encode_text/1 | Encoders], [0 | Formats], Count + 1);
+build_param_encoder([TypeName | Types], Codec, Encoders, Formats, Count) ->
+    ValueEncoder = epgsql_binary:type_to_encoder(TypeName, Codec),
+    build_param_encoder(
+      Types,
+      Codec,
+      [fun(Value) ->
+             epgsql_binary:encode(Value, ValueEncoder)
+       end | Encoders], [1 | Formats], Count + 1);
+build_param_encoder([], _, Encoders, Formats, Count) ->
+    {lists:reverse(Encoders), lists:reverse(Formats), Count}.
+
+-spec encode_parameters_with_encoder(
+        [epgsql:bind_param()], parameters_encoder(), epgsql_binary:codec()) -> iodata().
+encode_parameters_with_encoder(Parameters, {ColumnEncoders, Formats, Count}, Codec) ->
+    {FormatsBin, ParamsBin} = encode_with_encoder(Parameters, ColumnEncoders, Formats, [], <<>>, Codec),
+    [<<Count:?int16>>, FormatsBin, <<Count:?int16>>, ParamsBin].
+
+encode_with_encoder([Value | Parameters], [Encoder | Encoders], [Format | Formats], ParamAcc, FormatAcc, Codec) ->
+    case epgsql_binary:is_null(Value, Codec) of
+        true ->
+            encode_with_encoder(
+              Parameters,
+              Encoders,
+              Formats,
+              [<<-1:?int32>> | ParamAcc],
+              <<FormatAcc/binary, 1:?int16>>,   %alwasy transfer NULL as binary
+              Codec);
+        false ->
+            encode_with_encoder(
+              Parameters,
+              Encoders,
+              Formats,
+              [Encoder(Value) | ParamAcc],
+              <<FormatAcc/binary, Format:?int16>>,
+              Codec)
+    end;
+encode_with_encoder([], [], [], ParamAcc, FormatAcc, _) ->
+    {FormatAcc, lists:reverse(ParamAcc)}.
+
 
 %% @doc encode parameters for 'Bind'
 %% ```
