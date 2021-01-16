@@ -76,12 +76,14 @@ equery(C, Sql, Parameters) ->
             Error
     end.
 
+prepared_query(C, #statement{types = Types} = Stmt, Parameters) ->
+    TypedParameters = lists:zip(Types, Parameters),
+    Ref = epgsqla:prepared_query(C, Stmt, TypedParameters),
+    receive_result(C, Ref);
 prepared_query(C, Name, Parameters) ->
     case describe(C, statement, Name) of
-        {ok, #statement{types = Types} = S} ->
-            Typed_Parameters = lists:zip(Types, Parameters),
-            Ref = epgsqla:prepared_query(C, S, Typed_Parameters),
-            receive_result(C, Ref);
+        {ok, S} ->
+            prepared_query(C, S, Parameters);
         Error ->
             Error
     end.

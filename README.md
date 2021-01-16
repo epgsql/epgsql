@@ -37,8 +37,10 @@ of the protocol feature that allows faster execution.
   - **epgsql** maintains backwards compatibility with the original driver API
   - **epgsqla** delivers complete results as regular erlang messages
   - **epgsqli** delivers results as messages incrementally (row by row)
+  All API interfaces can be used with the same connection: eg, connection opened with `epgsql`
+  can be queried with `epgsql` / `epgsqla` / `epgsqli` in any combinations.
 - internal queue of client requests, so you don't need to wait for the response
-  to send the next request
+  to send the next request (pipelining)
 - single process to hold driver state and receive socket data
 - execution of several parsed statements as a batch
 - binding timestamps in `erlang:now()` format

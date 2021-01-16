@@ -21,7 +21,7 @@ src/epgsql_errcodes.erl:
 	./generate_errcodes_src.sh > src/epgsql_errcodes.erl
 
 common-test:
-	$(REBAR) ct -v -c
+	$(REBAR) ct --readable true -c
 
 eunit:
 	$(REBAR) eunit -c
