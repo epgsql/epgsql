@@ -142,7 +142,7 @@ groups() ->
         get_cmd_status
     ],
     SubGroups ++
-        [{epgsql, [], [{group, generic} | Tests]},
+        [{epgsql, [], [{group, generic} | [squery_with_timeout | Tests]]},
          {epgsql_cast, [], [{group, pipelining} | Tests]},
          {epgsql_incremental, [], Tests}].
 
@@ -458,6 +458,12 @@ select(Config) ->
         ] = Cols,
         [{<<"1">>, <<"one">>}, {<<"2">>, <<"two">>}] = Rows
       end).
+
+squery_with_timeout(Config) ->
+    F1 = fun(C) -> ?assertMatch({error, timeout}, epgsql:squery(C, "SELECT pg_sleep(2)", 2000)) end,
+    epgsql_ct:with_connection(Config, F1),
+    F2 = fun(C) -> ?assertMatch({ok, _, [{<<>>}]}, epgsql:squery(C, "SELECT pg_sleep(0)", 1000)) end,
+    epgsql_ct:with_connection(Config, F2).
 
 insert(Config) ->
     Module = ?config(module, Config),

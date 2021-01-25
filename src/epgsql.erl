@@ -13,6 +13,7 @@
          set_notice_receiver/2,
          get_cmd_status/1,
          squery/2,
+         squery/3,
          equery/2, equery/3, equery/4,
          prepared_query/3,
          parse/2, parse/3, parse/4,
@@ -245,6 +246,17 @@ get_cmd_status(C) ->
 %% @see epgsql_cmd_squery
 squery(Connection, SqlQuery) ->
     epgsql_sock:sync_command(Connection, epgsql_cmd_squery, SqlQuery).
+
+-spec squery(connection(), sql_query(), timeout()) ->
+    epgsql_cmd_squery:response() | epgsql_sock:error() | {error, timeout}.
+squery(C, SQL, Timeout) ->
+    Ref = epgsqla:squery(C, SQL),
+    receive
+        {C, Ref, Result} -> Result
+    after Timeout ->
+        epgsql_sock:kill(C),
+        {error, timeout}
+    end.
 
 equery(C, Sql) ->
     equery(C, Sql, []).
