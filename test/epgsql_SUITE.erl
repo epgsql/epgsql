@@ -85,6 +85,7 @@ groups() ->
     EpgsqlTests = [ squery_with_timeout
                   , parse_with_timeout
                   , equery_with_timeout
+                  , prepared_query_with_timeout
                   ],
     Tests = [
         {group, connect},
@@ -1609,16 +1610,25 @@ pipelined_parse_batch_execute(Config) ->
       end).
 
 equery_with_timeout(Config) ->
-  F1 = fun(C) ->
-           ?assertEqual({error, timeout},
-                        epgsql:equery(C, "", "select value from test_table1 where id = $1", [1], 0))
-       end,
-  epgsql_ct:with_connection(Config, F1),
-  F2 = fun(C) ->
-           ?assertMatch({ok, _Cols, [{<<"one">>}]}
-                       , epgsql:equery(C, "", "select value from test_table1 where id = $1", [1], 1000))
-       end,
-  epgsql_ct:with_connection(Config, F2).
+    F1 = fun(C) ->
+             ?assertEqual({error, timeout},
+                          epgsql:equery(C, "", "select value from test_table1 where id = $1", [1], 0))
+         end,
+    epgsql_ct:with_connection(Config, F1),
+    F2 = fun(C) ->
+             ?assertMatch({ok, _Cols, [{<<"one">>}]},
+                          epgsql:equery(C, "", "select value from test_table1 where id = $1", [1], 1000))
+         end,
+    epgsql_ct:with_connection(Config, F2).
+
+prepared_query_with_timeout(Config) ->
+    F = fun(C) ->
+            {ok, Stmt} = epgsql:parse(C, "inc", "select $1+1", []),
+            ?assertMatch({ok, _Cols, [{2}]}, epgsql:prepared_query(C, Stmt, [1], 1000)),
+            ?assertEqual({error, timeout},epgsql:prepared_query(C, Stmt, [2], 0))
+        end,
+    epgsql_ct:with_connection(Config, F).
+
 %% =============================================================================
 %% Internal functions
 %% ============================================================================

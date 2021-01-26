@@ -15,7 +15,7 @@
          squery/2,
          squery/3,
          equery/2, equery/3, equery/4, equery/5,
-         prepared_query/3,
+         prepared_query/3, prepared_query/4,
          parse/2, parse/3, parse/4, parse/5,
          describe/2, describe/3,
          bind/3, bind/4,
@@ -317,6 +317,17 @@ prepared_query(C, Name, Parameters) when is_list(Name) ->
             Error
     end.
 
+-spec prepared_query(connection(), statement(), [bind_param()], timeout()) -> epgsql_cmd_prepared_query:response().
+prepared_query(C, #statement{types = Types} = S, Parameters, Timeout) ->
+  TypedParameters = lists:zip(Types, Parameters),
+  Ref = epgsqla:prepared_query(C, S, TypedParameters),
+  receive
+      {C, Ref, ParseResult} ->
+          ParseResult
+  after Timeout ->
+      epgsql_sock:kill(C),
+      {error, timeout}
+  end.
 
 %% parse
 
