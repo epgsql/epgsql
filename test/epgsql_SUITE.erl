@@ -82,7 +82,10 @@ groups() ->
             mixed_api
         ]}
     ],
-
+    EpgsqlTests = [ squery_with_timeout
+                  , parse_with_timeout
+                  , equery_with_timeout
+                  ],
     Tests = [
         {group, connect},
         {group, types},
@@ -142,7 +145,7 @@ groups() ->
         get_cmd_status
     ],
     SubGroups ++
-        [{epgsql, [], [{group, generic} | [squery_with_timeout | Tests]]},
+        [{epgsql, [], [{group, generic} | Tests] ++ EpgsqlTests},
          {epgsql_cast, [], [{group, pipelining} | Tests]},
          {epgsql_incremental, [], Tests}].
 
@@ -630,6 +633,20 @@ parse(Config) ->
         ok = Module:close(C, S),
         ok = Module:sync(C)
     end).
+
+parse_with_timeout(Config) ->
+  epgsql_ct:with_connection(
+      Config,
+      fun(C) ->
+          ?assertEqual({error, timeout}, epgsql:parse(C, "", "select * from test_table1", [], 0))
+      end),
+  epgsql_ct:with_connection(
+      Config,
+      fun(C) ->
+         {ok, S} = epgsql:parse(C, "", "select * from test_table1", [], 1000),
+         [#column{name = <<"id">>}, #column{name = <<"value">>}] = S#statement.columns,
+         ok = epgsql:close(C, S)
+      end).
 
 parse_column_format(Config) ->
     Module = ?config(module, Config),
@@ -1590,6 +1607,18 @@ pipelined_parse_batch_execute(Config) ->
                end || Ref <- CloseRefs],
               erlang:cancel_timer(Timer)
       end).
+
+equery_with_timeout(Config) ->
+  F1 = fun(C) ->
+           ?assertEqual({error, timeout},
+                        epgsql:equery(C, "", "select value from test_table1 where id = $1", [1], 0))
+       end,
+  epgsql_ct:with_connection(Config, F1),
+  F2 = fun(C) ->
+           ?assertMatch({ok, _Cols, [{<<"one">>}]}
+                       , epgsql:equery(C, "", "select value from test_table1 where id = $1", [1], 1000))
+       end,
+  epgsql_ct:with_connection(Config, F2).
 %% =============================================================================
 %% Internal functions
 %% ============================================================================
