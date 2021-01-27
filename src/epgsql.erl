@@ -251,12 +251,7 @@ squery(Connection, SqlQuery) ->
     epgsql_cmd_squery:response() | epgsql_sock:error() | {error, timeout}.
 squery(C, SQL, Timeout) ->
     Ref = epgsqla:squery(C, SQL),
-    receive
-        {C, Ref, Result} -> Result
-    after Timeout ->
-        epgsql_sock:kill(C),
-        {error, timeout}
-    end.
+    wait_for_result(C, Ref, Timeout).
 
 equery(C, Sql) ->
     equery(C, Sql, []).
@@ -283,7 +278,7 @@ equery(C, Name, Sql, Parameters) ->
     end.
 
 -spec equery(connection(), string(), sql_query(), [bind_param()], timeout()) ->
-                    epgsql_cmd_equery:response() | epgsql_sock:error().
+                    epgsql_cmd_equery:response() | epgsql_sock:error() | {error, timeout}.
 equery(C, Name, Sql, Parameters, Timeout0) ->
     Deadline = deadline(Timeout0),
     case parse(C, Name, Sql, [], Timeout0) of
@@ -291,13 +286,7 @@ equery(C, Name, Sql, Parameters, Timeout0) ->
             TypedParameters = lists:zip(Types, Parameters),
             Ref = epgsqla:equery(C, S, TypedParameters),
             Timeout = timeout(Deadline),
-            receive
-                {C, Ref, ParseResult} ->
-                    ParseResult
-            after Timeout ->
-                epgsql_sock:kill(C),
-                {error, timeout}
-            end;
+            wait_for_result(C, Ref, Timeout);
         Error ->
             Error
     end.
@@ -317,17 +306,12 @@ prepared_query(C, Name, Parameters) when is_list(Name) ->
             Error
     end.
 
--spec prepared_query(connection(), statement(), [bind_param()], timeout()) -> epgsql_cmd_prepared_query:response().
+-spec prepared_query(connection(), statement(), [bind_param()], timeout()) ->
+    epgsql_cmd_prepared_query:response() | {error, timeout}.
 prepared_query(C, #statement{types = Types} = S, Parameters, Timeout) ->
   TypedParameters = lists:zip(Types, Parameters),
   Ref = epgsqla:prepared_query(C, S, TypedParameters),
-  receive
-      {C, Ref, ParseResult} ->
-          ParseResult
-  after Timeout ->
-      epgsql_sock:kill(C),
-      {error, timeout}
-  end.
+  wait_for_result(C, Ref, Timeout).
 
 %% parse
 
@@ -344,7 +328,8 @@ parse(C, Name, Sql, Types) ->
       C, epgsql_sock:sync_command(
            C, epgsql_cmd_parse, {Name, Sql, Types})).
 
--spec parse(connection(), iolist(), sql_query(), [epgsql_type()], timeout()) -> epgsql_cmd_parse:response().
+-spec parse(connection(), iolist(), sql_query(), [epgsql_type()], timeout()) ->
+    epgsql_cmd_parse:response()  | {error, timeout}.
 parse(C, Name, Sql, Types, Timeout0) ->
     Deadline = deadline(Timeout0),
     ParseRef = epgsqla:parse(C, Name, Sql, Types),
@@ -365,12 +350,6 @@ parse(C, Name, Sql, Types, Timeout0) ->
         epgsql_sock:kill(C),
         {error, timeout}
     end.
-
-deadline(Timeout) ->
-  erlang:monotonic_time(milli_seconds) + Timeout.
-
-timeout(Deadline) ->
-  erlang:max(0, Deadline - erlang:monotonic_time(milli_seconds)).
 
 %% bind
 
@@ -617,3 +596,19 @@ to_map(Map) when is_map(Map) ->
     Map;
 to_map(List) when is_list(List) ->
     maps:from_list(List).
+
+-spec wait_for_result(connection(), reference(), timeout()) ->
+    epgsql_cmd_squery:response() | epgsql_sock:error() | {error, timeout}.
+wait_for_result(C, Ref, Timeout) ->
+    receive
+        {C, Ref, Result} -> Result
+    after Timeout ->
+        epgsql_sock:kill(C),
+        {error, timeout}
+    end.
+
+deadline(Timeout) ->
+    erlang:monotonic_time(milli_seconds) + Timeout.
+
+timeout(Deadline) ->
+    erlang:max(0, Deadline - erlang:monotonic_time(milli_seconds)).
