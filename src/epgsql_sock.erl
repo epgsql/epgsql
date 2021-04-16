@@ -54,7 +54,7 @@
          copy_send_rows/3,
          standby_status_update/3]).
 
--export([handle_call/3, handle_cast/2, handle_info/2]).
+-export([handle_call/3, handle_cast/2, handle_info/2, format_status/2]).
 -export([init/1, code_change/3, terminate/2]).
 
 %% loop callback
@@ -95,7 +95,7 @@
                 current_cmd_transport :: transport() | undefined,
                 async :: undefined | atom() | pid(),
                 parameters = [] :: [{Key :: binary(), Value :: binary()}],
-                rows = [] :: [tuple()],
+                rows = [] :: [tuple()] | information_redacted,
                 results = [],
                 sync_required :: boolean() | undefined,
                 txstatus :: byte() | undefined,  % $I | $T | $E,
@@ -297,6 +297,13 @@ terminate(_Reason, #state{mod = ssl, sock = Sock}) -> ssl:close(Sock).
 
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
+
+format_status(normal, [_PDict, State=#state{}]) ->
+  [{data, [{"State", State}]}];
+format_status(terminate, [_PDict, State]) ->
+  %% Do not format the rows attribute when process terminates abnormally
+  %% but allow it when is a sys:get_status/1.2
+  State#state{rows = information_redacted}.
 
 %% -- internal functions --
 
