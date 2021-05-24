@@ -50,6 +50,12 @@
 
 -include("epgsql.hrl").
 
+-ifdef(OTP_RELEASE).
+-type ssl_options() :: [ssl:tls_client_option()].
+-else.
+-type ssl_options() :: list().
+-endif.
+
 -type sql_query() :: iodata(). % SQL query text
 -type host() :: inet:ip_address() | inet:hostname().
 -type password() :: string() | iodata() | fun( () -> iodata() ).
@@ -61,9 +67,9 @@
     {database, DBName     :: string()}             |
     {port,     PortNum    :: inet:port_number()}   |
     {ssl,      IsEnabled  :: boolean() | required} |
-    {ssl_opts, SslOptions :: [ssl:ssl_option()]}   | % see OTP ssl app, ssl_api.hrl
-    {tcp_opts, TcpOptions :: [gen_tcp:option()]}   | % see OTP ssl app, ssl_api.hrl
-    {timeout,  TimeoutMs  :: timeout()}            | % default: 5000 ms
+    {ssl_opts, SslOptions :: ssl_options()}        | % see OTP ssl app documentation
+    {tcp_opts, TcpOptions :: [gen_tcp:option()]}   | % see OTP gen_tcp module documentation
+    {timeout,  TimeoutMs  :: timeout()}            | % connect timeout, default: 5000 ms
     {async,    Receiver   :: pid() | atom()}       | % process to receive LISTEN/NOTIFY msgs
     {codecs,   Codecs     :: [{epgsql_codec:codec_mod(), any()}]} |
     {nulls,    Nulls      :: [any(), ...]} |    % terms to be used as NULL
@@ -78,7 +84,7 @@
           database => string(),
           port => inet:port_number(),
           ssl => boolean() | required,
-          ssl_opts => [ssl:ssl_option()],
+          ssl_opts => ssl_options(),
           tcp_opts => [gen_tcp:option()],
           timeout => timeout(),
           async => pid() | atom(),

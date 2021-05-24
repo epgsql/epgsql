@@ -72,7 +72,7 @@ connect(Opts) -> {ok, Connection :: epgsql:connection()} | {error, Reason :: epg
       database => iodata(),
       port =>     inet:port_number(),
       ssl =>      boolean() | required,
-      ssl_opts => [ssl:ssl_option()],    % @see OTP ssl app, ssl_api.hrl
+      ssl_opts => [ssl:tls_client_option()], % @see OTP ssl documentation
       tcp_opts => [gen_tcp:option()],    % @see OTP gen_tcp module documentation
       timeout =>  timeout(),             % socket connect timeout, default: 5000 ms
       async =>    pid() | atom(),        % process to receive LISTEN/NOTIFY msgs
