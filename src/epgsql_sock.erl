@@ -45,6 +45,7 @@
 
 -export([start_link/0,
          close/1,
+         kill/1,
          sync_command/3,
          async_command/4,
          get_parameter/2,
@@ -119,6 +120,10 @@ start_link() ->
 close(C) when is_pid(C) ->
     catch gen_server:cast(C, stop),
     ok.
+
+-spec kill(epgsql:connection()) -> ok.
+kill(C) when is_pid(C) ->
+  gen_server:cast(C, kill).
 
 -spec sync_command(epgsql:connection(), epgsql_command:command(), any()) -> any().
 sync_command(C, Command, Args) ->
@@ -252,6 +257,9 @@ handle_cast({{Method, From, Ref} = Transport, Command, Args}, State)
 handle_cast(stop, State) ->
     send(State, ?TERMINATE, []),
     {stop, normal, flush_queue(State, {error, closed})};
+
+handle_cast(kill, State) ->
+  {stop, normal, State};
 
 handle_cast(cancel, State = #state{backend = {Pid, Key},
                                    connect_opts = ConnectOpts,
