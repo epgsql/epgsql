@@ -16,23 +16,22 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - "ubuntu-18.04"
+          - "ubuntu-20.04"
         pg:
-          - 10
+          - 12
         postgis:
-          - "2.4"
+          - 3
         otp:
           - "24.0"
           - "23.3"
           - "22.3"
           - "21.3"
           - "20.3"
-          - "19.3"
         include:
-          - otp: "24.0"
-            os: "ubuntu-20.04"
-            pg: 12
-            postgis: 3
+          - otp: "19.3"
+            os: "ubuntu-18.04"
+            pg: 10
+            postgis: "2.4"
     # env:
     #   PATH: ".:/usr/lib/postgresql/12/bin:$PATH"
     env:
