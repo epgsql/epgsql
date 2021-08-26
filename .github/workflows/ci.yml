@@ -10,12 +10,17 @@ on:
       - devel
 jobs:
   test:
-    runs-on: ubuntu-18.04
+    name: OTP-${{matrix.otp}}, PG-${{matrix.pg}}, PostGIS-${{matrix.postgis}}, OS-${{matrix.os}}
+    runs-on: ${{matrix.os}}
     strategy:
       fail-fast: false
       matrix:
+        os:
+          - "ubuntu-18.04"
         pg:
           - 10
+        postgis:
+          - "2.4"
         otp:
           - "24.0"
           - "23.3"
@@ -23,6 +28,11 @@ jobs:
           - "21.3"
           - "20.3"
           - "19.3"
+        include:
+          - otp: "24.0"
+            os: "ubuntu-20.04"
+            pg: 12
+            postgis: 3
     # env:
     #   PATH: ".:/usr/lib/postgresql/12/bin:$PATH"
     env:
@@ -35,7 +45,7 @@ jobs:
           otp-version: ${{matrix.otp}}
 
       - name: Setup postgresql server with postgis
-        run: sudo apt install postgresql-${{matrix.pg}} postgresql-contrib-${{matrix.pg}} postgresql-${{matrix.pg}}-postgis-2.4 postgresql-${{matrix.pg}}-postgis-2.4-scripts
+        run: sudo apt install postgresql-${{matrix.pg}} postgresql-contrib-${{matrix.pg}} postgresql-${{matrix.pg}}-postgis-${{matrix.postgis}} postgresql-${{matrix.pg}}-postgis-${{matrix.postgis}}-scripts
 
       - name: elvis
         run: make elvis
