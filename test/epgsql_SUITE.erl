@@ -397,7 +397,10 @@ connect_with_invalid_client_cert(Config) ->
            ssl => true,
            ssl_opts =>
                [{keyfile, File("bad-client.key")},
-                {certfile, File("bad-client.crt")}]}
+                {certfile, File("bad-client.crt")},
+                %% TLS-1.3 seems to connect fine, but then sends alert asynchronously
+                {versions, ['tlsv1.2']}
+               ]}
         )),
     ?assertMatch({'EXIT', _, {Err, {tls_alert, _}}} when Err == ssl_negotiation_failed;
                                                          Err == sock_error,
