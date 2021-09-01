@@ -715,5 +715,4 @@ NOTE 2: It's possible to run tests on exact postgres version by changing $PATH l
 
    `PATH=$PATH:/usr/lib/postgresql/9.5/bin/ make test`
 
-[![Build Status Master](https://travis-ci.org/epgsql/epgsql.svg?branch=master)](https://travis-ci.org/epgsql/epgsql)
-[![Build Status Devel](https://travis-ci.org/epgsql/epgsql.svg?branch=devel)](https://travis-ci.org/epgsql/epgsql)
+[![CI](https://github.com/epgsql/epgsql/actions/workflows/ci.yml/badge.svg)](https://github.com/epgsql/epgsql/actions/workflows/ci.yml)
