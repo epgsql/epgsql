@@ -1,6 +1,7 @@
 _build
 rebar3
 datadir/
+ebin/
 doc/*
 !doc/overview.edoc
 !doc/*.md

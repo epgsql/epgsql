@@ -1,0 +1,68 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+      - devel
+  pull_request:
+    branches:
+      - devel
+jobs:
+  test:
+    name: OTP-${{matrix.otp}}, PG-${{matrix.pg}}, PostGIS-${{matrix.postgis}}, OS-${{matrix.os}}
+    runs-on: ${{matrix.os}}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - "ubuntu-20.04"
+        pg:
+          - 12
+        postgis:
+          - 3
+        otp:
+          - "24.0"
+          - "23.3"
+          - "22.3"
+          - "21.3"
+          - "20.3"
+        include:
+          - otp: "19.3"
+            os: "ubuntu-18.04"
+            pg: 10
+            postgis: "2.4"
+    # env:
+    #   PATH: ".:/usr/lib/postgresql/12/bin:$PATH"
+    env:
+      SHELL: /bin/sh            # needed for erlexec
+    steps:
+      - uses: actions/checkout@v2
+
+      - uses: erlef/setup-beam@v1
+        with:
+          otp-version: ${{matrix.otp}}
+
+      - name: Setup postgresql server with postgis
+        run: sudo apt install postgresql-${{matrix.pg}} postgresql-contrib-${{matrix.pg}} postgresql-${{matrix.pg}}-postgis-${{matrix.postgis}} postgresql-${{matrix.pg}}-postgis-${{matrix.postgis}}-scripts
+
+      - name: elvis
+        run: make elvis
+
+      - name: Common test, eunit, coverage
+        run: PATH=$PATH:/usr/lib/postgresql/${{matrix.pg}}/bin/ make test
+
+      - name: Upload CT logs artifact
+        uses: actions/upload-artifact@v2
+        if: failure()
+        with:
+          name: ct_report_pg-${{matrix.pg}}_otp-${{matrix.otp}}
+          path: |
+            _build/test/logs/ct_run*/
+            !_build/test/logs/ct_run*/datadir
+
+      - name: Build docs
+        run: make edoc
+
+      - name: dialyzer
+        run: make dialyzer

@@ -117,13 +117,13 @@ hi1(Str, U, Hi, I) ->
     hi1(Str, U2, Hi1, I - 1).
 
 -ifdef(OTP_RELEASE).
--if(OTP_RELEASE >= 23).
-hmac(Key, Str) ->
-    crypto:mac(hmac, sha256, Key, Str).
--else.
-hmac(Key, Str) ->
-    crypto:hmac(sha256, Key, Str).
--endif.
+ -if(?OTP_RELEASE >= 23).
+ hmac(Key, Str) ->
+     crypto:mac(hmac, sha256, Key, Str).
+ -else.
+ hmac(Key, Str) ->
+     crypto:hmac(sha256, Key, Str).
+ -endif.
 -else.
 hmac(Key, Str) ->
     crypto:hmac(sha256, Key, Str).

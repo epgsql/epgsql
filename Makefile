@@ -4,7 +4,7 @@ MINIMAL_COVERAGE = 55
 all: compile
 
 $(REBAR):
-	wget https://github.com/erlang/rebar3/releases/download/3.13.2/rebar3
+	wget https://github.com/erlang/rebar3/releases/download/3.15.2/rebar3
 	chmod +x rebar3
 
 compile: src/epgsql_errcodes.erl $(REBAR)
@@ -21,7 +21,7 @@ src/epgsql_errcodes.erl:
 	./generate_errcodes_src.sh > src/epgsql_errcodes.erl
 
 common-test:
-	$(REBAR) ct -v -c
+	$(REBAR) ct --readable true -c
 
 eunit:
 	$(REBAR) eunit -c

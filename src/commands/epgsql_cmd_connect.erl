@@ -86,7 +86,7 @@ execute(PgSock, #connect{stage = auth, auth_send = {PacketType, Data}} = St) ->
     {send, PacketType, Data, PgSock, St#connect{auth_send = undefined}}.
 
 -spec open_socket([{atom(), any()}], epgsql:connect_opts()) ->
-    {ok , gen_tcp | ssl, port() | ssl:sslsocket()} | {error, any()}.
+    {ok , gen_tcp | ssl, gen_tcp:socket() | ssl:sslsocket()} | {error, any()}.
 open_socket(SockOpts, #{host := Host} = ConnectOpts) ->
     Timeout = maps:get(timeout, ConnectOpts, 5000),
     Deadline = deadline(Timeout),
@@ -123,7 +123,7 @@ maybe_ssl(Sock, Flag, ConnectOpts, Deadline) ->
         {ok, <<$S>>}  ->
             SslOpts = maps:get(ssl_opts, ConnectOpts, []),
             Timeout = timeout(Deadline),
-            case ssl:connect(Sock, SslOpts, Timeout) of
+            case ssl:connect(Sock, [{active, false} | SslOpts], Timeout) of
                 {ok, Sock2} ->
                     {ok, ssl, Sock2};
                 {error, Reason} ->

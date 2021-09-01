@@ -37,7 +37,7 @@ create_testdbs(Config) ->
         [Psql, Opts, "template1 < ", filename:join(?TEST_DATA_DIR, "test_schema.sql")]
     ],
     lists:foreach(fun(Cmd) ->
-        {ok, []} = exec:run(lists:flatten(Cmd), [sync])
+        {ok, []} = exec:run(lists:flatten(Cmd), [sync, stderr])
     end, Cmds).
 
 %% =============================================================================

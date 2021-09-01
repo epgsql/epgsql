@@ -28,6 +28,10 @@
          with_transaction/2,
          with_transaction/3,
          sync_on_error/2,
+         copy_from_stdin/2,
+         copy_from_stdin/3,
+         copy_send_rows/3,
+         copy_done/1,
          standby_status_update/3,
          start_replication/5,
          start_replication/6,
@@ -37,7 +41,8 @@
 
 -export_type([connection/0, connect_option/0, connect_opts/0,
               connect_error/0, query_error/0, sql_query/0, column/0,
-              type_name/0, epgsql_type/0, statement/0]).
+              type_name/0, epgsql_type/0, statement/0,
+              transaction_option/0, transaction_opts/0]).
 
 %% Deprecated types
 -export_type([bind_param/0, typed_param/0,
@@ -45,6 +50,12 @@
               pg_time/0, pg_date/0, pg_datetime/0, pg_interval/0]).
 
 -include("epgsql.hrl").
+
+-ifdef(OTP_RELEASE).
+-type ssl_options() :: [ssl:tls_client_option()].
+-else.
+-type ssl_options() :: list().
+-endif.
 
 -type sql_query() :: iodata(). % SQL query text
 -type host() :: inet:ip_address() | inet:hostname().
@@ -57,9 +68,9 @@
     {database, DBName     :: string()}             |
     {port,     PortNum    :: inet:port_number()}   |
     {ssl,      IsEnabled  :: boolean() | required} |
-    {ssl_opts, SslOptions :: [ssl:ssl_option()]}   | % see OTP ssl app, ssl_api.hrl
-    {tcp_opts, TcpOptions :: [gen_tcp:option()]}   | % see OTP ssl app, ssl_api.hrl
-    {timeout,  TimeoutMs  :: timeout()}            | % default: 5000 ms
+    {ssl_opts, SslOptions :: ssl_options()}        | % see OTP ssl app documentation
+    {tcp_opts, TcpOptions :: [gen_tcp:option()]}   | % see OTP gen_tcp module documentation
+    {timeout,  TimeoutMs  :: timeout()}            | % connect timeout, default: 5000 ms
     {async,    Receiver   :: pid() | atom()}       | % process to receive LISTEN/NOTIFY msgs
     {codecs,   Codecs     :: [{epgsql_codec:codec_mod(), any()}]} |
     {nulls,    Nulls      :: [any(), ...]} |    % terms to be used as NULL
@@ -74,7 +85,7 @@
           database => string(),
           port => inet:port_number(),
           ssl => boolean() | required,
-          ssl_opts => [ssl:ssl_option()],
+          ssl_opts => ssl_options(),
           tcp_opts => [gen_tcp:option()],
           timeout => timeout(),
           async => pid() | atom(),
@@ -82,6 +93,19 @@
           nulls => [any(), ...],
           replication => string(),
           application_name => string()
+          }.
+
+-type transaction_option() ::
+    {reraise, boolean()}          |
+    {ensure_committed, boolean()} |
+    {begin_opts, iodata()}.
+
+
+-type transaction_opts() ::
+        [transaction_option()]
+      | #{reraise => boolean(),
+          ensure_committed => boolean(),
+          begin_opts => iodata()
           }.
 
 -type connect_error() :: epgsql_cmd_connect:connect_error().
@@ -407,11 +431,8 @@ with_transaction(C, F) ->
 %%   Beware of SQL injections! No escaping is made on begin_opts! Default: `""'</dd>
 %% </dl>
 -spec with_transaction(
-        connection(), fun((connection()) -> Reply), Opts) -> Reply | {rollback, any()} | no_return() when
-      Reply :: any(),
-      Opts :: [{reraise, boolean()} |
-               {ensure_committed, boolean()} |
-               {begin_opts, iodata()}].
+        connection(), fun((connection()) -> Reply), transaction_opts()) -> Reply | {rollback, any()} | no_return() when
+      Reply :: any().
 with_transaction(C, F, Opts0) ->
     Opts = to_map(Opts0),
     Begin = case Opts of
@@ -448,11 +469,58 @@ sync_on_error(C, Error = {error, _}) ->
 sync_on_error(_C, R) ->
     R.
 
+%% @equiv copy_from_stdin(C, SQL, text)
+copy_from_stdin(C, SQL) ->
+    copy_from_stdin(C, SQL, text).
+
+%% @doc Switches epgsql into COPY-mode
+%%
+%% When `Format' is `text', Erlang IO-protocol should be used to transfer "raw" COPY data to the
+%% server (see, eg, `io:put_chars/2' and `file:write/2' etc).
+%%
+%% When `Format' is `{binary, Types}', {@link copy_send_rows/3} should be used instead.
+%%
+%% In case COPY-payload is invalid, asynchronous message of the form
+%% `{epgsql, connection(), {error, epgsql:query_error()}}' (similar to asynchronous notification,
+%% see {@link set_notice_receiver/2}) will be sent to the process that called `copy_from_stdin'
+%% and all the subsequent IO-protocol requests will return error.
+%% It's important to not call `copy_done' if such error is detected!
+%%
+%% @param SQL have to be `COPY ... FROM STDIN ...' statement
+%% @param Format data transfer format specification: `text' or `{binary, epgsql_type()}'. Have to
+%%        match `WHERE (FORMAT ???)' from SQL (`text' for `text'/`csv' OR `{binary, ..}' for `binary').
+%% @returns in case of success, `{ok, [text | binary]}' tuple is returned. List describes the expected
+%%        payload format for each column of input. In current implementation all the atoms in a list
+%%        will be the same and will match the atom in `Format' parameter. It may change in the future
+%%        if PostgreSQL will introduce alternative payload formats.
+-spec copy_from_stdin(connection(), sql_query(), text | {binary, [epgsql_type()]}) ->
+          epgsql_cmd_copy_from_stdin:response().
+copy_from_stdin(C, SQL, Format) ->
+    epgsql_sock:sync_command(C, epgsql_cmd_copy_from_stdin, {SQL, self(), Format}).
+
+%% @doc Send a batch of rows to `COPY .. FROM STDIN WITH (FORMAT binary)' in Erlang format
+%%
+%% Erlang values will be converted to postgres types same way as parameters of, eg, {@link equery/3}
+%% using data type specification from 3rd argument of {@link copy_from_stdin/3} (number of columns in
+%% each element of `Rows' should match the number of elements in `{binary, Types}').
+%% @param Rows might be a list of tuples or list of lists. List of lists is slightly more efficient.
+-spec copy_send_rows(connection(), [tuple() | [bind_param()]], timeout()) -> ok | {error, ErrReason} when
+      ErrReason :: not_in_copy_mode | not_binary_format | query_error().
+copy_send_rows(C, Rows, Timeout) ->
+    epgsql_sock:copy_send_rows(C, Rows, Timeout).
+
+%% @doc Tells server that the transfer of COPY data is done
+%%
+%% Stops copy-mode and returns the number of inserted rows.
+-spec copy_done(connection()) -> epgsql_cmd_copy_done:response().
+copy_done(C) ->
+    epgsql_sock:sync_command(C, epgsql_cmd_copy_done, []).
+
 -spec standby_status_update(connection(), lsn(), lsn()) -> ok.
 %% @doc sends last flushed and applied WAL positions to the server in a standby status update message via
 %% given `Connection'
 standby_status_update(Connection, FlushedLSN, AppliedLSN) ->
-    gen_server:call(Connection, {standby_status_update, FlushedLSN, AppliedLSN}).
+    epgsql_sock:standby_status_update(Connection, FlushedLSN, AppliedLSN).
 
 handle_x_log_data(Mod, StartLSN, EndLSN, WALRecord, Repl) ->
     Mod:handle_x_log_data(StartLSN, EndLSN, WALRecord, Repl).

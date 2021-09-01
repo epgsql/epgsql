@@ -37,8 +37,10 @@ of the protocol feature that allows faster execution.
   - **epgsql** maintains backwards compatibility with the original driver API
   - **epgsqla** delivers complete results as regular erlang messages
   - **epgsqli** delivers results as messages incrementally (row by row)
+  All API interfaces can be used with the same connection: eg, connection opened with `epgsql`
+  can be queried with `epgsql` / `epgsqla` / `epgsqli` in any combinations.
 - internal queue of client requests, so you don't need to wait for the response
-  to send the next request
+  to send the next request (pipelining)
 - single process to hold driver state and receive socket data
 - execution of several parsed statements as a batch
 - binding timestamps in `erlang:now()` format
@@ -70,7 +72,7 @@ connect(Opts) -> {ok, Connection :: epgsql:connection()} | {error, Reason :: epg
       database => iodata(),
       port =>     inet:port_number(),
       ssl =>      boolean() | required,
-      ssl_opts => [ssl:ssl_option()],    % @see OTP ssl app, ssl_api.hrl
+      ssl_opts => [ssl:tls_client_option()], % @see OTP ssl documentation
       tcp_opts => [gen_tcp:option()],    % @see OTP gen_tcp module documentation
       timeout =>  timeout(),             % socket connect timeout, default: 5000 ms
       async =>    pid() | atom(),        % process to receive LISTEN/NOTIFY msgs
@@ -713,5 +715,4 @@ NOTE 2: It's possible to run tests on exact postgres version by changing $PATH l
 
    `PATH=$PATH:/usr/lib/postgresql/9.5/bin/ make test`
 
-[![Build Status Master](https://travis-ci.org/epgsql/epgsql.svg?branch=master)](https://travis-ci.org/epgsql/epgsql)
-[![Build Status Devel](https://travis-ci.org/epgsql/epgsql.svg?branch=devel)](https://travis-ci.org/epgsql/epgsql)
+[![CI](https://github.com/epgsql/epgsql/actions/workflows/ci.yml/badge.svg)](https://github.com/epgsql/epgsql/actions/workflows/ci.yml)
