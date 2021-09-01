@@ -1,3 +1,19 @@
+In 4.6.0
+
+* Full OTP-24 compatibility #255, #262, #263
+* Implement `COPY .. FROM STDIN` sub-protocol (both binary and text formats) #248
+* Stick to rebar3_lint 0.2.0 (newer version had troubles working from
+  non-default profile) #249
+* Pipelined and mixed api tests (better coverage of the features of
+  `epgsqla` and `epgsqli` interfaces) #244
+* Add `ebin/` to the list of ignored directories in .gitignore #251
+* Fix `-if(?OTP_RELEASE ...)` (was missing question mark) #255
+* Do not format certain attributes of `State` on abnormal epgsql
+  sock termination (common reason for OOM) #257
+* Make dialyzer warn about use of unknown types; fix some occurences of such #259
+* Migrate from travis-ci to github actions; test on PostgreSQL 12 #262, #264
+* Introduce transaction_opts type #261
+
 In 4.5.0
 
 * Add support for `application_name` connection parameter #226
