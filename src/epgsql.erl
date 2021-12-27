@@ -16,6 +16,7 @@
          equery/2, equery/3, equery/4,
          prepared_query/3,
          parse/2, parse/3, parse/4,
+         prepared_query2/3, prepared_query2/4, prepared_query2/5, 
          describe/2, describe/3,
          bind/3, bind/4,
          execute/2, execute/3, execute/4,
@@ -305,6 +306,14 @@ prepared_query(C, Name, Parameters) when is_list(Name) ->
             Error
     end.
 
+prepared_query2(C, SQL, Parameters) ->
+    prepared_query2(C, SQL, SQL, Parameters, []).
+
+prepared_query2(C, Name, SQL, Parameters) ->
+    prepared_query2(C, Name, SQL, Parameters, []).
+
+prepared_query2(C, Name, SQL, Parameters, Types) ->
+    epgsql_sock:sync_command(C, epgsql_cmd_prepared_query2, {Name, SQL, Parameters, Types}).
 
 %% parse
 

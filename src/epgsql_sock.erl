@@ -64,7 +64,8 @@
 -export([set_net_socket/3, init_replication_state/1, set_attr/3, get_codec/1,
          get_rows/1, get_results/1, notify/2, send/2, send/3, send_multi/2,
          get_parameter_internal/2,
-         get_subproto_state/1, set_packet_handler/2]).
+         get_subproto_state/1, set_packet_handler/2,
+         get_stmts/1, set_stmts/2]).
 
 -export_type([transport/0, pg_sock/0, error/0]).
 
@@ -101,7 +102,8 @@
                 txstatus :: byte() | undefined,  % $I | $T | $E,
                 complete_status :: atom() | {atom(), integer()} | undefined,
                 subproto_state :: repl_state() | copy_state() | undefined,
-                connect_opts :: epgsql:connect_opts() | undefined}).
+                connect_opts :: epgsql:connect_opts() | undefined,
+                stmts = #{} :: map()}).
 
 -opaque pg_sock() :: #state{}.
 
@@ -211,6 +213,11 @@ get_parameter_internal(Name, #state{parameters = Parameters}) ->
         false                  -> undefined
     end.
 
+get_stmts(#state{stmts = Stmts}) ->
+    Stmts.
+
+set_stmts(Stmts, State) ->
+    State#state{stmts = Stmts}.
 
 %% -- gen_server implementation --
 
