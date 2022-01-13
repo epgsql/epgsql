@@ -3,7 +3,7 @@
 It's possible to make a custom datatype encoder/decoder as well as to change encoding/decoding
 of existing supported datatype.
 You can't have specific decoding rules for specific column or for specific query. Codec update
-affects any occurence of this datatype for this connection.
+affects any occurrence of this datatype for this connection.
 
 ## Possible usecases
 
@@ -43,9 +43,9 @@ encode(Data :: any(), epgsql:type_name(), codec_state()) -> iodata().
 Will be called when parameter of matching type is passed to `equery` or `bind` etc.
 2nd argument is the name of matching type (useful when `names/0` returns more than one name).
 It should convert data to iolist / binary in a postgresql binary format representation.
-Postgresql binary format usualy not documented, so you most likely end up checking postgresql
+Postgresql binary format usually not documented, so you most likely end up checking postgresql
 [source code](https://github.com/postgres/postgres/tree/master/src/backend/utils/adt).
-*TIP*: it's usualy more efficient to encode data as iolist, because in that case it will be
+*TIP*: it's usually more efficient to encode data as iolist, because in that case it will be
 written directly to socket without any extra copying. So, you don't need to call
 `iolist_to_binary/1` on your data before returning it from this function.
 

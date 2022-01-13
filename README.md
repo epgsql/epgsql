@@ -571,7 +571,7 @@ see `epgsql.hrl` for the record definition. `epgsql` functions may also return
 - `{unsupported_auth_method, Method}`     - required auth method is unsupported
 - `timeout`                               - request timed out
 - `closed`                                - connection was closed
-- `sync_required`                         - error occured and epgsql:sync must be called
+- `sync_required`                         - error occurred and epgsql:sync must be called
 
 ## Server Notifications
 
@@ -651,7 +651,7 @@ Options (proplist or map):
 
 `epgsql{a,i}:get_cmd_status(C) -> undefined | atom() | {atom(), integer()}`
 
-This function returns the last executed command's status information. It's usualy
+This function returns the last executed command's status information. It's usually
 the name of SQL command and, for some of them (like UPDATE or INSERT) the
 number of affected rows. See [libpq PQcmdStatus](https://www.postgresql.org/docs/current/static/libpq-exec.html#LIBPQ-PQCMDSTATUS).
 But there is one interesting case: if you execute `COMMIT` on a failed transaction,

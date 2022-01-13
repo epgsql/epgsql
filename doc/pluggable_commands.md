@@ -95,17 +95,17 @@ will be `query_error()` instead of binary.
 
 This callback should return one of the following responses to control command's behaviour:
 
-- `{noaction, pg_sock()}` - to do nothing (this usualy means that packet was ignored)
+- `{noaction, pg_sock()}` - to do nothing (this usually means that packet was ignored)
 - `{noaction, pg_sock(), state()}` - do nothing, but update command's state
 - `{add_row, tuple(), pg_sock(), state()}` - add a row to current resultset rows accumulator.
   You may get the current accumulated resultset by `epgsql_sock::get_rows(pg_sock())` (except
   when `epgsqli` interface is used).
 - `{add_result, Result :: any(), Notification :: any(), pg_sock(), state()}` - add a
-  new result to the list of results. Usualy all commands have only a single result, except `squery`, when
+  new result to the list of results. Usually all commands have only a single result, except `squery`, when
   multiple SQL queries were passed, separated by a semicolon and `execute_batch`.
   You will usually will just return something like `{ok, epgsql_sock:get_rows(PgSock)}` or an error as a result. `Notification` is used for `epgsqli` interface.
   You may get the current list of accumulated results with `epgsql_sock:get_results(pg_sock())`.
-- `{finish, Results, Notification, pg_sock(), state()}` - returned when command was successfuly
+- `{finish, Results, Notification, pg_sock(), state()}` - returned when command was successfully
   executed and no more actions needed. `Results` will be returned to a client as a result of command
   execution and the command will be descheduled from epgsql connection process.
   You usually use the result of `epgsql_sock:get_results/1` as a `Results`.
@@ -114,17 +114,17 @@ This callback should return one of the following responses to control command's 
   once again (with a new state). This means that the `execute/2` callback will be executed again and
   new packets may be sent from client to server. This way you can implement chatty commands with
   multiple `request -> response` sequences. See `epgsql_cmd_connect` as an example.
-- `{stop, Reason, Response, pg_sock()}` - returned when some unrecoverable error occured and
+- `{stop, Reason, Response, pg_sock()}` - returned when some unrecoverable error occurred and
   you want to terminate epgsql connection process. `Response` will be returned as a command result
   and `Reason` will be process termination reason.
   Please, try to avoid use of this response if possible.
 - `{sync_required, Why}` - returned to finish command execution, flush enqueued but not yet
   executed commands and to set epgsql process to `sync_required` state. In this state it
   will not accept any commands except `epgsql_cmd_sync`.
-  This usualy means that multipacket protocol sequence was done out-of-order (eg, `bind` before `parse`),
+  This usually means that multipacket protocol sequence was done out-of-order (eg, `bind` before `parse`),
   so, client and server states are out-of-sync and we need to reset them.
 - `unknown` - command got unexpected packet. Connection process will be terminated with
-  `{error, {unexpected_message, Type, Payload, state()}}`. Usualy returned from a
+  `{error, {unexpected_message, Type, Payload, state()}}`. Usually returned from a
   catch-all last clause.
 
 ### Command now can be executed
