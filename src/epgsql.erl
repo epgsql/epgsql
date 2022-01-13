@@ -422,7 +422,7 @@ with_transaction(C, F) ->
 %%   `{rollback, ErrorReason}' will be returned. Default: `true'</dd>
 %%  <dt>ensure_comitted</dt>
 %%  <dd>even when callback returns without exception,
-%%   check that transaction was comitted by checking CommandComplete status
+%%   check that transaction was committed by checking CommandComplete status
 %%   of "COMMIT" command. In case when transaction was rolled back, status will be
 %%   "rollback" instead of "commit". Default: `false'</dd>
 %%  <dt>begin_opts</dt>

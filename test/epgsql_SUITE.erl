@@ -32,7 +32,7 @@ all() ->
 
 groups() ->
     SubGroups = [
-        {connect, [parrallel], [
+        {connect, [parallel], [
             connect,
             connect_with_application_name,
             connect_to_db,
