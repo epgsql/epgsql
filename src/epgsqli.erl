@@ -15,6 +15,7 @@
          get_parameter/2,
          set_notice_receiver/2,
          get_cmd_status/1,
+         get_os_pid/1,
          squery/2,
          equery/2, equery/3,
          prepared_query/3,
@@ -80,6 +81,10 @@ set_notice_receiver(C, PidOrName) ->
           Status :: undefined | atom() | {atom(), integer()}.
 get_cmd_status(C) ->
     epgsql_sock:get_cmd_status(C).
+
+-spec get_os_pid(epgsql:connection()) -> integer().
+get_os_pid(C) ->
+    epgsql_sock:get_os_pid(C).
 
 -spec squery(epgsql:connection(), epgsql:sql_query()) -> reference().
 squery(C, Sql) ->
