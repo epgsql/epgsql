@@ -140,7 +140,7 @@ groups() ->
         listen_notify_payload,
         set_notice_receiver,
         get_cmd_status,
-        get_os_pid
+        get_backend_pid
     ],
     SubGroups ++
         [{epgsql, [], [{group, generic} | Tests]},
@@ -1420,11 +1420,11 @@ get_cmd_status(Config) ->
         ?assertEqual({ok, 'commit'}, Module:get_cmd_status(C))
     end).
 
-get_os_pid(Config) ->
+get_backend_pid(Config) ->
     Module = ?config(module, Config),
     epgsql_ct:with_connection(Config, fun(C) ->
         {ok, [#column{}], [{PidBin}]} = Module:squery(C, "SELECT pg_backend_pid()"),
-        Pid = Module:get_os_pid(C),
+        Pid = Module:get_backend_pid(C),
         ?assertEqual(PidBin, integer_to_binary(Pid))
     end).
 

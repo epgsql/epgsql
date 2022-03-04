@@ -12,7 +12,7 @@
          get_parameter/2,
          set_notice_receiver/2,
          get_cmd_status/1,
-         get_os_pid/1,
+         get_backend_pid/1,
          squery/2,
          equery/2, equery/3, equery/4,
          prepared_query/3,
@@ -264,9 +264,9 @@ get_cmd_status(C) ->
 %% @doc Returns the OS pid of PostgreSQL backend OS process that serves this connection.
 %%
 %% Similar to `SELECT pg_get_pid()', but does not need network roundtrips.
--spec get_os_pid(connection()) -> integer().
-get_os_pid(C) ->
-    epgsql_sock:get_os_pid(C).
+-spec get_backend_pid(connection()) -> integer().
+get_backend_pid(C) ->
+    epgsql_sock:get_backend_pid(C).
 
 -spec squery(connection(), sql_query()) -> epgsql_cmd_squery:response() | epgsql_sock:error().
 %% @doc runs simple `SqlQuery' via given `Connection'

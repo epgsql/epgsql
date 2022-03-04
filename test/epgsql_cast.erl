@@ -6,7 +6,7 @@
 -module(epgsql_cast).
 
 -export([connect/1, connect/2, connect/3, connect/4, close/1]).
--export([get_parameter/2, set_notice_receiver/2, get_cmd_status/1, get_os_pid/1,
+-export([get_parameter/2, set_notice_receiver/2, get_cmd_status/1, get_backend_pid/1,
          squery/2, equery/2, equery/3]).
 -export([prepared_query/3]).
 -export([parse/2, parse/3, parse/4, describe/2, describe/3]).
@@ -59,8 +59,8 @@ set_notice_receiver(C, PidOrName) ->
 get_cmd_status(C) ->
     epgsqla:get_cmd_status(C).
 
-get_os_pid(C) ->
-    epgsqla:get_os_pid(C).
+get_backend_pid(C) ->
+    epgsqla:get_backend_pid(C).
 
 squery(C, Sql) ->
     Ref = epgsqla:squery(C, Sql),

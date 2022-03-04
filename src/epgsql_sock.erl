@@ -53,7 +53,7 @@
          cancel/1,
          copy_send_rows/3,
          standby_status_update/3,
-         get_os_pid/1]).
+         get_backend_pid/1]).
 
 -export([handle_call/3, handle_cast/2, handle_info/2, format_status/2]).
 -export([init/1, code_change/3, terminate/2]).
@@ -152,9 +152,9 @@ copy_send_rows(C, Rows, Timeout) ->
 standby_status_update(C, FlushedLSN, AppliedLSN) ->
     gen_server:call(C, {standby_status_update, FlushedLSN, AppliedLSN}).
 
--spec get_os_pid(epgsql:connection()) -> integer().
-get_os_pid(C) ->
-    gen_server:call(C, get_os_pid).
+-spec get_backend_pid(epgsql:connection()) -> integer().
+get_backend_pid(C) ->
+    gen_server:call(C, get_backend_pid).
 
 %% -- command APIs --
 
@@ -234,7 +234,7 @@ handle_call({set_async_receiver, PidOrName}, _From, #state{async = Previous} = S
 handle_call(get_cmd_status, _From, #state{complete_status = Status} = State) ->
     {reply, {ok, Status}, State};
 
-handle_call(get_os_pid, _From, #state{backend = {Pid, _Key}} = State) ->
+handle_call(get_backend_pid, _From, #state{backend = {Pid, _Key}} = State) ->
     {reply, Pid, State};
 
 handle_call({standby_status_update, FlushedLSN, AppliedLSN}, _From,
