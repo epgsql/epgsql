@@ -139,7 +139,8 @@ groups() ->
         listen_notify,
         listen_notify_payload,
         set_notice_receiver,
-        get_cmd_status
+        get_cmd_status,
+        get_backend_pid
     ],
     SubGroups ++
         [{epgsql, [], [{group, generic} | Tests]},
@@ -1417,6 +1418,14 @@ get_cmd_status(Config) ->
         %% Only last command's status returned
         [_, _, _] = Module:squery(C, "BEGIN; SELECT 1; COMMIT"),
         ?assertEqual({ok, 'commit'}, Module:get_cmd_status(C))
+    end).
+
+get_backend_pid(Config) ->
+    Module = ?config(module, Config),
+    epgsql_ct:with_connection(Config, fun(C) ->
+        {ok, [#column{}], [{PidBin}]} = Module:squery(C, "SELECT pg_backend_pid()"),
+        Pid = Module:get_backend_pid(C),
+        ?assertEqual(PidBin, integer_to_binary(Pid))
     end).
 
 range_type(Config) ->
