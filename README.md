@@ -16,7 +16,7 @@ following, on top of the epgsql driver:
 - Resilience against the database going down or other problems.  The
   pgapp code will keep trying to reconnect to the database, but will
   not propagate the crash up the supervisor tree, so that, for
-  instance, your web site will stay up even if the database is down
+  instance, your website will stay up even if the database is down
   for some reason.  Erlang's "let it crash" is a good idea, but
   external resources going away might not be a good reason to crash
   your entire system.
@@ -106,7 +106,7 @@ Only `host` and `username` are mandatory, but most likely you would need `databa
 - `timeout` parameter will trigger an `{error, timeout}` result when the
    socket fails to connect within provided milliseconds.
 - `ssl` if set to `true`, perform an attempt to connect in ssl mode, but continue unencrypted
-  if encryption isn't supported by server. if set to `required` connection will fail if encryption
+  if encryption isn't supported by the server. if set to `required` connection will fail if encryption
   is not available.
 - `ssl_opts` will be passed as is to `ssl:connect/3`
 - `tcp_opts` will be passed as is to `gen_tcp:connect/3`. Some options are forbidden, such as
@@ -204,7 +204,7 @@ epgsql:squery(C, "SELECT * FROM _nowhere_").
 The simple query protocol returns all columns as binary strings
 and does not support parameters binding.
 
-Several queries separated by semicolon can be executed by squery.
+Several queries separated by a semicolon can be executed by squery.
 
 ```erlang
 [{ok, _, [{<<"1">>}]}, {ok, _, [{<<"2">>}]}] = epgsql:squery(C, "select 1; select 2").
@@ -273,7 +273,7 @@ epgsql:equery(C, "select id from account where name = $1", ["alice"]),
 
 PostgreSQL's binary format is used to return integers as Erlang
 integers, floats as floats, bytes/text/varchar columns as binaries,
-bools as true/false, etc. For details see `pgsql_binary.erl` and the
+bools as true/false, etc. For details see `epgsql_binary.erl` and the
 Data Representation section below.
 
 Asynchronous API `epgsqla:equery/3` requires you to parse statement beforehand
@@ -288,7 +288,7 @@ end.
 ```
 
 - `Statement` - parsed statement (see parse below)
-- `Res` has same format as return value of `epgsql:equery/3`.
+- `Res` has same the format as the return value of `epgsql:equery/3`.
 
 `epgsqli:equery(C, Statement, [TypedParameters])` sends same set of messages as
 squery including final `{C, Ref, done}`.
@@ -409,7 +409,7 @@ Results = epgsql:execute_batch(C, BatchStmt :: [{statement(), [bind_param()]}]).
 
 There are 2 versions:
 
-`execute_batch/2` - each item in a batch has it's own named statement (but it's allowed to have duplicates)
+`execute_batch/2` - each item in a batch has its own named statement (but it's allowed to have duplicates)
 
 example:
 
@@ -491,6 +491,35 @@ This API should be used with extreme care when pipelining is in use: it only can
 currently executing command, all the subsequent pipelined commands will continue
 their normal execution. And it's not always easy to see which command exactly is
 executing when we are issuing the cancellation request.
+
+### Client side timeout support
+
+All the API functions exposed via `epgsql` are blocking calls. 
+These type of calls can be problematic if:
+
+* the target database is overloaded, 
+* there is a high packet loss in the network link
+* a certain secondary index got corrupted => all queries are taking exceptionally long 
+* a certain table was locked by mistake and all the other queries towards that table are blocked 
+* etc 
+  
+In front of such situations, our calling process will block and soon the connection pool will be saturated.
+This in turn can cause our whole application to go down.
+
+One way to handle such cascading failures is to use client side timeouts.
+`epgsql` has several functions that support client side timeouts: 
+`squery/3`, `equery/5`, `parse/5`, `prepared_query/4`.
+These functions have a hard timeout implementation: i.e if the timeout is reached 
+the `Connection` process it stopped and `{error, timeout}` is returned to the caller.
+
+The decision to stop the Connection process rather than try to use query_cancellation 
+at timeout was taken for the following reasons:
+
+* avoid potential race conditions
+* achieve hard timeouts
+
+If `epgsql` is used together with a connection pool like: `pooler` or `poolboy` then the termination of 
+the connection process should not be a problem since the connection pool will spawn a new one.
 
 ## Data Representation
 
