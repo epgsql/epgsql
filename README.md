@@ -1,3 +1,7 @@
+[![CI](https://github.com/epgsql/epgsql/workflows/CI/badge.svg)](https://github.com/epgsql/epgsql/actions/workflows/ci.yml)
+[![Hex version](https://img.shields.io/hexpm/v/epgsql.svg "Hex version")](https://hex.pm/packages/epgsql)
+[![License](https://img.shields.io/badge/License-BSD_3_Clause-blue.svg?logo=bsd&logoColor=red)](https://opensource.org/licenses/BSD-3-Clause)
+
 # Erlang PostgreSQL Database Client
 
 Asynchronous fork of [wg/epgsql](https://github.com/wg/epgsql) originally here:
@@ -715,4 +719,3 @@ NOTE 2: It's possible to run tests on exact postgres version by changing $PATH l
 
    `PATH=$PATH:/usr/lib/postgresql/9.5/bin/ make test`
 
-[![CI](https://github.com/epgsql/epgsql/actions/workflows/ci.yml/badge.svg)](https://github.com/epgsql/epgsql/actions/workflows/ci.yml)
