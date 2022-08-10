@@ -36,7 +36,7 @@ This mapping is handled by {@link epgsql_oid_db} module and is populated at
 connection set-up time by {@link epgsql_cmd_connect}.
 
 Most of the connection initialization (network connection, authentication, codecs)
-is performed by {@link epgsql_cmd_connect} command, wich is just a regualr command
+is performed by {@link epgsql_cmd_connect} command, which is just a regular command
 (but quite complex one) and can be replaced by own implementation if needed.
 
 == Commands ==

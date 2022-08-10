@@ -1,7 +1,7 @@
 %%% @doc
 %%% Codec for `geometry' PostGIS umbrella datatype.
 %%%
-%%% XXX: PostGIS is not a Postgres's built-in datatype! It should be instaled
+%%% XXX: PostGIS is not a Postgres's built-in datatype! It should be installed
 %%% separately and enabled via `CREATE EXTENSION postgis'.
 %%% <ul>
 %%%  <li>[http://postgis.net/docs/manual-2.4/geometry.html]</li>

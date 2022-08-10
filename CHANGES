@@ -1,3 +1,8 @@
+In 4.6.1
+
+* Introduce `get_backend_pid` function #270
+* Fix dialyzer error in `get_parameter` #274
+
 In 4.6.0
 
 * Full OTP-24 compatibility #255, #262, #263
@@ -10,14 +15,14 @@ In 4.6.0
 * Fix `-if(?OTP_RELEASE ...)` (was missing question mark) #255
 * Do not format certain attributes of `State` on abnormal epgsql
   sock termination (common reason for OOM) #257
-* Make dialyzer warn about use of unknown types; fix some occurences of such #259
+* Make dialyzer warn about use of unknown types; fix some occurrences of such #259
 * Migrate from travis-ci to github actions; test on PostgreSQL 12 #262, #264
 * Introduce transaction_opts type #261
 
 In 4.5.0
 
 * Add support for `application_name` connection parameter #226
-* Execute request cancelation over TLS, when main connection is TLS as well #227
+* Execute request cancellation over TLS, when main connection is TLS as well #227
 * Handle skipped commands in execute_batch #228
 * Add sasl_prep implementation for validating passwords according to sasl specification #229
 * OTP-23 in CI #237
@@ -90,7 +95,7 @@ In 4.2.0
 * Passwords are obfuscated before they sent to connection process. This is to avoid plain
   DB passwords to be dumped to SASL crash log
 * Password can be provided as a fun: `fun ( () -> iodata() )`
-* `platform_define` macroses were simplified. It's now possible to build epgsql even without
+* `platform_define` macros were simplified. It's now possible to build epgsql even without
   rebar on all supported OTP versions
 
 In 4.1.0
@@ -149,7 +154,7 @@ Incompatibilities:
   modifications were made to this code.
 * Passing integer / atom / float as a value of a text / varchar / bytea query parameter is now
   deprecated (so, `epgsql:equery(C, "SELECT $1::text", [my_atom])` will still work but is not recommended)
-* Redshift and CockroachDB users might expirience some problems. Please, report bugs!
+* Redshift and CockroachDB users might experience some problems. Please, report bugs!
 
 In 3.4.0
 
