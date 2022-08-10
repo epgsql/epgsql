@@ -1,3 +1,8 @@
+In 4.6.1
+
+* Introduce `get_backend_pid` function #270
+* Fix dialyzer error in `get_parameter` #274
+
 In 4.6.0
 
 * Full OTP-24 compatibility #255, #262, #263
