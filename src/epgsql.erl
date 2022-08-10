@@ -242,7 +242,7 @@ update_type_cache(C, Codecs) ->
 close(C) ->
     epgsql_sock:close(C).
 
--spec get_parameter(connection(), binary()) -> binary() | undefined.
+-spec get_parameter(connection(), list() | binary()) -> {ok, binary() | undefined}.
 get_parameter(C, Name) ->
     epgsql_sock:get_parameter(C, Name).
 
