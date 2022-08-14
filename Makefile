@@ -10,8 +10,10 @@ $(REBAR):
 compile: src/epgsql_errcodes.erl $(REBAR)
 	@$(REBAR) compile
 
-clean: $(REBAR)
+clean: $(REBAR) clean_doc
 	@$(REBAR) clean
+
+clean_doc:
 	@rm -f doc/*.html
 	@rm -f doc/erlang.png
 	@rm -f doc/stylesheet.css
