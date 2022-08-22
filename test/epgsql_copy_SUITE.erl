@@ -280,7 +280,15 @@ from_stdin_corrupt_data(Config) ->
                 %% Wrong return value from IO function
                 ?assertEqual({error, {fun_return_not_characters, node()}},
                              io:request(C, {put_chars, unicode, erlang, node, []})),
+                %% Can't use `copy_send_rows' when format is text/csv
+                ?assertEqual(
+                   {error, not_binary_format},
+                   Module:copy_send_rows(C, [{60, <<"">>}], 1000)),
                 ?assertEqual({ok, 0}, Module:copy_done(C)),
+                %% copy_send_rows is not usable when copy mode is not active
+                ?assertEqual(
+                   {error, not_in_copy_mode},
+                   Module:copy_send_rows(C, [{60, <<"">>}], 1000)),
                 %%
                 %% Corrupt text format
                 ?assertEqual(
