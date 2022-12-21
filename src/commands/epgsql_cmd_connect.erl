@@ -295,12 +295,11 @@ prepare_tcp_opts(Opts0) ->
                          ({packet, _}) -> true;
                          ({packet_size, _}) -> true;
                          ({header, _}) -> true;
+                         ({active, _}) -> true;
                          (_) -> false
                       end, Opts0) of
         [] ->
-            Opts = [{packet, raw}, {mode, binary} | Opts0],
-            %% Make sure that active is set to false while establishing a connection
-            lists:keystore(active, 1, Opts, {active, false});
+            [{active, false}, {packet, raw}, {mode, binary} | Opts0];
         Forbidden ->
             error({forbidden_tcp_opts, Forbidden})
     end.

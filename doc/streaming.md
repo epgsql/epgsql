@@ -142,14 +142,15 @@ handle_x_log_data(StartLSN, EndLSN, Data, CbState) ->
     
 ## Flow control
 
-It is possible to set `{active, N}` on a TCP or SSL (since OTP 21.3) socket. E.g. for SSL:
+It is possible to set `{socket_active, N}` on a [TCP](https://www.erlang.org/doc/man/inet.html#setopts-2)
+or [SSL](https://www.erlang.org/doc/man/ssl.html#setopts-2) (since OTP 21.3) socket. E.g. for SSL:
 ```erlang
-Opts = #{ host => "localhost"
-        , username => "me"
-        , password => "pwd"
-        , database => "test"
-        , ssl => true
-        , ssl_opts => [{active, 10}]
+Opts = #{host => "localhost",
+         username => "me",
+         password => "pwd",
+         database => "test",
+         ssl => require,
+         socket_active => 10
         },
 {ok, Conn} = epgsql:connect(Opts).
 ```
@@ -163,6 +164,8 @@ When the connection is in the asynchronous mode, a process which owns a connecti
 ```erlang
 {epgsql, Connection, socket_passive}
 ```
+as soon as underlying socket received N messages from network.
+
 The process decides when to activate connection's socket again. To do that it should call:
 ```erlang
 epgsql:activate(Connection).

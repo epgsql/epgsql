@@ -156,7 +156,8 @@ standby_status_update(C, FlushedLSN, AppliedLSN) ->
 get_backend_pid(C) ->
     gen_server:call(C, get_backend_pid).
 
--spec activate(epgsql:connection()) -> ok | {error, any()}.
+%% The ssl:reason() type is not exported
+-spec activate(epgsql:connection()) -> ok | {error, inet:posix() | any()}.
 activate(C) ->
     gen_server:call(C, activate).
 
@@ -168,7 +169,8 @@ activate(C) ->
 -spec set_net_socket(gen_tcp | ssl, tcp_socket() | ssl:sslsocket(), pg_sock()) -> pg_sock().
 set_net_socket(Mod, Socket, State) ->
     State1 = State#state{mod = Mod, sock = Socket},
-    setopts(State1, [{active, true}]),
+    Active = get_socket_active(State1),
+    setopts(State1, [{active, Active}]),
     State1.
 
 -spec init_replication_state(pg_sock()) -> pg_sock().
@@ -195,7 +197,8 @@ set_attr(connect_opts, ConnectOpts, State) ->
 -spec set_packet_handler(atom(), pg_sock()) -> pg_sock().
 set_packet_handler(Handler, State0) ->
     State = State0#state{handler = Handler},
-    setopts(State, [{active, true}]),
+    Active = get_socket_active(State),
+    setopts(State, [{active, Active}]),
     State.
 
 -spec get_codec(pg_sock()) -> epgsql_binary:codec().
@@ -256,8 +259,9 @@ handle_call({copy_send_rows, Rows}, _From,
     {reply, Response, State};
 
 handle_call(activate, _From, State) ->
-    setopts(State, [{active, true}]),
-    {reply, ok, State}.
+    Active = get_socket_active(State),
+    Res = setopts(State, [{active, Active}]),
+    {reply, Res, State}.
 
 handle_cast({{Method, From, Ref} = Transport, Command, Args}, State)
   when ((Method == cast) or (Method == incremental)),
@@ -431,28 +435,21 @@ command_next(#state{current_cmd = PrevCmd,
                         results = []}
     end.
 
-setopts(#state{mod = Mod, sock = Sock} = State, DefaultOpts) ->
-    Opts = update_active(State, DefaultOpts),
+setopts(#state{mod = Mod, sock = Sock}, Opts) ->
     case Mod of
         gen_tcp -> inet:setopts(Sock, Opts);
         ssl     -> ssl:setopts(Sock, Opts)
     end.
 
-update_active(#state{handler = H}, DefaultOpts) when H =/= on_replication ->
-    %% Ignore active option in tcp_opts or ssl_opts unless in the replication mode
-    DefaultOpts;
-update_active(#state{mod = gen_tcp, connect_opts = #{tcp_opts := Opts}}, DefaultOpts) ->
-    update_active_opt(Opts, DefaultOpts);
-update_active(#state{mod = ssl, connect_opts = #{ssl_opts := Opts}}, DefaultOpts) ->
-    update_active_opt(Opts, DefaultOpts);
-update_active(_State, DefaultOpts) ->
-    DefaultOpts.
-
-update_active_opt(Opts, DefaultOpts) ->
-    case proplists:lookup(active, Opts) of
-        none -> DefaultOpts;
-        Active -> lists:keystore(active, 1, DefaultOpts, Active)
-    end.
+-spec get_socket_active(pg_sock()) -> epgsql:socket_active().
+get_socket_active(#state{handler = H}) when H =/= on_replication ->
+    true;
+get_socket_active(#state{connect_opts = #{socket_active := Active}}) ->
+    Active;
+get_socket_active(#state{connect_opts = Opts}) when is_list(Opts) ->
+    proplists:get_value(socket_active, Opts, true);
+get_socket_active(_State) ->
+    true.
 
 %% This one only used in connection initiation to send client's
 %% `StartupMessage' and `SSLRequest' packets

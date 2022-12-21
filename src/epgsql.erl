@@ -47,7 +47,7 @@
 -export_type([connection/0, connect_option/0, connect_opts/0,
               connect_error/0, query_error/0, sql_query/0, column/0,
               type_name/0, epgsql_type/0, statement/0,
-              transaction_option/0, transaction_opts/0]).
+              transaction_option/0, transaction_opts/0, socket_active/0]).
 
 %% Deprecated types
 -export_type([bind_param/0, typed_param/0,
@@ -66,6 +66,7 @@
 -type host() :: inet:ip_address() | inet:hostname().
 -type password() :: string() | iodata() | fun( () -> iodata() ).
 -type connection() :: pid().
+-type socket_active() :: true | -32768..32767.
 -type connect_option() ::
     {host, host()}                                 |
     {username, string()}                           |
@@ -80,7 +81,8 @@
     {codecs,   Codecs     :: [{epgsql_codec:codec_mod(), any()}]} |
     {nulls,    Nulls      :: [any(), ...]} |    % terms to be used as NULL
     {replication, Replication :: string()} | % Pass "database" to connect in replication mode
-    {application_name, ApplicationName :: string()}.
+    {application_name, ApplicationName :: string()} |
+    {socket_active, Active :: socket_active()}.
 
 -type connect_opts() ::
         [connect_option()]
@@ -97,7 +99,8 @@
           codecs => [{epgsql_codec:codec_mod(), any()}],
           nulls => [any(), ...],
           replication => string(),
-          application_name => string()
+          application_name => string(),
+          socket_active => socket_active()
           }.
 
 -type transaction_option() ::
@@ -594,6 +597,8 @@ to_map(List) when is_list(List) ->
 %%
 %% @param Connection connection
 %% @returns `ok' or `{error, Reason}'
--spec activate(connection()) -> ok | {error, any()}.
+%%
+%% The ssl:reason() type is not exported.
+-spec activate(connection()) -> ok | {error, inet:posix() | any()}.
 activate(Connection) ->
-  epgsql_sock:activate(Connection).
+    epgsql_sock:activate(Connection).

@@ -4,20 +4,20 @@
 -include_lib("common_test/include/ct.hrl").
 -include("epgsql.hrl").
 
--export([ all/0
-        , init_per_suite/1
-        , end_per_suite/1
+-export([all/0,
+         init_per_suite/1,
+         end_per_suite/1,
 
-        , connect_in_repl_mode/1
-        , create_drop_replication_slot/1
-        , replication_sync/1
-        , replication_async/1
-        , replication_async_active_n_socket/1
-        , replication_sync_active_n_socket/1
+         connect_in_repl_mode/1,
+         create_drop_replication_slot/1,
+         replication_sync/1,
+         replication_async/1,
+         replication_async_active_n_socket/1,
+         replication_sync_active_n_socket/1,
 
-          %% Callbacks
-        , handle_x_log_data/4
-        , handle_socket_passive/1
+         %% Callbacks
+         handle_x_log_data/4,
+         handle_socket_passive/1
         ]).
 
 init_per_suite(Config) ->
@@ -27,20 +27,20 @@ end_per_suite(_Config) ->
   ok.
 
 all() ->
-  [ connect_in_repl_mode
-  , create_drop_replication_slot
-  , replication_async
-  , replication_sync
-  , replication_async_active_n_socket
-  , replication_sync_active_n_socket
+  [connect_in_repl_mode,
+   create_drop_replication_slot,
+   replication_async,
+   replication_sync,
+   replication_async_active_n_socket,
+   replication_sync_active_n_socket
   ].
 
 connect_in_repl_mode(Config) ->
   epgsql_ct:connect_only(
     Config,
-    [ "epgsql_test_replication"
-    , "epgsql_test_replication"
-    , [{database, "epgsql_test_db1"}, {replication, "database"}]
+    ["epgsql_test_replication",
+     "epgsql_test_replication",
+     [{database, "epgsql_test_db1"}, {replication, "database"}]
     ]).
 
 create_drop_replication_slot(Config) ->
@@ -60,10 +60,10 @@ replication_sync(Config) ->
   replication_test_run(Config, ?MODULE).
 
 replication_async_active_n_socket(Config) ->
-  replication_test_run(Config, self(), [{tcp_opts, [{active, 1}]}, {ssl_opts, [{active, 1}]}]).
+  replication_test_run(Config, self(), [{socket_active, 1}]).
 
 replication_sync_active_n_socket(Config) ->
-  replication_test_run(Config, ?MODULE, [{tcp_opts, [{active, 1}]}, {ssl_opts, [{active, 1}]}]).
+  replication_test_run(Config, ?MODULE, [{socket_active, 1}]).
 
 replication_test_run(Config, Callback) ->
   replication_test_run(Config, Callback, []).
@@ -80,7 +80,7 @@ replication_test_run(Config, Callback, ExtOpts) ->
           Config,
           fun(C2) ->
               ExpectedResult = lists:duplicate(length(Queries), {ok, 1}),
-              Res = Module:squery(C2, lists:flatten(Queries)),
+              Res = Module:squery(C2, Queries),
               ?assertEqual(ExpectedResult, Res)
           end),
         Module:start_replication(C, "epgsql_test", Callback, {C, self()}, "0/0"),
@@ -100,10 +100,10 @@ create_replication_slot(Config, Connection) ->
   {ok, Cols, Rows} =
     Module:squery(Connection,
                   "CREATE_REPLICATION_SLOT ""epgsql_test"" LOGICAL ""test_decoding"""),
-  ?assertMatch([ #column{name = <<"slot_name">>}
-               , #column{name = <<"consistent_point">>}
-               , #column{name = <<"snapshot_name">>}
-               , #column{name = <<"output_plugin">>}
+  ?assertMatch([#column{name = <<"slot_name">>},
+                #column{name = <<"consistent_point">>},
+                #column{name = <<"snapshot_name">>},
+                #column{name = <<"output_plugin">>}
                ],
                Cols),
   ?assertMatch([{<<"epgsql_test">>, _, _, <<"test_decoding">>}], Rows).

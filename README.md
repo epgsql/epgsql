@@ -108,11 +108,9 @@ Only `host` and `username` are mandatory, but most likely you would need `databa
 - `ssl` if set to `true`, perform an attempt to connect in ssl mode, but continue unencrypted
   if encryption isn't supported by server. if set to `required` connection will fail if encryption
   is not available.
-- `ssl_opts` will be passed as is to `ssl:connect/3`. The `active` option is only available in
-  the `replication` mode and OTP >= 21.3.
+- `ssl_opts` will be passed as is to `ssl:connect/3`.
 - `tcp_opts` will be passed as is to `gen_tcp:connect/3`. Some options are forbidden, such as
-  `mode`, `packet`, `header`. The `active` option is only available in the `replication` mode.
-  When `tcp_opts` is not provided, epgsql does some tuning
+  `mode`, `packet`, `header`, `active`. When `tcp_opts` is not provided, epgsql does some tuning
   (eg, sets TCP `keepalive` and auto-tunes `buffer`), but when `tcp_opts` is provided, no
   additional tweaks are added by epgsql itself, other than necessary ones (`active`, `packet` and `mode`).
 - `async` see [Server notifications](#server-notifications)
@@ -127,6 +125,10 @@ Only `host` and `username` are mandatory, but most likely you would need `databa
 - `application_name` is an optional string parameter. It is usually set by an application upon
    connection to the server. The name will be displayed in the `pg_stat_activity`
    view and included in CSV log entries.
+- `socket_active` is an optional parameter, which can be true or integer in the range -32768
+  to 32767 (inclusive). This option only works in the replication mode and is used to control
+  the flow of incoming messages. See [Streaming replication protocol](#streaming-replication-protocol)
+  for more details.
 
 Options may be passed as proplist or as map with the same key names.
 
