@@ -334,7 +334,7 @@ send_socket_pasive(#state{subproto_state = #repl{receiver = Rec}} = State) when 
 send_socket_pasive(#state{subproto_state = #repl{ cbmodule = CbMod
                                                 , cbstate = CbState} = Repl
                          } = State) ->
-    {ok, NewCbState} = CbMod:socket_passive(CbState),
+    {ok, NewCbState} = epgsql:handle_socket_passive(CbMod, CbState),
     NewRepl = Repl#repl{cbstate = NewCbState},
     State#state{subproto_state = NewRepl}.
 

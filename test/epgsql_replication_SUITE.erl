@@ -17,7 +17,7 @@
 
           %% Callbacks
         , handle_x_log_data/4
-        , socket_passive/1
+        , handle_socket_passive/1
         ]).
 
 init_per_suite(Config) ->
@@ -169,6 +169,6 @@ handle_x_log_data(StartLSN, EndLSN, Data, CbState) ->
   Pid ! {epgsql, C, {x_log_data, StartLSN, EndLSN, Data}},
   {ok, EndLSN, EndLSN, CbState}.
 
-socket_passive({C, _Pid} = CbState) ->
+handle_socket_passive({C, _Pid} = CbState) ->
   spawn(fun() -> epgsql:activate(C) end),
   {ok, CbState}.
