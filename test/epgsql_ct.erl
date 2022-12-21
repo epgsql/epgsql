@@ -4,6 +4,7 @@
 
 -export([
     connection_data/1,
+    connect/1,
     connect_only/2,
     with_connection/2,
     with_connection/3,
@@ -18,6 +19,16 @@ connection_data(Config) ->
     Host = ?config(host, PgConfig),
     Port = ?config(port, PgConfig),
     {Host, Port}.
+
+connect(Config) ->
+    connect(Config, "epgsql_test", []).
+
+connect(Config, Username, Args) ->
+    {Host, Port} = connection_data(Config),
+    Module = ?config(module, Config),
+    Args2 = [{port, Port}, {database, "epgsql_test_db1"} | Args],
+    {ok, C} = Module:connect(Host, Username, Args2),
+    C.
 
 connect_only(Config, Args) ->
     {Host, Port} = connection_data(Config),
@@ -39,10 +50,8 @@ with_connection(Config, F, Args) ->
     with_connection(Config, F, "epgsql_test", Args).
 
 with_connection(Config, F, Username, Args) ->
-    {Host, Port} = connection_data(Config),
     Module = ?config(module, Config),
-    Args2 = [{port, Port}, {database, "epgsql_test_db1"} | Args],
-    {ok, C} = Module:connect(Host, Username, Args2),
+    C = connect(Config, Username, Args),
     try
         F(C)
     after
