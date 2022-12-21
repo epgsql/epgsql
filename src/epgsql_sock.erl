@@ -53,7 +53,8 @@
          cancel/1,
          copy_send_rows/3,
          standby_status_update/3,
-         get_backend_pid/1]).
+         get_backend_pid/1,
+         activate/1]).
 
 -export([handle_call/3, handle_cast/2, handle_info/2, format_status/2]).
 -export([init/1, code_change/3, terminate/2]).
@@ -69,7 +70,6 @@
 
 -export_type([transport/0, pg_sock/0, error/0]).
 
--include("epgsql.hrl").
 -include("protocol.hrl").
 -include("epgsql_replication.hrl").
 -include("epgsql_copy.hrl").
@@ -156,6 +156,10 @@ standby_status_update(C, FlushedLSN, AppliedLSN) ->
 get_backend_pid(C) ->
     gen_server:call(C, get_backend_pid).
 
+-spec activate(epgsql:connection()) -> ok | {error, any()}.
+activate(C) ->
+    gen_server:call(C, activate).
+
 %% -- command APIs --
 
 %% send()
@@ -189,8 +193,10 @@ set_attr(connect_opts, ConnectOpts, State) ->
 
 %% XXX: be careful!
 -spec set_packet_handler(atom(), pg_sock()) -> pg_sock().
-set_packet_handler(Handler, State) ->
-    State#state{handler = Handler}.
+set_packet_handler(Handler, State0) ->
+    State = State0#state{handler = Handler},
+    setopts(State, [{active, true}]),
+    State.
 
 -spec get_codec(pg_sock()) -> epgsql_binary:codec().
 get_codec(#state{codec = Codec}) ->
@@ -214,7 +220,6 @@ get_parameter_internal(Name, #state{parameters = Parameters}) ->
         {value, {Name, Value}} -> Value;
         false                  -> undefined
     end.
-
 
 %% -- gen_server implementation --
 
@@ -248,7 +253,11 @@ handle_call({standby_status_update, FlushedLSN, AppliedLSN}, _From,
 handle_call({copy_send_rows, Rows}, _From,
            #state{handler = Handler, subproto_state = CopyState} = State) ->
     Response = handle_copy_send_rows(Rows, Handler, CopyState, State),
-    {reply, Response, State}.
+    {reply, Response, State};
+
+handle_call(activate, _From, State) ->
+    setopts(State, [{active, true}]),
+    {reply, ok, State}.
 
 handle_cast({{Method, From, Ref} = Transport, Command, Args}, State)
   when ((Method == cast) or (Method == incremental)),
@@ -277,6 +286,11 @@ handle_cast(cancel, State = #state{backend = {Pid, Key},
 handle_info({DataTag, Sock, Data2}, #state{data = Data, sock = Sock} = State)
   when DataTag == tcp; DataTag == ssl ->
     loop(State#state{data = <<Data/binary, Data2/binary>>});
+
+handle_info({Passive, Sock}, #state{sock = Sock} = State)
+  when Passive == ssl_passive; Passive == tcp_passive ->
+    NewState = send_socket_pasive(State),
+    {noreply, NewState};
 
 handle_info({Closed, Sock}, #state{sock = Sock} = State)
   when Closed == tcp_closed; Closed == ssl_closed ->
@@ -313,6 +327,16 @@ format_status(terminate, [_PDict, State]) ->
   State#state{rows = information_redacted}.
 
 %% -- internal functions --
+-spec send_socket_pasive(pg_sock()) -> pg_sock().
+send_socket_pasive(#state{subproto_state = #repl{receiver = Rec}} = State) when Rec =/= undefined ->
+    Rec ! {epgsql, self(), socket_passive},
+    State;
+send_socket_pasive(#state{subproto_state = #repl{ cbmodule = CbMod
+                                                , cbstate = CbState} = Repl
+                         } = State) ->
+    {ok, NewCbState} = CbMod:socket_passive(CbState),
+    NewRepl = Repl#repl{cbstate = NewCbState},
+    State#state{subproto_state = NewRepl}.
 
 -spec command_new(transport(), epgsql_command:command(), any(), pg_sock()) ->
                          Result when
@@ -407,11 +431,27 @@ command_next(#state{current_cmd = PrevCmd,
                         results = []}
     end.
 
-
-setopts(#state{mod = Mod, sock = Sock}, Opts) ->
+setopts(#state{mod = Mod, sock = Sock} = State, DefaultOpts) ->
+    Opts = update_active(State, DefaultOpts),
     case Mod of
         gen_tcp -> inet:setopts(Sock, Opts);
         ssl     -> ssl:setopts(Sock, Opts)
+    end.
+
+update_active(#state{handler = H}, DefaultOpts) when H =/= on_replication ->
+    %% Ignore active option in tcp_opts or ssl_opts unless in the replication mode
+    DefaultOpts;
+update_active(#state{mod = gen_tcp, connect_opts = #{tcp_opts := Opts}}, DefaultOpts) ->
+    update_active_opt(Opts, DefaultOpts);
+update_active(#state{mod = ssl, connect_opts = #{ssl_opts := Opts}}, DefaultOpts) ->
+    update_active_opt(Opts, DefaultOpts);
+update_active(_State, DefaultOpts) ->
+    DefaultOpts.
+
+update_active_opt(Opts, DefaultOpts) ->
+    case proplists:lookup(active, Opts) of
+        none -> DefaultOpts;
+        Active -> lists:keystore(active, 1, DefaultOpts, Active)
     end.
 
 %% This one only used in connection initiation to send client's

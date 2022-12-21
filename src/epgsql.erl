@@ -37,7 +37,8 @@
          start_replication/5,
          start_replication/6,
          start_replication/7,
-         to_map/1]).
+         to_map/1,
+         activate/1]).
 -export([handle_x_log_data/5]).                 % private
 
 -export_type([connection/0, connect_option/0, connect_opts/0,
@@ -571,3 +572,17 @@ to_map(Map) when is_map(Map) ->
     Map;
 to_map(List) when is_list(List) ->
     maps:from_list(List).
+
+%% @doc Activates TCP or SSL socket of the connection.
+%%
+%% If {active, X} is set in:
+%% - `tcp_opts` and the current mode is TCP or
+%% - `ssl_opts` and the current mode is SSL
+%% the function sets {active, X} on the connection socket.
+%% It sets {active, true} otherwise.
+%%
+%% @param Connection connection
+%% @returns `ok' or `{error, Reason}'
+-spec activate(connection()) -> ok | {error, any()}.
+activate(Connection) ->
+  epgsql_sock:activate(Connection).
