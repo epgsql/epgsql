@@ -173,7 +173,5 @@ epgsql:activate(Connection).
 The `active` parameter of the socket will be set to the same value as it was configured in
 the connection's options.
 
-When the connection is in the synchronous mode, a provided callback module must implement
-`handle_socket_passive/1` function, which receives a current callback state and should
-return `{ok, NewCallbackState}`. The callback should not call `epgsql:activate/1` directly
-because it results in a deadlock.
+In the case of synchronous handler for replication messages `epgsql` will handle `socket_passive`
+messages internally.

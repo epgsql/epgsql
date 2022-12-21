@@ -40,9 +40,7 @@
          to_map/1,
          activate/1]).
 %% private
--export([ handle_x_log_data/5
-        , handle_socket_passive/2
-        ]).
+-export([handle_x_log_data/5]).
 
 -export_type([connection/0, connect_option/0, connect_opts/0,
               connect_error/0, query_error/0, sql_query/0, column/0,
@@ -164,10 +162,6 @@
 %% Handles a XLogData Message (StartLSN, EndLSN, WALRecord, CbState).
 %% Return: {ok, LastFlushedLSN, LastAppliedLSN, NewCbState}
 -callback handle_x_log_data(lsn(), lsn(), binary(), cb_state()) -> {ok, lsn(), lsn(), cb_state()}.
-
-%% Handles socket_passive message.
-%% Return: {ok, NewCbState}.
--callback handle_socket_passive(cb_state()) -> {ok, cb_state()}.
 %% -------------
 
 %% -- client interface --
@@ -544,10 +538,6 @@ standby_status_update(Connection, FlushedLSN, AppliedLSN) ->
 handle_x_log_data(Mod, StartLSN, EndLSN, WALRecord, Repl) ->
     Mod:handle_x_log_data(StartLSN, EndLSN, WALRecord, Repl).
 
--spec handle_socket_passive(atom(), cb_state()) -> {ok, cb_state()}.
-handle_socket_passive(Mod, CbState) ->
-    Mod:handle_socket_passive(CbState).
-
 -type replication_option() ::
     {align_lsn, boolean()}. %% Align last applied and flushed LSN with last received LSN
                             %%  after Primary keepalive message with ReplyRequired flag
@@ -587,18 +577,15 @@ to_map(Map) when is_map(Map) ->
 to_map(List) when is_list(List) ->
     maps:from_list(List).
 
-%% @doc Activates TCP or SSL socket of the connection.
+%% @doc Activates TCP or SSL socket of a connection.
 %%
-%% If `{active, X}' is set in:
-%% - `tcp_opts' and the current mode is TCP or
-%% - `ssl_opts' and the current mode is SSL
-%% the function sets `{active, X}' on the connection socket.
-%% It sets `{active, true}' otherwise.
+%% If the `socket_active` connection option is supplied the function sets
+%% `{active, X}' the connection's SSL or TCP socket. It sets `{active, true}' otherwise.
 %%
 %% @param Connection connection
 %% @returns `ok' or `{error, Reason}'
 %%
-%% The ssl:reason() type is not exported.
+%% Note: The ssl:reason() type is not exported so that we use `any()' on the spec.
 -spec activate(connection()) -> ok | {error, inet:posix() | any()}.
 activate(Connection) ->
     epgsql_sock:activate(Connection).

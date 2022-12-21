@@ -169,8 +169,7 @@ activate(C) ->
 -spec set_net_socket(gen_tcp | ssl, tcp_socket() | ssl:sslsocket(), pg_sock()) -> pg_sock().
 set_net_socket(Mod, Socket, State) ->
     State1 = State#state{mod = Mod, sock = Socket},
-    Active = get_socket_active(State1),
-    setopts(State1, [{active, Active}]),
+    ok = activate_socket(State1),
     State1.
 
 -spec init_replication_state(pg_sock()) -> pg_sock().
@@ -197,8 +196,7 @@ set_attr(connect_opts, ConnectOpts, State) ->
 -spec set_packet_handler(atom(), pg_sock()) -> pg_sock().
 set_packet_handler(Handler, State0) ->
     State = State0#state{handler = Handler},
-    Active = get_socket_active(State),
-    setopts(State, [{active, Active}]),
+    ok = activate_socket(State),
     State.
 
 -spec get_codec(pg_sock()) -> epgsql_binary:codec().
@@ -259,8 +257,7 @@ handle_call({copy_send_rows, Rows}, _From,
     {reply, Response, State};
 
 handle_call(activate, _From, State) ->
-    Active = get_socket_active(State),
-    Res = setopts(State, [{active, Active}]),
+    Res = activate_socket(State),
     {reply, Res, State}.
 
 handle_cast({{Method, From, Ref} = Transport, Command, Args}, State)
@@ -335,12 +332,9 @@ format_status(terminate, [_PDict, State]) ->
 send_socket_pasive(#state{subproto_state = #repl{receiver = Rec}} = State) when Rec =/= undefined ->
     Rec ! {epgsql, self(), socket_passive},
     State;
-send_socket_pasive(#state{subproto_state = #repl{ cbmodule = CbMod
-                                                , cbstate = CbState} = Repl
-                         } = State) ->
-    {ok, NewCbState} = epgsql:handle_socket_passive(CbMod, CbState),
-    NewRepl = Repl#repl{cbstate = NewCbState},
-    State#state{subproto_state = NewRepl}.
+send_socket_pasive(State) ->
+    ok = activate_socket(State),
+    State.
 
 -spec command_new(transport(), epgsql_command:command(), any(), pg_sock()) ->
                          Result when
@@ -442,14 +436,15 @@ setopts(#state{mod = Mod, sock = Sock}, Opts) ->
     end.
 
 -spec get_socket_active(pg_sock()) -> epgsql:socket_active().
-get_socket_active(#state{handler = H}) when H =/= on_replication ->
-    true;
-get_socket_active(#state{connect_opts = #{socket_active := Active}}) ->
+get_socket_active(#state{handler = on_replication, connect_opts = #{socket_active := Active}}) ->
     Active;
-get_socket_active(#state{connect_opts = Opts}) when is_list(Opts) ->
-    proplists:get_value(socket_active, Opts, true);
 get_socket_active(_State) ->
     true.
+
+-spec activate_socket(pg_sock()) -> ok | {error, inet:posix() | any()}.
+activate_socket(State) ->
+  Active = get_socket_active(State),
+  setopts(State, [{active, Active}]).
 
 %% This one only used in connection initiation to send client's
 %% `StartupMessage' and `SSLRequest' packets

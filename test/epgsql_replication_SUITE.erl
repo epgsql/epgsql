@@ -16,8 +16,7 @@
          replication_sync_active_n_socket/1,
 
          %% Callbacks
-         handle_x_log_data/4,
-         handle_socket_passive/1
+         handle_x_log_data/4
         ]).
 
 init_per_suite(Config) ->
@@ -168,7 +167,3 @@ handle_x_log_data(StartLSN, EndLSN, Data, CbState) ->
   {C, Pid} = CbState,
   Pid ! {epgsql, C, {x_log_data, StartLSN, EndLSN, Data}},
   {ok, EndLSN, EndLSN, CbState}.
-
-handle_socket_passive({C, _Pid} = CbState) ->
-  spawn(fun() -> epgsql:activate(C) end),
-  {ok, CbState}.
