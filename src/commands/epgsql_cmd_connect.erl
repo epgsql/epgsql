@@ -85,7 +85,7 @@ execute(PgSock, #connect{opts = #{username := Username} = Opts, stage = connect}
 execute(PgSock, #connect{stage = auth, auth_send = {PacketType, Data}} = St) ->
     {send, PacketType, Data, PgSock, St#connect{auth_send = undefined}}.
 
--spec open_socket([{atom(), any()}], epgsql:connect_opts()) ->
+-spec open_socket([{atom(), any()}], epgsql:connect_opts_map()) ->
     {ok , gen_tcp | ssl, gen_tcp:socket() | ssl:sslsocket()} | {error, any()}.
 open_socket(SockOpts, #{host := Host} = ConnectOpts) ->
     Timeout = maps:get(timeout, ConnectOpts, 5000),

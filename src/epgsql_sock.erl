@@ -78,7 +78,7 @@
                    | {cast, pid(), reference()}
                    | {incremental, pid(), reference()}.
 
--type tcp_socket() :: port(). %gen_tcp:socket() isn't exported prior to erl 18
+-type tcp_socket() :: gen_tcp:socket().
 -type repl_state() :: #repl{}.
 -type copy_state() :: #copy{}.
 
@@ -102,7 +102,7 @@
                 txstatus :: byte() | undefined,  % $I | $T | $E,
                 complete_status :: atom() | {atom(), integer()} | undefined,
                 subproto_state :: repl_state() | copy_state() | undefined,
-                connect_opts :: epgsql:connect_opts() | undefined}).
+                connect_opts :: epgsql:connect_opts_map() | undefined}).
 
 -opaque pg_sock() :: #state{}.
 
@@ -195,9 +195,7 @@ set_attr(connect_opts, ConnectOpts, State) ->
 %% XXX: be careful!
 -spec set_packet_handler(atom(), pg_sock()) -> pg_sock().
 set_packet_handler(Handler, State0) ->
-    State = State0#state{handler = Handler},
-    ok = activate_socket(State),
-    State.
+    State0#state{handler = Handler}.
 
 -spec get_codec(pg_sock()) -> epgsql_binary:codec().
 get_codec(#state{codec = Codec}) ->
@@ -290,7 +288,7 @@ handle_info({DataTag, Sock, Data2}, #state{data = Data, sock = Sock} = State)
 
 handle_info({Passive, Sock}, #state{sock = Sock} = State)
   when Passive == ssl_passive; Passive == tcp_passive ->
-    NewState = send_socket_pasive(State),
+    NewState = handle_socket_pasive(State),
     {noreply, NewState};
 
 handle_info({Closed, Sock}, #state{sock = Sock} = State)
@@ -328,11 +326,24 @@ format_status(terminate, [_PDict, State]) ->
   State#state{rows = information_redacted}.
 
 %% -- internal functions --
--spec send_socket_pasive(pg_sock()) -> pg_sock().
-send_socket_pasive(#state{subproto_state = #repl{receiver = Rec}} = State) when Rec =/= undefined ->
+-spec handle_socket_pasive(pg_sock()) -> pg_sock().
+handle_socket_pasive(#state{handler = on_replication,
+                            subproto_state = #repl{receiver = Rec}} = State) when is_pid(Rec) ->
+    %% Replication with pid() as X-Log data receiver
     Rec ! {epgsql, self(), socket_passive},
     State;
-send_socket_pasive(State) ->
+handle_socket_pasive(#state{current_cmd_transport = {incremental, From, _}} = State) ->
+    %% `epgsqli' interface command
+    From ! {epgsql, self(), socket_passive},
+    State;
+handle_socket_pasive(State) ->
+    %% - current_cmd_transport is `call' or `cast': client expects whole result set anyway
+    %% - handler = on_copy_from_stdin: we don't expect much data from the server
+    %% - handler = on_replication with callback module as X-Log data receiver: pace controlled by
+    %%   callback execution time
+    %% - idle (eg, receiving asynchronous error or NOTIFICATION/WARNING): client might not expect
+    %%   to receive the `socket_passive' messages or there might be no client at all. Also, async
+    %%   notifications are usually small.
     ok = activate_socket(State),
     State.
 
@@ -436,7 +447,7 @@ setopts(#state{mod = Mod, sock = Sock}, Opts) ->
     end.
 
 -spec get_socket_active(pg_sock()) -> epgsql:socket_active().
-get_socket_active(#state{handler = on_replication, connect_opts = #{socket_active := Active}}) ->
+get_socket_active(#state{connect_opts = #{socket_active := Active}}) ->
     Active;
 get_socket_active(_State) ->
     true.
@@ -465,7 +476,12 @@ send_multi(#state{mod = Mod, sock = Sock}, List) ->
 do_send(gen_tcp, Sock, Bin) ->
     %% Why not gen_tcp:send/2?
     %% See https://github.com/rabbitmq/rabbitmq-common/blob/v3.7.4/src/rabbit_writer.erl#L367-L384
-    %% Because of that we also have `handle_info({inet_reply, ...`
+    %% Since `epgsql' uses `{active, true}' socket option by-default, it may potentially quickly
+    %% receive huge amount of data from the network.
+    %% With introduction of `{socket_active, N}' option it becomes less of a problem, but
+    %% `{active, true}' is still the default.
+    %%
+    %% Because we use `inet' driver directly, we also have `handle_info({inet_reply, ...`
     try erlang:port_command(Sock, Bin) of
         true ->
             ok

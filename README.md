@@ -73,6 +73,7 @@ connect(Opts) -> {ok, Connection :: epgsql:connection()} | {error, Reason :: epg
       port =>     inet:port_number(),
       ssl =>      boolean() | required,
       ssl_opts => [ssl:tls_client_option()], % @see OTP ssl documentation
+      socket_active => true | integer(), % @see "Active socket" section below
       tcp_opts => [gen_tcp:option()],    % @see OTP gen_tcp module documentation
       timeout =>  timeout(),             % socket connect timeout, default: 5000 ms
       async =>    pid() | atom(),        % process to receive LISTEN/NOTIFY msgs
@@ -125,10 +126,12 @@ Only `host` and `username` are mandatory, but most likely you would need `databa
 - `application_name` is an optional string parameter. It is usually set by an application upon
    connection to the server. The name will be displayed in the `pg_stat_activity`
    view and included in CSV log entries.
-- `socket_active` is an optional parameter, which can be true or integer in the range -32768
-  to 32767 (inclusive). This option only works in the replication mode and is used to control
-  the flow of incoming messages. See [Streaming replication protocol](#streaming-replication-protocol)
-  for more details.
+- `socket_active` is an optional parameter, which can be `true` or an integer in the range -32768
+   to 32767 (inclusive, however only positive value make sense right now).
+   This option is used to control the flow of incoming messages from the network socket to make
+   sure huge query results won't result in `epgsql` process mailbox overflow. It affects the
+   behaviour of some of the commands and interfaces (`epgsqli` and replication), so, use with
+   caution! See [Active socket](#active-socket) for more details.
 
 Options may be passed as proplist or as map with the same key names.
 
@@ -677,6 +680,48 @@ Retrieve actual value of server-side parameters, such as character endoding,
 date/time format and timezone, server version and so on. See [libpq PQparameterStatus](https://www.postgresql.org/docs/current/static/libpq-status.html#LIBPQ-PQPARAMETERSTATUS).
 Parameter's value may change during connection's lifetime.
 
+## Active socket
+
+By default `epgsql` sets its underlying `gen_tcp` or `ssl` socket into `{active, true}` mode
+(make sure you understand the [OTP inet:setopts/2 documentation](https://www.erlang.org/doc/man/inet.html#setopts-2)
+about `active` option).
+That means if PostgreSQL decides to quickly send a huge amount of data to the client (for example,
+client made a SELECT that returns large amount of results or when we are connected in streaming
+replication mode and receiving a lot of updates), underlying network socket might quickly send
+large number of messages to the `epgsql` connection process leading to the growing mailbox and high
+RAM consumption (or even OOM situation in case of really large query result or massive replication
+update).
+
+To avoid such scenarios, `epgsql` can may rely on "TCP backpressure" to prevent socket from sending
+unlimited number of messages - implement a "flow control". To do so, `socket_active => 1..32767`
+could be added at connection time. This option would set `{active, N}` option on the underlying
+socket and would tell the network to send no more than `N` messages to `epgsql` connection and then
+pause to let `epgsql` and the client process the already received network data and then decide how
+to proceed.
+
+The way this pause is signalled to the client and how the socket can be activated again depends on
+the interface client is using:
+
+- when `epgsqli` interface is used, `epgsql` would send all the normal low level messages and then
+  at any point it may send `{epgsql, C, socket_passive}` message to signal that socket have been
+  paused. `epgsql:activate(C)` must be called to re-activate the socket.
+- when `epgsql` is connected in [Streaming replication](doc/streaming.md) mode and `pid()` is used
+  as the receiver of the X-Log Data messages, it would behave in the same way:
+  `{epgsql, C, socket_passive}` might be sent along with
+  `{epgsql, self(), {x_log_data, _, _, _}}` messages and `epgsql:activate/1` can be used to
+  re-activate.
+- in all the other cases (`epgsql` / `epgsqla` command, while `COPY FROM STDIN` mode is active,
+  when Streaming replication with Erlang module callback as receiver of X-Log Data or
+  while connection is idle) `epgsql` would transparently re-activate the socket automatically: it
+  won't prevent high RAM usage from large SELECT result, but it would make sure `epgsql` process
+  has no more than `N` messages from the network in its mailbox.
+
+It is a good idea to combine `socket_active => N` with some specific value of
+`tcp_opts => [{buffer, X}]` since each of the `N` messages sent from the network to `epgsql`
+process would contain no more than `X` bytes. So the MAXIMUM amount of data seating at the `epgsql`
+mailbox could be roughly estimated as `N * X`. So if `N = 256` and `X = 512*1024` (512kb) then
+there will be no more than `N * X = 256 * 524288 = 134_217_728` or 128MB of data in the mailbox
+at the same time.
 
 ## Streaming replication protocol
 
@@ -702,7 +747,7 @@ Here's how to create a patch that's easy to integrate:
 - Create a new branch for the proposed fix.
 - Make sure it includes a test and documentation, if appropriate.
 - Open a pull request against the `devel` branch of epgsql.
-- Passing build in travis
+- Passing CI build
 
 ## Test Setup
 
@@ -712,11 +757,11 @@ Postgres database.
 NOTE: you will need the postgis and hstore extensions to run these
 tests! On Ubuntu, you can install them with a command like this:
 
-1. `apt-get install postgresql-9.3-postgis-2.1 postgresql-contrib`
+1. `apt-get install postgresql-12-postgis-3 postgresql-contrib`
 1. `make test` # Runs the tests
 
 NOTE 2: It's possible to run tests on exact postgres version by changing $PATH like
 
-   `PATH=$PATH:/usr/lib/postgresql/9.5/bin/ make test`
+   `PATH=$PATH:/usr/lib/postgresql/12/bin/ make test`
 
 [![CI](https://github.com/epgsql/epgsql/actions/workflows/ci.yml/badge.svg)](https://github.com/epgsql/epgsql/actions/workflows/ci.yml)

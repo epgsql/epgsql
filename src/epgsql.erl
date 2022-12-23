@@ -42,7 +42,7 @@
 %% private
 -export([handle_x_log_data/5]).
 
--export_type([connection/0, connect_option/0, connect_opts/0,
+-export_type([connection/0, connect_option/0, connect_opts/0, connect_opts_map/0,
               connect_error/0, query_error/0, sql_query/0, column/0,
               type_name/0, epgsql_type/0, statement/0,
               transaction_option/0, transaction_opts/0, socket_active/0]).
@@ -81,10 +81,8 @@
     {replication, Replication :: string()} | % Pass "database" to connect in replication mode
     {application_name, ApplicationName :: string()} |
     {socket_active, Active :: socket_active()}.
-
--type connect_opts() ::
-        [connect_option()]
-      | #{host => host(),
+-type connect_opts_map() ::
+        #{host => host(),
           username => string(),
           password => password(),
           database => string(),
@@ -100,6 +98,8 @@
           application_name => string(),
           socket_active => socket_active()
           }.
+
+-type connect_opts() :: connect_opts_map() | [connect_option()].
 
 -type transaction_option() ::
     {reraise, boolean()}          |
