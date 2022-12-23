@@ -1,16 +1,12 @@
-REBAR = ./rebar3
+REBAR = rebar3
 MINIMAL_COVERAGE = 55
 
 all: compile
 
-$(REBAR):
-	wget https://github.com/erlang/rebar3/releases/download/3.15.2/rebar3
-	chmod +x rebar3
-
-compile: src/epgsql_errcodes.erl $(REBAR)
+compile: src/epgsql_errcodes.erl
 	@$(REBAR) compile
 
-clean: $(REBAR)
+clean:
 	@$(REBAR) clean
 	@rm -f doc/*.html
 	@rm -f doc/erlang.png
@@ -35,10 +31,10 @@ test: compile eunit common-test cover
 dialyzer: compile
 	@$(REBAR) dialyzer
 
-elvis: $(REBAR)
+elvis:
 	@$(REBAR) as lint lint
 
-edoc: $(REBAR)
+edoc:
 	@$(REBAR) edoc
 
 .PHONY: all compile clean common-test eunit cover test dialyzer elvis
