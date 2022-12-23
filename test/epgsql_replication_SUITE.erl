@@ -66,8 +66,14 @@ replication_async_active_n_socket(Config) ->
 replication_sync_active_n_socket(Config) ->
   replication_test_run(Config, ?MODULE, [{socket_active, 1}]).
 
+-ifdef(OTP_RELEASE).
 replication_async_active_n_ssl(Config) ->
   replication_test_run(Config, self(), [{socket_active, 1}, {ssl, require}]).
+-else.
+%% {active, N} for SSL is only supported on OTP-21+
+replication_async_active_n_ssl(Config) ->
+    noop.
+-endif.
 
 replication_test_run(Config, Callback) ->
   replication_test_run(Config, Callback, []).

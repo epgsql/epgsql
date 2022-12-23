@@ -1630,6 +1630,7 @@ incremental_sock_active_n(Config) ->
          "epgsql_test",
          [{socket_active, 2}]).
 
+-ifdef(OTP_RELEASE).
 incremental_sock_active_n_ssl(Config) ->
     epgsql_incremental = ?config(module, Config),
     Q = "SELECT *, 'Hello world' FROM generate_series(0, 10240)",
@@ -1645,6 +1646,11 @@ incremental_sock_active_n_ssl(Config) ->
          end,
          "epgsql_test",
          [{ssl, true}, {socket_active, 2}]).
+-else.
+%% {active, N} for SSL is only supported on OTP-21+
+incremental_sock_active_n_ssl(_Config) ->
+    noop.
+-endif.
 
 recv_incremental_active_n(C, Ref) ->
     recv_incremental_active_n(C, Ref, 0, [], []).
