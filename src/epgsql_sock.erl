@@ -53,7 +53,8 @@
          cancel/1,
          copy_send_rows/3,
          standby_status_update/3,
-         get_backend_pid/1]).
+         get_backend_pid/1,
+         activate/1]).
 
 -export([handle_call/3, handle_cast/2, handle_info/2, format_status/2]).
 -export([init/1, code_change/3, terminate/2]).
@@ -69,7 +70,6 @@
 
 -export_type([transport/0, pg_sock/0, error/0]).
 
--include("epgsql.hrl").
 -include("protocol.hrl").
 -include("epgsql_replication.hrl").
 -include("epgsql_copy.hrl").
@@ -156,6 +156,11 @@ standby_status_update(C, FlushedLSN, AppliedLSN) ->
 get_backend_pid(C) ->
     gen_server:call(C, get_backend_pid).
 
+%% The ssl:reason() type is not exported
+-spec activate(epgsql:connection()) -> ok | {error, inet:posix() | any()}.
+activate(C) ->
+    gen_server:call(C, activate).
+
 %% -- command APIs --
 
 %% send()
@@ -164,7 +169,7 @@ get_backend_pid(C) ->
 -spec set_net_socket(gen_tcp | ssl, tcp_socket() | ssl:sslsocket(), pg_sock()) -> pg_sock().
 set_net_socket(Mod, Socket, State) ->
     State1 = State#state{mod = Mod, sock = Socket},
-    setopts(State1, [{active, true}]),
+    ok = activate_socket(State1),
     State1.
 
 -spec init_replication_state(pg_sock()) -> pg_sock().
@@ -189,8 +194,10 @@ set_attr(connect_opts, ConnectOpts, State) ->
 
 %% XXX: be careful!
 -spec set_packet_handler(atom(), pg_sock()) -> pg_sock().
-set_packet_handler(Handler, State) ->
-    State#state{handler = Handler}.
+set_packet_handler(Handler, State0) ->
+    State = State0#state{handler = Handler},
+    ok = activate_socket(State),
+    State.
 
 -spec get_codec(pg_sock()) -> epgsql_binary:codec().
 get_codec(#state{codec = Codec}) ->
@@ -214,7 +221,6 @@ get_parameter_internal(Name, #state{parameters = Parameters}) ->
         {value, {Name, Value}} -> Value;
         false                  -> undefined
     end.
-
 
 %% -- gen_server implementation --
 
@@ -248,7 +254,11 @@ handle_call({standby_status_update, FlushedLSN, AppliedLSN}, _From,
 handle_call({copy_send_rows, Rows}, _From,
            #state{handler = Handler, subproto_state = CopyState} = State) ->
     Response = handle_copy_send_rows(Rows, Handler, CopyState, State),
-    {reply, Response, State}.
+    {reply, Response, State};
+
+handle_call(activate, _From, State) ->
+    Res = activate_socket(State),
+    {reply, Res, State}.
 
 handle_cast({{Method, From, Ref} = Transport, Command, Args}, State)
   when ((Method == cast) or (Method == incremental)),
@@ -277,6 +287,11 @@ handle_cast(cancel, State = #state{backend = {Pid, Key},
 handle_info({DataTag, Sock, Data2}, #state{data = Data, sock = Sock} = State)
   when DataTag == tcp; DataTag == ssl ->
     loop(State#state{data = <<Data/binary, Data2/binary>>});
+
+handle_info({Passive, Sock}, #state{sock = Sock} = State)
+  when Passive == ssl_passive; Passive == tcp_passive ->
+    NewState = send_socket_pasive(State),
+    {noreply, NewState};
 
 handle_info({Closed, Sock}, #state{sock = Sock} = State)
   when Closed == tcp_closed; Closed == ssl_closed ->
@@ -313,6 +328,13 @@ format_status(terminate, [_PDict, State]) ->
   State#state{rows = information_redacted}.
 
 %% -- internal functions --
+-spec send_socket_pasive(pg_sock()) -> pg_sock().
+send_socket_pasive(#state{subproto_state = #repl{receiver = Rec}} = State) when Rec =/= undefined ->
+    Rec ! {epgsql, self(), socket_passive},
+    State;
+send_socket_pasive(State) ->
+    ok = activate_socket(State),
+    State.
 
 -spec command_new(transport(), epgsql_command:command(), any(), pg_sock()) ->
                          Result when
@@ -407,12 +429,22 @@ command_next(#state{current_cmd = PrevCmd,
                         results = []}
     end.
 
-
 setopts(#state{mod = Mod, sock = Sock}, Opts) ->
     case Mod of
         gen_tcp -> inet:setopts(Sock, Opts);
         ssl     -> ssl:setopts(Sock, Opts)
     end.
+
+-spec get_socket_active(pg_sock()) -> epgsql:socket_active().
+get_socket_active(#state{handler = on_replication, connect_opts = #{socket_active := Active}}) ->
+    Active;
+get_socket_active(_State) ->
+    true.
+
+-spec activate_socket(pg_sock()) -> ok | {error, inet:posix() | any()}.
+activate_socket(State) ->
+  Active = get_socket_active(State),
+  setopts(State, [{active, Active}]).
 
 %% This one only used in connection initiation to send client's
 %% `StartupMessage' and `SSLRequest' packets
