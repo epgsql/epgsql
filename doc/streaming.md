@@ -155,8 +155,8 @@ Opts = #{host => "localhost",
 {ok, Conn} = epgsql:connect(Opts).
 ```
 
-It is currently allowed only in the replication mode. Its main purpose is to control the flow of
-replication messages from Postgresql database. If a database is under a high load and a process, which
+Its main purpose is to control the flow of replication messages from Postgresql database.
+If a database is under a high load and a process, which
 handles the message stream, cannot keep up with it then setting this option gives the handling process
 ability to get messages on-demand.
 
@@ -175,3 +175,5 @@ the connection's options.
 
 In the case of synchronous handler for replication messages `epgsql` will handle `socket_passive`
 messages internally.
+
+See [Active socket README section](../#active-socket) for more details.
