@@ -14,6 +14,7 @@
          replication_async/1,
          replication_async_active_n_socket/1,
          replication_sync_active_n_socket/1,
+         replication_async_active_n_ssl/1,
 
          %% Callbacks
          handle_x_log_data/4
@@ -31,7 +32,8 @@ all() ->
    replication_async,
    replication_sync,
    replication_async_active_n_socket,
-   replication_sync_active_n_socket
+   replication_sync_active_n_socket,
+   replication_async_active_n_ssl
   ].
 
 connect_in_repl_mode(Config) ->
@@ -63,6 +65,15 @@ replication_async_active_n_socket(Config) ->
 
 replication_sync_active_n_socket(Config) ->
   replication_test_run(Config, ?MODULE, [{socket_active, 1}]).
+
+-ifdef(OTP_RELEASE).
+replication_async_active_n_ssl(Config) ->
+  replication_test_run(Config, self(), [{socket_active, 1}, {ssl, require}]).
+-else.
+%% {active, N} for SSL is only supported on OTP-21+
+replication_async_active_n_ssl(Config) ->
+    noop.
+-endif.
 
 replication_test_run(Config, Callback) ->
   replication_test_run(Config, Callback, []).

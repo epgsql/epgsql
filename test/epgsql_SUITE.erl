@@ -77,6 +77,10 @@ groups() ->
             pipelined_prepared_query,
             pipelined_parse_batch_execute
         ]},
+        {incremental_sock_active, [parallel], [
+            incremental_sock_active_n,
+            incremental_sock_active_n_ssl
+        ]},
         {generic, [parallel], [
             with_transaction,
             mixed_api
@@ -145,7 +149,7 @@ groups() ->
     SubGroups ++
         [{epgsql, [], [{group, generic} | Tests]},
          {epgsql_cast, [], [{group, pipelining} | Tests]},
-         {epgsql_incremental, [], Tests}].
+         {epgsql_incremental, [], [{group, incremental_sock_active} | Tests]}].
 
 end_per_suite(_Config) ->
     ok.
@@ -1609,6 +1613,67 @@ pipelined_parse_batch_execute(Config) ->
                end || Ref <- CloseRefs],
               erlang:cancel_timer(Timer)
       end).
+
+incremental_sock_active_n(Config) ->
+    epgsql_incremental = ?config(module, Config),
+    Q = "SELECT *, 'Hello world' FROM generate_series(0, 10240)",
+    epgsql_ct:with_connection(Config,
+         fun(C) ->
+             Ref = epgsqli:squery(C, Q),
+             {done, NumPassive, Others, Rows} = recv_incremental_active_n(C, Ref),
+             ?assertMatch([{columns, _}, {complete, _}], Others),
+             ?assert(NumPassive > 0),
+             ?assertMatch([{<<"0">>, <<"Hello world">>},
+                           {<<"1">>, <<"Hello world">>} | _], Rows),
+             ?assertEqual(10241, length(Rows))
+         end,
+         "epgsql_test",
+         [{socket_active, 2}]).
+
+-ifdef(OTP_RELEASE).
+incremental_sock_active_n_ssl(Config) ->
+    epgsql_incremental = ?config(module, Config),
+    Q = "SELECT *, 'Hello world' FROM generate_series(0, 10240)",
+    epgsql_ct:with_connection(Config,
+         fun(C) ->
+             Ref = epgsqli:squery(C, Q),
+             {done, NumPassive, Others, Rows} = recv_incremental_active_n(C, Ref),
+             ?assertMatch([{columns, _}, {complete, _}], Others),
+             ?assert(NumPassive > 0),
+             ?assertMatch([{<<"0">>, <<"Hello world">>},
+                           {<<"1">>, <<"Hello world">>} | _], Rows),
+             ?assertEqual(10241, length(Rows))
+         end,
+         "epgsql_test",
+         [{ssl, true}, {socket_active, 2}]).
+-else.
+%% {active, N} for SSL is only supported on OTP-21+
+incremental_sock_active_n_ssl(_Config) ->
+    noop.
+-endif.
+
+recv_incremental_active_n(C, Ref) ->
+    recv_incremental_active_n(C, Ref, 0, [], []).
+
+recv_incremental_active_n(C, Ref, NumPassive, Rows, Others) ->
+    receive
+        {C, Ref, {data, Row}} ->
+            recv_incremental_active_n(C, Ref, NumPassive, [Row | Rows], Others);
+        {epgsql, C, socket_passive} ->
+            ok = epgsql:activate(C),
+            recv_incremental_active_n(C, Ref, NumPassive + 1, Rows, Others);
+        {C, Ref, {error, _} = E} ->
+            E;
+        {C, Ref, done} ->
+            {done, NumPassive, lists:reverse(Others), lists:reverse(Rows)};
+        {C, Ref, Other} ->
+            recv_incremental_active_n(C, Ref, NumPassive, Rows, [Other | Others]);
+        Other ->
+            recv_incremental_active_n(C, Ref, NumPassive, Rows, [Other | Others])
+    after 5000 ->
+            error({timeout, NumPassive, Others, Rows})
+    end.
+
 %% =============================================================================
 %% Internal functions
 %% ============================================================================
