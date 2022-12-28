@@ -56,7 +56,7 @@
          get_backend_pid/1,
          activate/1]).
 
--export([handle_call/3, handle_cast/2, handle_info/2, format_status/2]).
+-export([handle_call/3, handle_cast/2, handle_info/2, format_status/1, format_status/2]).
 -export([init/1, code_change/3, terminate/2]).
 
 %% loop callback
@@ -67,6 +67,10 @@
          get_rows/1, get_results/1, notify/2, send/2, send/3, send_multi/2,
          get_parameter_internal/2,
          get_subproto_state/1, set_packet_handler/2]).
+
+-ifdef(TEST).
+-export([state_to_map/1]).
+-endif.
 
 -export_type([transport/0, pg_sock/0, error/0]).
 
@@ -318,12 +322,22 @@ terminate(_Reason, #state{mod = ssl, sock = Sock}) -> ssl:close(Sock).
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
+format_status(Status = #{reason := _Reason, state := State}) ->
+  %% Do not format the rows attribute when process terminates abnormally
+  %% but allow it when is a sys:get_status/1.2
+  Status#{state => redact_state(State)};
+format_status(Status) ->
+    Status.
+
+%% TODO
+%% This is deprecated since OTP-25 in favor of `format_status/1`. Remove once
+%% OTP-25 becomes minimum supported OTP version.
 format_status(normal, [_PDict, State=#state{}]) ->
   [{data, [{"State", State}]}];
 format_status(terminate, [_PDict, State]) ->
   %% Do not format the rows attribute when process terminates abnormally
   %% but allow it when is a sys:get_status/1.2
-  State#state{rows = information_redacted}.
+  redact_state(State).
 
 %% -- internal functions --
 -spec handle_socket_pasive(pg_sock()) -> pg_sock().
@@ -785,3 +799,14 @@ handle_xlog_data(StartLSN, EndLSN, WALRecord,
               last_flushed_lsn = LastFlushedLSN,
               last_applied_lsn = LastAppliedLSN,
               cbstate = NewCbState}.
+
+redact_state(State) ->
+    State#state{rows = information_redacted}.
+
+-ifdef(TEST).
+
+state_to_map(State) ->
+    [state | Fields] = tuple_to_list(State),
+    maps:from_list(lists:zip(record_info(fields, state), Fields)).
+
+-endif.
