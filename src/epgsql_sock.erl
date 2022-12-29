@@ -53,9 +53,10 @@
          cancel/1,
          copy_send_rows/3,
          standby_status_update/3,
-         get_backend_pid/1]).
+         get_backend_pid/1,
+         activate/1]).
 
--export([handle_call/3, handle_cast/2, handle_info/2, format_status/2]).
+-export([handle_call/3, handle_cast/2, handle_info/2, format_status/1, format_status/2]).
 -export([init/1, code_change/3, terminate/2]).
 
 %% loop callback
@@ -67,9 +68,12 @@
          get_parameter_internal/2,
          get_subproto_state/1, set_packet_handler/2]).
 
+-ifdef(TEST).
+-export([state_to_map/1]).
+-endif.
+
 -export_type([transport/0, pg_sock/0, error/0]).
 
--include("epgsql.hrl").
 -include("protocol.hrl").
 -include("epgsql_replication.hrl").
 -include("epgsql_copy.hrl").
@@ -78,7 +82,7 @@
                    | {cast, pid(), reference()}
                    | {incremental, pid(), reference()}.
 
--type tcp_socket() :: port(). %gen_tcp:socket() isn't exported prior to erl 18
+-type tcp_socket() :: gen_tcp:socket().
 -type repl_state() :: #repl{}.
 -type copy_state() :: #copy{}.
 
@@ -102,7 +106,7 @@
                 txstatus :: byte() | undefined,  % $I | $T | $E,
                 complete_status :: atom() | {atom(), integer()} | undefined,
                 subproto_state :: repl_state() | copy_state() | undefined,
-                connect_opts :: epgsql:connect_opts() | undefined}).
+                connect_opts :: epgsql:connect_opts_map() | undefined}).
 
 -opaque pg_sock() :: #state{}.
 
@@ -156,6 +160,11 @@ standby_status_update(C, FlushedLSN, AppliedLSN) ->
 get_backend_pid(C) ->
     gen_server:call(C, get_backend_pid).
 
+%% The ssl:reason() type is not exported
+-spec activate(epgsql:connection()) -> ok | {error, inet:posix() | any()}.
+activate(C) ->
+    gen_server:call(C, activate).
+
 %% -- command APIs --
 
 %% send()
@@ -164,7 +173,7 @@ get_backend_pid(C) ->
 -spec set_net_socket(gen_tcp | ssl, tcp_socket() | ssl:sslsocket(), pg_sock()) -> pg_sock().
 set_net_socket(Mod, Socket, State) ->
     State1 = State#state{mod = Mod, sock = Socket},
-    setopts(State1, [{active, true}]),
+    ok = activate_socket(State1),
     State1.
 
 -spec init_replication_state(pg_sock()) -> pg_sock().
@@ -189,8 +198,8 @@ set_attr(connect_opts, ConnectOpts, State) ->
 
 %% XXX: be careful!
 -spec set_packet_handler(atom(), pg_sock()) -> pg_sock().
-set_packet_handler(Handler, State) ->
-    State#state{handler = Handler}.
+set_packet_handler(Handler, State0) ->
+    State0#state{handler = Handler}.
 
 -spec get_codec(pg_sock()) -> epgsql_binary:codec().
 get_codec(#state{codec = Codec}) ->
@@ -214,7 +223,6 @@ get_parameter_internal(Name, #state{parameters = Parameters}) ->
         {value, {Name, Value}} -> Value;
         false                  -> undefined
     end.
-
 
 %% -- gen_server implementation --
 
@@ -248,7 +256,11 @@ handle_call({standby_status_update, FlushedLSN, AppliedLSN}, _From,
 handle_call({copy_send_rows, Rows}, _From,
            #state{handler = Handler, subproto_state = CopyState} = State) ->
     Response = handle_copy_send_rows(Rows, Handler, CopyState, State),
-    {reply, Response, State}.
+    {reply, Response, State};
+
+handle_call(activate, _From, State) ->
+    Res = activate_socket(State),
+    {reply, Res, State}.
 
 handle_cast({{Method, From, Ref} = Transport, Command, Args}, State)
   when ((Method == cast) or (Method == incremental)),
@@ -278,6 +290,11 @@ handle_info({DataTag, Sock, Data2}, #state{data = Data, sock = Sock} = State)
   when DataTag == tcp; DataTag == ssl ->
     loop(State#state{data = <<Data/binary, Data2/binary>>});
 
+handle_info({Passive, Sock}, #state{sock = Sock} = State)
+  when Passive == ssl_passive; Passive == tcp_passive ->
+    NewState = handle_socket_pasive(State),
+    {noreply, NewState};
+
 handle_info({Closed, Sock}, #state{sock = Sock} = State)
   when Closed == tcp_closed; Closed == ssl_closed ->
     {stop, sock_closed, flush_queue(State#state{sock = undefined}, {error, sock_closed})};
@@ -305,14 +322,44 @@ terminate(_Reason, #state{mod = ssl, sock = Sock}) -> ssl:close(Sock).
 code_change(_OldVsn, State, _Extra) ->
     {ok, State}.
 
+format_status(Status = #{reason := _Reason, state := State}) ->
+  %% Do not format the rows attribute when process terminates abnormally
+  %% but allow it when is a sys:get_status/1.2
+  Status#{state => redact_state(State)};
+format_status(Status) ->
+    Status.
+
+%% TODO
+%% This is deprecated since OTP-25 in favor of `format_status/1`. Remove once
+%% OTP-25 becomes minimum supported OTP version.
 format_status(normal, [_PDict, State=#state{}]) ->
   [{data, [{"State", State}]}];
 format_status(terminate, [_PDict, State]) ->
   %% Do not format the rows attribute when process terminates abnormally
   %% but allow it when is a sys:get_status/1.2
-  State#state{rows = information_redacted}.
+  redact_state(State).
 
 %% -- internal functions --
+-spec handle_socket_pasive(pg_sock()) -> pg_sock().
+handle_socket_pasive(#state{handler = on_replication,
+                            subproto_state = #repl{receiver = Rec}} = State) when is_pid(Rec) ->
+    %% Replication with pid() as X-Log data receiver
+    Rec ! {epgsql, self(), socket_passive},
+    State;
+handle_socket_pasive(#state{current_cmd_transport = {incremental, From, _}} = State) ->
+    %% `epgsqli' interface command
+    From ! {epgsql, self(), socket_passive},
+    State;
+handle_socket_pasive(State) ->
+    %% - current_cmd_transport is `call' or `cast': client expects whole result set anyway
+    %% - handler = on_copy_from_stdin: we don't expect much data from the server
+    %% - handler = on_replication with callback module as X-Log data receiver: pace controlled by
+    %%   callback execution time
+    %% - idle (eg, receiving asynchronous error or NOTIFICATION/WARNING): client might not expect
+    %%   to receive the `socket_passive' messages or there might be no client at all. Also, async
+    %%   notifications are usually small.
+    ok = activate_socket(State),
+    State.
 
 -spec command_new(transport(), epgsql_command:command(), any(), pg_sock()) ->
                          Result when
@@ -407,12 +454,22 @@ command_next(#state{current_cmd = PrevCmd,
                         results = []}
     end.
 
-
 setopts(#state{mod = Mod, sock = Sock}, Opts) ->
     case Mod of
         gen_tcp -> inet:setopts(Sock, Opts);
         ssl     -> ssl:setopts(Sock, Opts)
     end.
+
+-spec get_socket_active(pg_sock()) -> epgsql:socket_active().
+get_socket_active(#state{connect_opts = #{socket_active := Active}}) ->
+    Active;
+get_socket_active(_State) ->
+    true.
+
+-spec activate_socket(pg_sock()) -> ok | {error, inet:posix() | any()}.
+activate_socket(State) ->
+  Active = get_socket_active(State),
+  setopts(State, [{active, Active}]).
 
 %% This one only used in connection initiation to send client's
 %% `StartupMessage' and `SSLRequest' packets
@@ -433,7 +490,12 @@ send_multi(#state{mod = Mod, sock = Sock}, List) ->
 do_send(gen_tcp, Sock, Bin) ->
     %% Why not gen_tcp:send/2?
     %% See https://github.com/rabbitmq/rabbitmq-common/blob/v3.7.4/src/rabbit_writer.erl#L367-L384
-    %% Because of that we also have `handle_info({inet_reply, ...`
+    %% Since `epgsql' uses `{active, true}' socket option by-default, it may potentially quickly
+    %% receive huge amount of data from the network.
+    %% With introduction of `{socket_active, N}' option it becomes less of a problem, but
+    %% `{active, true}' is still the default.
+    %%
+    %% Because we use `inet' driver directly, we also have `handle_info({inet_reply, ...`
     try erlang:port_command(Sock, Bin) of
         true ->
             ok
@@ -737,3 +799,14 @@ handle_xlog_data(StartLSN, EndLSN, WALRecord,
               last_flushed_lsn = LastFlushedLSN,
               last_applied_lsn = LastAppliedLSN,
               cbstate = NewCbState}.
+
+redact_state(State) ->
+    State#state{rows = information_redacted}.
+
+-ifdef(TEST).
+
+state_to_map(State) ->
+    [state | Fields] = tuple_to_list(State),
+    maps:from_list(lists:zip(record_info(fields, state), Fields)).
+
+-endif.

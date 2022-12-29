@@ -1,3 +1,10 @@
+In 4.7.0
+
+* Flow control `{socket_active, N}` option in streaming replication #271
+* `{socket_active, N}` option generalized to all `epgsql` modes #278
+* CI upgraded to support OTP-25, OTP-19 dropped, run some tests on PostgreSQL 14 #276
+* `format_status/1` OTP-25 `gen_server` callback implemented #277
+
 In 4.6.1
 
 * Introduce `get_backend_pid` function #270

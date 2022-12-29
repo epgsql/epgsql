@@ -37,13 +37,15 @@
          start_replication/5,
          start_replication/6,
          start_replication/7,
-         to_map/1]).
--export([handle_x_log_data/5]).                 % private
+         to_map/1,
+         activate/1]).
+%% private
+-export([handle_x_log_data/5]).
 
--export_type([connection/0, connect_option/0, connect_opts/0,
+-export_type([connection/0, connect_option/0, connect_opts/0, connect_opts_map/0,
               connect_error/0, query_error/0, sql_query/0, column/0,
               type_name/0, epgsql_type/0, statement/0,
-              transaction_option/0, transaction_opts/0]).
+              transaction_option/0, transaction_opts/0, socket_active/0]).
 
 %% Deprecated types
 -export_type([bind_param/0, typed_param/0,
@@ -62,6 +64,7 @@
 -type host() :: inet:ip_address() | inet:hostname().
 -type password() :: string() | iodata() | fun( () -> iodata() ).
 -type connection() :: pid().
+-type socket_active() :: true | -32768..32767.
 -type connect_option() ::
     {host, host()}                                 |
     {username, string()}                           |
@@ -76,11 +79,10 @@
     {codecs,   Codecs     :: [{epgsql_codec:codec_mod(), any()}]} |
     {nulls,    Nulls      :: [any(), ...]} |    % terms to be used as NULL
     {replication, Replication :: string()} | % Pass "database" to connect in replication mode
-    {application_name, ApplicationName :: string()}.
-
--type connect_opts() ::
-        [connect_option()]
-      | #{host => host(),
+    {application_name, ApplicationName :: string()} |
+    {socket_active, Active :: socket_active()}.
+-type connect_opts_map() ::
+        #{host => host(),
           username => string(),
           password => password(),
           database => string(),
@@ -93,8 +95,11 @@
           codecs => [{epgsql_codec:codec_mod(), any()}],
           nulls => [any(), ...],
           replication => string(),
-          application_name => string()
+          application_name => string(),
+          socket_active => socket_active()
           }.
+
+-type connect_opts() :: connect_opts_map() | [connect_option()].
 
 -type transaction_option() ::
     {reraise, boolean()}          |
@@ -571,3 +576,16 @@ to_map(Map) when is_map(Map) ->
     Map;
 to_map(List) when is_list(List) ->
     maps:from_list(List).
+
+%% @doc Activates TCP or SSL socket of a connection.
+%%
+%% If the `socket_active` connection option is supplied the function sets
+%% `{active, X}' the connection's SSL or TCP socket. It sets `{active, true}' otherwise.
+%%
+%% @param Connection connection
+%% @returns `ok' or `{error, Reason}'
+%%
+%% Note: The ssl:reason() type is not exported so that we use `any()' on the spec.
+-spec activate(connection()) -> ok | {error, inet:posix() | any()}.
+activate(Connection) ->
+    epgsql_sock:activate(Connection).
