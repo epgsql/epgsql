@@ -5,6 +5,7 @@
 -export([
     connection_data/1,
     connect/1,
+    connect/3,
     connect_only/2,
     with_connection/2,
     with_connection/3,
