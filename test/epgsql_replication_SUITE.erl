@@ -90,18 +90,19 @@ two_replications_on_same_slot(Config) ->
         spawn(
           fun() ->
               %% This connection will be terminated due to an unexpected message:
-              %%   EmptyQueryResponse (B), Byte1('I'), Int32(4)
+              %%   ReadyForQuery (B), Byte1('Z'), Int32(5), Byte1
               %% https://www.postgresql.org/docs/current/protocol-message-formats.html
               process_flag(trap_exit, true),
               C2 = epgsql_ct:connect(Config, User, [{replication, "database"}]),
               Res2 = Module:start_replication(C2, "epgsql_test", self(), {C2, self()}, "0/0"),
               ?assertMatch({error, _}, Res2),
-              cleanup_and_notify(Parent)
+              Parent ! error_received
           end),
         receive
-          Result -> ?assertEqual(terminated, Result)
+          Result -> ?assertEqual(error_received, Result)
         after
-          1000 -> ?assert(false, "Second connection hasn't been closed")
+          1000 -> ?assert(false, "Error hasn't been received when establishing "
+                                 "a second connection to the same replication slot")
         end
     end,
     User,
@@ -208,17 +209,6 @@ ensure_no_socket_passive_msgs(Module, Pid) ->
   after
     100 ->
       ok
-  end.
-
-cleanup_and_notify(Parent) ->
-  receive
-    {'EXIT', _Pid, {error, _}} ->
-      Parent ! terminated;
-    Msg ->
-      Parent ! Msg
-  after
-    100 ->
-      Parent ! no_messages_received
   end.
 
 handle_x_log_data(StartLSN, EndLSN, Data, CbState) ->

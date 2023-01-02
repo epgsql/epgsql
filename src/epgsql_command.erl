@@ -67,7 +67,5 @@ execute(Command, PgSock, CmdState) ->
 
 -spec handle_message(command(), Type :: byte(), Payload :: binary() | epgsql:query_error(),
                      epgsql_sock:pg_sock(), state()) -> handle_message_return().
-handle_message(undefined = _Command, _Type, _Payload, _PgSock, _State) ->
-    unknown;
 handle_message(Command, Type, Payload, PgSock, State) ->
     Command:handle_message(Type, Payload, PgSock, State).
