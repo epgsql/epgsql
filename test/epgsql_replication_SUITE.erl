@@ -10,6 +10,7 @@
 
          connect_in_repl_mode/1,
          create_drop_replication_slot/1,
+         no_replication_slot/1,
          replication_sync/1,
          replication_async/1,
          replication_async_active_n_socket/1,
@@ -30,6 +31,7 @@ end_per_suite(_Config) ->
 all() ->
   [connect_in_repl_mode,
    create_drop_replication_slot,
+   no_replication_slot,
    replication_async,
    replication_sync,
    replication_async_active_n_socket,
@@ -115,6 +117,17 @@ two_replications_on_same_slot(Config) ->
     User,
     [{replication, "database"}]),
   drop_replication_slot(Config).
+
+no_replication_slot(Config) ->
+  Module = ?config(module, Config),
+  epgsql_ct:with_connection(
+    Config,
+    fun(C) ->
+        Res = Module:start_replication(C, "epgsql_test", self(), {C, self()}, "0/0"),
+        ?assertMatch({error, #error{codename = undefined_object}}, Res)
+    end,
+    "epgsql_test_replication",
+    [{replication, "database"}]).
 
 replication_test_run(Config, Callback) ->
   replication_test_run(Config, Callback, []).
