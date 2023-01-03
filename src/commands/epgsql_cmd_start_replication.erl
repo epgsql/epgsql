@@ -12,7 +12,6 @@
 
 -type response() :: ok | {error, epgsql:query_error()}.
 
--include("epgsql.hrl").
 -include("protocol.hrl").
 -include("../epgsql_replication.hrl").
 
@@ -65,16 +64,13 @@ execute(Sock, #start_repl{slot = ReplicationSlot, callback = Callback,
 %% CopyBothResponse
 handle_message(?COPY_BOTH_RESPONSE, _Data, Sock, _State) ->
     {finish, ok, ok, epgsql_sock:set_packet_handler(on_replication, Sock)};
-handle_message(?ERROR, #error{codename = object_in_use} = Error, Sock, State) ->
-    %% A replication slot is in use already. In this case, protocol sends a ReadyForQuery message.
+handle_message(?ERROR, Error, Sock, State) ->
+    %% In the case of error, Postgresql replication protocol sends a ReadyForQuery message.
     %% Adds an error to results to handle it later in the ?READY_FOR_QUERY branch.
     Result = {error, Error},
     {add_result, Result, Result, Sock, State};
-handle_message(?ERROR, Error, _Sock, _State) ->
-    Result = {error, Error},
-    {sync_required, Result};
 handle_message(?READY_FOR_QUERY, _Data, Sock, _State) ->
     [Error = {error, _}] = epgsql_sock:get_results(Sock), % assert a single error response
-    {sync_required, Error};
+    {finish, Error, done, Sock};
 handle_message(_, _, _, _) ->
     unknown.

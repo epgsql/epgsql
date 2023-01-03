@@ -80,29 +80,36 @@ replication_async_active_n_ssl(Config) ->
 two_replications_on_same_slot(Config) ->
   Module = ?config(module, Config),
   User = "epgsql_test_replication",
+  SlotName = "epgsql_test",
   Parent = self(),
   epgsql_ct:with_connection(
     Config,
     fun(C) ->
         create_replication_slot(Config, C),
-        Res1 = Module:start_replication(C, "epgsql_test", Parent, {C, Parent}, "0/0"),
+        Res1 = Module:start_replication(C, SlotName, Parent, {C, Parent}, "0/0"),
         ?assertEqual(ok, Res1),
+        ErrorReceivedMsg = error_received,
         spawn(
           fun() ->
-              %% This connection will be terminated due to an unexpected message:
+              %% Test that the second connection receives the ReadyForQuery message from PG
+              %% synchronously after getting an error that the slot is occupied:
               %%   ReadyForQuery (B), Byte1('Z'), Int32(5), Byte1
               %% https://www.postgresql.org/docs/current/protocol-message-formats.html
-              process_flag(trap_exit, true),
-              C2 = epgsql_ct:connect(Config, User, [{replication, "database"}]),
-              Res2 = Module:start_replication(C2, "epgsql_test", self(), {C2, self()}, "0/0"),
-              ?assertMatch({error, _}, Res2),
-              Parent ! error_received
+              epgsql_ct:with_connection(
+                Config,
+                fun(C2) ->
+                    Res2 = Module:start_replication(C2, SlotName, self(), {C2, self()}, "0/0"),
+                    ?assertMatch({error, #error{codename = object_in_use}}, Res2),
+                    Parent ! ErrorReceivedMsg
+                end,
+                User,
+                [{replication, "database"}])
           end),
         receive
-          Result -> ?assertEqual(error_received, Result)
+          Result -> ?assertEqual(ErrorReceivedMsg, Result)
         after
-          1000 -> ?assert(false, "Error hasn't been received when establishing "
-                                 "a second connection to the same replication slot")
+          1000 -> ?assert(false, "Expected answer hasn't been received in 1000ms when "
+                                 "establishing a second connection to the same replication slot")
         end
     end,
     User,
