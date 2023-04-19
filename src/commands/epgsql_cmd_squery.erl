@@ -63,7 +63,7 @@ handle_message(?COMMAND_COMPLETE, Bin, Sock, #squery{columns = Cols} = St) ->
                  _ ->
                      {ok, Cols, Rows}
              end,
-    {add_result, Result, {complete, Complete}, Sock, St};
+    {add_result, Result, {complete, Complete}, Sock, St#squery{columns = []}};
 handle_message(?EMPTY_QUERY, _, Sock, St) ->
     {add_result, {ok, [], []}, {complete, empty}, Sock, St};
 handle_message(?READY_FOR_QUERY, _Status, Sock, _State) ->
