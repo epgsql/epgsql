@@ -43,11 +43,6 @@ jobs:
             rebar3: "3.15.2"
             pg: "12"
             postgis: "3"
-          - os: "ubuntu-20.04"
-            otp: "20.3"
-            rebar3: "3.15.2"
-            pg: "12"
-            postgis: "3"
 
     # env:
     #   PATH: ".:/usr/lib/postgresql/12/bin:$PATH"
