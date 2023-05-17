@@ -306,7 +306,7 @@ connect_with_ssl(Config) ->
              {ok, _Cols, [{true}]} = Module:equery(C, "select ssl_is_used()")
         end,
         "epgsql_test",
-        [{ssl, true}]).
+        [{ssl, true}, {ssl_opts, [{verify, verify_none}]}]).
 
 cancel_query_for_connection_with_ssl(Config) ->
     Module = ?config(module, Config),
@@ -314,6 +314,7 @@ cancel_query_for_connection_with_ssl(Config) ->
     Module = ?config(module, Config),
     Args2 = [ {port, Port}, {database, "epgsql_test_db1"}
             | [ {ssl, true}
+              , {ssl_opts, [{verify, verify_none}]}
               , {timeout, 1000} ]
             ],
     {ok, C} = Module:connect(Host, "epgsql_test", Args2),
@@ -377,7 +378,8 @@ connect_with_client_cert(Config) ->
          end,
          "epgsql_test_cert",
         [{ssl, true}, {ssl_opts, [{keyfile, File("client.key")},
-                                  {certfile, File("client.crt")}]}]).
+                                  {certfile, File("client.crt")},
+                                  {verify, verify_none}]}]).
 
 connect_with_invalid_client_cert(Config) ->
     {Host, Port} = epgsql_ct:connection_data(Config),
@@ -407,6 +409,7 @@ connect_with_invalid_client_cert(Config) ->
            ssl_opts =>
                [{keyfile, File("bad-client.key")},
                 {certfile, File("bad-client.crt")},
+                {verify, verify_none},
                 %% TLS-1.3 seems to connect fine, but then sends alert asynchronously
                 {versions, ['tlsv1.2']}
                ]}
@@ -1649,7 +1652,7 @@ incremental_sock_active_n_ssl(Config) ->
              ?assertEqual(10241, length(Rows))
          end,
          "epgsql_test",
-         [{ssl, true}, {socket_active, 2}]).
+         [{ssl, true}, {ssl_opts, [{verify, verify_none}]}, {socket_active, 2}]).
 -else.
 %% {active, N} for SSL is only supported on OTP-21+
 incremental_sock_active_n_ssl(_Config) ->

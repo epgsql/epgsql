@@ -488,6 +488,15 @@ send_multi(#state{mod = Mod, sock = Sock}, List) ->
                                  end, List)).
 
 do_send(gen_tcp, Sock, Bin) ->
+    gen_tcp_send(Sock, Bin);
+do_send(ssl, Sock, Bin) ->
+    ssl:send(Sock, Bin).
+
+-if(?OTP_RELEASE >= 26).
+gen_tcp_send(Sock, Bin) ->
+    gen_tcp:send(Sock, Bin).
+-else.
+gen_tcp_send(Sock, Bin) ->
     %% Why not gen_tcp:send/2?
     %% See https://github.com/rabbitmq/rabbitmq-common/blob/v3.7.4/src/rabbit_writer.erl#L367-L384
     %% Since `epgsql' uses `{active, true}' socket option by-default, it may potentially quickly
@@ -496,15 +505,15 @@ do_send(gen_tcp, Sock, Bin) ->
     %% `{active, true}' is still the default.
     %%
     %% Because we use `inet' driver directly, we also have `handle_info({inet_reply, ...`
+    %% This `gen_tcp:send/2' problem have been solved in OTP-26, so this hack is no longer needed.
     try erlang:port_command(Sock, Bin) of
         true ->
             ok
     catch
         error:_Error ->
             {error, einval}
-    end;
-do_send(ssl, Sock, Bin) ->
-    ssl:send(Sock, Bin).
+    end.
+-endif.
 
 loop(#state{data = Data, handler = Handler, subproto_state = Repl} = State) ->
     case epgsql_wire:decode_message(Data) of
