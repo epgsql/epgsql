@@ -533,8 +533,14 @@ cursor(Config) ->
 multiple_result(Config) ->
     Module = ?config(module, Config),
     epgsql_ct:with_connection(Config, fun(C) ->
+        Module:squery(C, "delete test_table1 where id = 3;"),
         [{ok, _, [{<<"1">>}]}, {ok, _, [{<<"2">>}]}] = Module:squery(C, "select 1; select 2"),
-        [{ok, _, [{<<"1">>}]}, {error, #error{}}] = Module:squery(C, "select 1; select foo;")
+        [{ok, _, [{<<"1">>}]}, {error, #error{}}] = Module:squery(C, "select 1; select foo;"),
+        [{ok, _, [{<<"one">>}]}, {ok, 1}, {ok, 1}] =
+             Module:squery(C,
+                 "select value from test_table1 where id = 1; "
+                 "insert into test_table1 (id, value) values (3, 'three');"
+                 "delete from test_table1 where id = 3;")
     end).
 
 execute_batch(Config) ->
