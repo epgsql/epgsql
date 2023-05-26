@@ -1,3 +1,9 @@
+In 4.7.1
+
+* Handle `ReadyForQuery` after `Error` in replication mode #279
+* Fix the issue with columns in multi-squery response #283
+* Fix compatibility with OTP-26 #284
+
 In 4.7.0
 
 * Flow control `{socket_active, N}` option in streaming replication #271
