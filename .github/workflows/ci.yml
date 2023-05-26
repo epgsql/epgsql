@@ -57,7 +57,7 @@ jobs:
           rebar3-version: ${{ matrix.rebar3 }}
 
       - name: Setup postgresql server with postgis
-        run: sudo apt install postgresql-${{matrix.pg}} postgresql-contrib-${{matrix.pg}} postgresql-${{matrix.pg}}-postgis-${{matrix.postgis}} postgresql-${{matrix.pg}}-postgis-${{matrix.postgis}}-scripts
+        run: sudo apt update && sudo apt install postgresql-${{matrix.pg}} postgresql-contrib-${{matrix.pg}} postgresql-${{matrix.pg}}-postgis-${{matrix.postgis}} postgresql-${{matrix.pg}}-postgis-${{matrix.postgis}}-scripts
 
       - name: elvis
         run: make elvis
