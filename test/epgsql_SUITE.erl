@@ -87,7 +87,8 @@ groups() ->
         {generic, [parallel], [
             with_transaction,
             mixed_api,
-            redacted_state
+            redacted_state,
+            connection_closed_during_send
         ]}
     ],
 
@@ -612,8 +613,8 @@ extended_select(Config) ->
 extended_sync_ok(Config) ->
     Module = ?config(module, Config),
     epgsql_ct:with_connection(Config, fun(C) ->
-        {ok, _Cols, [{<<"one">>}]} = Module:equery(C, "select value from test_table1 where id = $1", [1]),
-        {ok, _Cols, [{<<"two">>}]} = Module:equery(C, "select value from test_table1 where id = $1", [2])
+        {ok, _Cols1, [{<<"one">>}]} = Module:equery(C, "select value from test_table1 where id = $1", [1]),
+        {ok, _Cols2, [{<<"two">>}]} = Module:equery(C, "select value from test_table1 where id = $1", [2])
     end).
 
 extended_sync_error(Config) ->
@@ -885,10 +886,10 @@ parameter_set(Config) ->
     epgsql_ct:with_connection(Config, fun(C) ->
         {ok, [], []} = Module:squery(C, "set DateStyle = 'ISO, MDY'"),
         {ok, <<"ISO, MDY">>} = Module:get_parameter(C, "DateStyle"),
-        {ok, _Cols, [{<<"2000-01-02">>}]} = Module:squery(C, "select '2000-01-02'::date"),
+        {ok, _Cols1, [{<<"2000-01-02">>}]} = Module:squery(C, "select '2000-01-02'::date"),
         {ok, [], []} = Module:squery(C, "set DateStyle = 'German'"),
         {ok, <<"German, DMY">>} = Module:get_parameter(C, "DateStyle"),
-        {ok, _Cols, [{<<"02.01.2000">>}]} = Module:squery(C, "select '2000-01-02'::date")
+        {ok, _Cols2, [{<<"02.01.2000">>}]} = Module:squery(C, "select '2000-01-02'::date")
     end).
 
 numeric_type(Config) ->
@@ -1289,6 +1290,77 @@ connection_closed_by_server(Config) ->
         end),
         receive ok -> ok end
     end).
+
+connection_closed_during_send(Config) ->
+    %% This test verifies a workaround for erlang/otp#7431, that happens when
+    %% the client (the epgsql_sock) initiates a renegotiation on a lTLS 1.2
+    %% connection that the server refuses.
+    %%
+    %% The bug would cause the socket to close without epgsql_sock getting
+    %% notified. However, in most cases epgsql:send/3 returning an error would
+    %% crash the socket anyway (e.g. by pattern matching on the return value).
+    %% One known scenario that doesn't result in a crash is sending standby
+    %% status updates over a replication connection. So that's what this test
+    %% will do.
+    OldTrapExit = process_flag(trap_exit, true),
+    Module = ?config(module, Config),
+    Options = [ {replication, "database"}
+              , {ssl, true}
+              , {ssl_opts, [ {verify, verify_none}
+                           , {versions, ['tlsv1.2']}
+                           , {renegotiate_at, 5} % force renegotiation after 5 packets
+                           ]}
+              ],
+    epgsql_ct:with_connection(Config,
+        fun (C) ->
+            %% Set up replication
+            epgsql_ct:create_replication_slot(Config, C),
+            Module:start_replication(C, "epgsql_test", self(), undefined, "0/0"),
+
+            %% Generate some data (over a different connection) to replicate
+            WriterFun =
+                fun (C2) ->
+                    Module:squery(C2, "INSERT INTO test_table1 (id, value) VALUES (123, '123')"),
+                    Module:squery(C2, "DELETE FROM test_table1 WHERE id = 123")
+                end,
+            spawn(epgsql_ct, with_connection, [Config, WriterFun]),
+
+            %% Capture an LSN from a replication message
+            LSN =
+                receive
+                    {epgsql, C, {x_log_data, _StartLSN, EndLSN, _}} -> EndLSN
+                after
+                    1000 -> throw({timeout, x_log_data})
+                end,
+
+            %% Send a status update, which will cause the TLS connection to break down.
+            %% The epgsql_sock process shall terminate together with the connection.
+            catch Module:standby_status_update(C, LSN, LSN),
+            receive
+                {'EXIT', C, sock_closed} -> ok;
+                {'EXIT', C, {sock_error, _Reason}} -> ok
+            after
+                1000 -> throw({timeout, exit})
+            end,
+
+            %% Flush remaining x_log_data messages from the message queue
+            %% (the number of replication messages received over the connection
+            %% before it breaks down is nondeterministic, but the test would
+            %% fail if it would leave messages in its mailbox)
+            flush_x_log_data(C)
+        end,
+        "epgsql_test_replication",
+        Options),
+    %% Clean up
+    process_flag(trap_exit, OldTrapExit),
+    epgsql_ct:drop_replication_slot(Config).
+
+flush_x_log_data(Pid) ->
+    receive
+        {epgsql, Pid, {x_log_data, _, _, _}} -> flush_x_log_data(Pid)
+    after
+        100 -> ok
+    end.
 
 active_connection_closed(Config) ->
     {Host, Port} = epgsql_ct:connection_data(Config),

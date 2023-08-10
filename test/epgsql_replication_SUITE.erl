@@ -52,8 +52,8 @@ create_drop_replication_slot(Config) ->
   epgsql_ct:with_connection(
     Config,
     fun(C) ->
-        create_replication_slot(Config, C),
-        drop_replication_slot(Config, C)
+        epgsql_ct:create_replication_slot(Config, C),
+        epgsql_ct:drop_replication_slot(Config, C)
     end,
     "epgsql_test_replication",
     [{replication, "database"}]).
@@ -89,7 +89,7 @@ two_replications_on_same_slot(Config) ->
   epgsql_ct:with_connection(
     Config,
     fun(C) ->
-        create_replication_slot(Config, C),
+        epgsql_ct:create_replication_slot(Config, C),
         Res1 = Module:start_replication(C, SlotName, Parent, {C, Parent}, "0/0"),
         ?assertEqual(ok, Res1),
         ErrorReceivedMsg = error_received,
@@ -118,7 +118,7 @@ two_replications_on_same_slot(Config) ->
     end,
     User,
     [{replication, "database"}]),
-  drop_replication_slot(Config).
+  epgsql_ct:drop_replication_slot(Config).
 
 no_replication_slot(Config) ->
   Module = ?config(module, Config),
@@ -140,7 +140,7 @@ replication_test_run(Config, Callback, ExtOpts) ->
   epgsql_ct:with_connection(
     Config,
     fun(C) ->
-        create_replication_slot(Config, C),
+        epgsql_ct:create_replication_slot(Config, C),
         %% new connection because main is in the replication mode
         epgsql_ct:with_connection(
           Config,
@@ -155,35 +155,7 @@ replication_test_run(Config, Callback, ExtOpts) ->
     "epgsql_test_replication",
     [{replication, "database"} | ExtOpts]),
   %% cleanup
-  drop_replication_slot(Config).
-
-create_replication_slot(Config, Connection) ->
-  Module = ?config(module, Config),
-  {ok, Cols, Rows} =
-    Module:squery(Connection,
-                  "CREATE_REPLICATION_SLOT ""epgsql_test"" LOGICAL ""test_decoding"""),
-  ?assertMatch([#column{name = <<"slot_name">>},
-                #column{name = <<"consistent_point">>},
-                #column{name = <<"snapshot_name">>},
-                #column{name = <<"output_plugin">>}
-               ],
-               Cols),
-  ?assertMatch([{<<"epgsql_test">>, _, _, <<"test_decoding">>}], Rows).
-
-drop_replication_slot(Config) ->
-  epgsql_ct:with_connection(
-    Config,
-    fun(C) -> drop_replication_slot(Config, C) end,
-    "epgsql_test_replication",
-    [{replication, "database"}]).
-
-drop_replication_slot(Config, Connection) ->
-  Module = ?config(module, Config),
-  Result = Module:squery(Connection, "DROP_REPLICATION_SLOT ""epgsql_test"""),
-  case ?config(version, ?config(pg_config, Config)) >= [13, 0] of
-    true -> ?assertMatch({ok, _, _}, Result);
-    false -> ?assertMatch([{ok, _, _}, {ok, _, _}], Result)
-  end.
+  epgsql_ct:drop_replication_slot(Config).
 
 gen_query_and_replication_msgs(Ids) ->
   QInsFmt = "INSERT INTO test_table1 (id, value) VALUES (~b, '~s');",
