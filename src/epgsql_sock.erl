@@ -490,7 +490,17 @@ send_multi(#state{mod = Mod, sock = Sock}, List) ->
 do_send(gen_tcp, Sock, Bin) ->
     gen_tcp_send(Sock, Bin);
 do_send(ssl, Sock, Bin) ->
-    ssl:send(Sock, Bin).
+    case ssl:send(Sock, Bin) of
+        ok ->
+            ok;
+        {error, Reason} = Error ->
+            %% In case ssl:send/2 on an active socket fails, the controlling process doesn't get
+            %% notified, see https://github.com/erlang/otp/issues/7431 for reference.
+            %%
+            %% As a workaround, send an ssl_error message on our own.
+            self() ! {ssl_error, Sock, Reason},
+            Error
+    end.
 
 -if(?OTP_RELEASE >= 26).
 gen_tcp_send(Sock, Bin) ->
