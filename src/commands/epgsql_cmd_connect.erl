@@ -6,6 +6,8 @@
 %%%
 -module(epgsql_cmd_connect).
 -behaviour(epgsql_command).
+
+-export([parse_host/1, opts_parse_host/1]).
 -export([hide_password/1, opts_hide_password/1, open_socket/2]).
 -export([init/1, execute/2, handle_message/4]).
 -export_type([response/0, connect_error/0]).
@@ -146,6 +148,28 @@ opts_hide_password(#{password := Password} = Opts) ->
     HiddenPassword = hide_password(Password),
     Opts#{password => HiddenPassword};
 opts_hide_password(Opts) -> Opts.
+
+opts_parse_host(#{host := Host} = Opts) ->
+    NewHost = parse_host(Host),
+    Opts#{host => NewHost};
+opts_parse_host(Opts) -> Opts.
+
+%% Fixed the problem that database cannot be linked when host is set to container_name in docker-compose.yml
+parse_host({name, Name}) when is_list(Name) ->
+    {ok, Ip} = inet:getaddr(Name, inet),
+    % inet:ntoa(Ip);
+    Ip;
+parse_host({no_parse, Host}) ->
+    Host;
+parse_host(Host) ->
+    case inet:parse_address(Host) of
+        {error,einval} ->
+            {ok, Ip} = inet:getaddr(Host, inet),
+            % inet:ntoa(Ip);
+            Ip;
+        {ok, _} ->
+            Host
+    end.
 
 %% @doc password and username are sensitive data that should not be stored in a
 %% permanent state that might crash during code upgrade
