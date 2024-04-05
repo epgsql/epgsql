@@ -470,7 +470,7 @@ with_transaction(C, F, Opts0) ->
                 true ->
                     erlang:raise(Type, Reason, Stack);
                 false ->
-                    {aborted, Reason}
+                    {rollback, Reason}
             end;
         ?WITH_STACKTRACE(Type, Reason, Stack)
             squery(C, "ROLLBACK"),
