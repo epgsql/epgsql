@@ -461,7 +461,7 @@ connect_to_closed_port(Config) ->
                    "epgsql_test",
                    "epgsql_test",
                    [{port, Port + 1}, {database, "epgsql_test_db1"}])),
-    ?assertMatch({'EXIT', _, econnrefused}, receive Stop -> Stop end),
+    ?assertMatch({'EXIT', _, {shutdown, econnrefused}}, receive Stop -> Stop end),
     process_flag(trap_exit, Trap).
 
 prepared_query(Config) ->
