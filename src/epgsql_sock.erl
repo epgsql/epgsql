@@ -297,12 +297,12 @@ handle_info({Passive, Sock}, #state{sock = Sock} = State)
 
 handle_info({Closed, Sock}, #state{sock = Sock} = State)
   when Closed == tcp_closed; Closed == ssl_closed ->
-    {stop, sock_closed, flush_queue(State#state{sock = undefined}, {error, sock_closed})};
+    {stop, {shutdown, sock_closed}, flush_queue(State#state{sock = undefined}, {error, sock_closed})};
 
 handle_info({Error, Sock, Reason}, #state{sock = Sock} = State)
   when Error == tcp_error; Error == ssl_error ->
     Why = {sock_error, Reason},
-    {stop, Why, flush_queue(State, {error, Why})};
+    {stop, {shutdown, Why}, flush_queue(State, {error, Why})};
 
 handle_info({inet_reply, _, ok}, State) ->
     {noreply, State};
