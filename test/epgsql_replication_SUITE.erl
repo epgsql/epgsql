@@ -161,7 +161,7 @@ create_replication_slot(Config, Connection) ->
   Module = ?config(module, Config),
   {ok, Cols, Rows} =
     Module:squery(Connection,
-                  "CREATE_REPLICATION_SLOT ""epgsql_test"" LOGICAL ""test_decoding"""),
+                  "CREATE_REPLICATION_SLOT epgsql_test LOGICAL test_decoding"),
   ?assertMatch([#column{name = <<"slot_name">>},
                 #column{name = <<"consistent_point">>},
                 #column{name = <<"snapshot_name">>},
@@ -179,7 +179,7 @@ drop_replication_slot(Config) ->
 
 drop_replication_slot(Config, Connection) ->
   Module = ?config(module, Config),
-  Result = Module:squery(Connection, "DROP_REPLICATION_SLOT ""epgsql_test"""),
+  Result = Module:squery(Connection, "DROP_REPLICATION_SLOT epgsql_test"),
   case ?config(version, ?config(pg_config, Config)) >= [13, 0] of
     true -> ?assertMatch({ok, _, _}, Result);
     false -> ?assertMatch([{ok, _, _}, {ok, _, _}], Result)
