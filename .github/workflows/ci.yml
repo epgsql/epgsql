@@ -22,27 +22,37 @@ jobs:
         postgis:
           - "3"
         otp:
-          - "26.0"
+          - "26.2"
           - "25.3"
           - "24.3"
         rebar3:
           - "3.20.0"
+        elvis:
+          - true
         include:
+          - os: "ubuntu-22.04"
+            otp: "27.0"
+            rebar3: "3.23.0"
+            pg: 14
+            postgis: "3"
           - os: "ubuntu-20.04"
             otp: "23.3"
             rebar3: "3.17.0"
             pg: "12"
             postgis: "3"
+            elvis: false
           - os: "ubuntu-20.04"
             otp: "22.3"
             rebar3: "3.17.0"
             pg: "12"
             postgis: "3"
+            elvis: false
           - os: "ubuntu-20.04"
             otp: "21.3"
             rebar3: "3.15.2"
             pg: "12"
             postgis: "3"
+            elvis: false
 
     # env:
     #   PATH: ".:/usr/lib/postgresql/12/bin:$PATH"
@@ -61,6 +71,7 @@ jobs:
 
       - name: elvis
         run: make elvis
+        if: ${{ matrix.elvis == true }}
 
       - name: Common test, eunit, coverage
         run: PATH=$PATH:/usr/lib/postgresql/${{matrix.pg}}/bin/ make test
