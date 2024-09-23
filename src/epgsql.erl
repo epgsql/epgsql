@@ -466,6 +466,7 @@ with_transaction(C, F, Opts0) ->
         R
     catch
         ?WITH_STACKTRACE(Type, {{{integer_overflow, _, _}, _}, _}=Reason, Stack)
+            io:format("[epgsql]:: Type: ~p, Reason: ~p, Stack: ~p", [Type, Reason, Stack]),
             case maps:get(reraise, Opts, true) of
                 true ->
                     erlang:raise(Type, Reason, Stack);
@@ -473,6 +474,7 @@ with_transaction(C, F, Opts0) ->
                     {rollback, Reason}
             end;
         ?WITH_STACKTRACE(Type, Reason, Stack)
+            io:format("[epgsql]:: Type: ~p, Reason: ~p, Stack: ~p", [Type, Reason, Stack]),
             squery(C, "ROLLBACK"),
             case maps:get(reraise, Opts, true) of
                 true ->
