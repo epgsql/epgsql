@@ -327,7 +327,17 @@ parse(C, Sql) ->
 parse(C, Sql, Types) ->
     parse(C, "", Sql, Types).
 
--spec parse(connection(), iolist(), sql_query(), [epgsql_type()]) ->
+%% @doc Ask server to parse the SQL query and generate prepared statement.
+%%
+%% It returns `#statement{}' structure.
+%% @param Name name of the prepared statement. Empty string creates so called "anonymous statement".
+%%   Only one anonymous statement could exist at a time. Next creation of anonymous statement would
+%%   owerwrite the old one.
+%% @param Types list of type names for placeholder parameters. Can be an empty list. Could also use
+%%   `undefined' if particular column's type is unknown (server will try to deduct it).
+%%   This parameter is the same as specifying the type cast in SQL string, like
+%%   `$1::integer, $2::timestamp' etc, but more efficient.
+-spec parse(connection(), iolist(), sql_query(), [epgsql_type() | undefined]) ->
                    epgsql_cmd_parse:response().
 parse(C, Name, Sql, Types) ->
     sync_on_error(
@@ -339,6 +349,7 @@ parse(C, Name, Sql, Types) ->
 bind(C, Statement, Parameters) ->
     bind(C, Statement, "", Parameters).
 
+%% @doc Binds parameters to prepared statement, creating "portal"
 -spec bind(connection(), statement(), string(), [bind_param()]) ->
                   epgsql_cmd_bind:response().
 bind(C, Statement, PortalName, Parameters) ->

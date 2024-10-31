@@ -1,5 +1,5 @@
 REBAR = rebar3
-MINIMAL_COVERAGE = 55
+MINIMAL_COVERAGE = 65
 
 all: compile
 

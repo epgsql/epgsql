@@ -92,6 +92,8 @@ begin
 end
 $$ language plpgsql;
 
+CREATE TYPE test_enum1 as enum('ALPHA', 'BRAVO', 'CHARLIE', 'DELTA');
+
 GRANT ALL ON TABLE test_table1 TO epgsql_test;
 GRANT ALL ON TABLE test_table2 TO epgsql_test;
 GRANT ALL ON FUNCTION insert_test1(integer, text) TO epgsql_test;

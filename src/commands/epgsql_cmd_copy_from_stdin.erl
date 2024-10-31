@@ -63,7 +63,7 @@ handle_message(?COPY_IN_RESPONSE, <<BinOrText, NumColumns:?int16, Formats/binary
                #copy_stdin{initiator = Initiator, format = RequestedFormat}) ->
     ColumnFormats = [format_to_atom(Format) || <<Format:?int16>> <= Formats],
     length(ColumnFormats) =:= NumColumns orelse error(invalid_copy_in_response),
-    CopyState = init_copy_state(format_to_atom(BinOrText), RequestedFormat, ColumnFormats, Initiator),
+    CopyState = init_copy_state(format_to_atom(BinOrText), RequestedFormat, ColumnFormats, Initiator, Sock),
     Sock1 = epgsql_sock:set_attr(subproto_state, CopyState, Sock),
     Res = {ok, ColumnFormats},
     {finish, Res, Res, epgsql_sock:set_packet_handler(on_copy_from_stdin, Sock1)};
@@ -73,14 +73,14 @@ handle_message(?ERROR, Error, _Sock, _State) ->
 handle_message(_, _, _, _) ->
     unknown.
 
-init_copy_state(text, text, ColumnFormats, Initiator) ->
+init_copy_state(text, text, ColumnFormats, Initiator, _) ->
     %% When BinOrText is `text', all "columns" should be `text' format as well.
     %% See https://www.postgresql.org/docs/current/protocol-message-formats.html
     %% CopyInResponse
     (lists:member(binary, ColumnFormats) == false)
         orelse error(invalid_copy_in_response),
     #copy{initiator = Initiator, format = text};
-init_copy_state(binary, {binary, ColumnTypes}, ColumnFormats, Initiator) ->
+init_copy_state(binary, {binary, ColumnTypes}, ColumnFormats, Initiator, Sock) ->
     %% https://www.postgresql.org/docs/current/protocol-flow.html#PROTOCOL-COPY
     %% "As of the present implementation, all columns in a given COPY operation will use the same
     %% format, but the message design does not assume this."
@@ -91,8 +91,10 @@ init_copy_state(binary, {binary, ColumnTypes}, ColumnFormats, Initiator) ->
     %% so number of columns in SQL is not same as number of types in `binary'
     (NumColumns == length(ColumnTypes))
         orelse error({column_count_mismatch, ColumnTypes, NumColumns}),
-    #copy{initiator = Initiator, format = binary, binary_types = ColumnTypes};
-init_copy_state(ServerExpectedFormat, RequestedFormat, _, _Initiator) ->
+    Codec = epgsql_sock:get_codec(Sock),
+    Encoder = epgsql_wire:build_copy_row_encoder(ColumnTypes, Codec),
+    #copy{initiator = Initiator, format = binary, binary_encoder = Encoder};
+init_copy_state(ServerExpectedFormat, RequestedFormat, _, _, _) ->
     %% Eg, `epgsql:copy_from_stdin(C, "COPY ... WITH (FORMAT text)", {binary, ...})' or
     %% `epgsql:copy_from_stdin(C, "COPY ... WITH (FORMAT binary)", text)' or maybe PostgreSQL
     %% got some new format epgsql is not aware of
