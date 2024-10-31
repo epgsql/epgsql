@@ -15,6 +15,9 @@
     end_per_suite/1
 ]).
 
+%% logger handler
+-export([log/2]).
+
 -compile([export_all, nowarn_export_all]).
 
 modules() ->
@@ -77,9 +80,14 @@ groups() ->
             pipelined_prepared_query,
             pipelined_parse_batch_execute
         ]},
+        {incremental_sock_active, [parallel], [
+            incremental_sock_active_n,
+            incremental_sock_active_n_ssl
+        ]},
         {generic, [parallel], [
             with_transaction,
-            mixed_api
+            mixed_api,
+            redacted_state
         ]}
     ],
 
@@ -145,7 +153,7 @@ groups() ->
     SubGroups ++
         [{epgsql, [], [{group, generic} | Tests]},
          {epgsql_cast, [], [{group, pipelining} | Tests]},
-         {epgsql_incremental, [], Tests}].
+         {epgsql_incremental, [], [{group, incremental_sock_active} | Tests]}].
 
 end_per_suite(_Config) ->
     ok.
@@ -298,7 +306,7 @@ connect_with_ssl(Config) ->
              {ok, _Cols, [{true}]} = Module:equery(C, "select ssl_is_used()")
         end,
         "epgsql_test",
-        [{ssl, true}]).
+        [{ssl, true}, {ssl_opts, [{verify, verify_none}]}]).
 
 cancel_query_for_connection_with_ssl(Config) ->
     Module = ?config(module, Config),
@@ -306,6 +314,7 @@ cancel_query_for_connection_with_ssl(Config) ->
     Module = ?config(module, Config),
     Args2 = [ {port, Port}, {database, "epgsql_test_db1"}
             | [ {ssl, true}
+              , {ssl_opts, [{verify, verify_none}]}
               , {timeout, 1000} ]
             ],
     {ok, C} = Module:connect(Host, "epgsql_test", Args2),
@@ -369,7 +378,8 @@ connect_with_client_cert(Config) ->
          end,
          "epgsql_test_cert",
         [{ssl, true}, {ssl_opts, [{keyfile, File("client.key")},
-                                  {certfile, File("client.crt")}]}]).
+                                  {certfile, File("client.crt")},
+                                  {verify, verify_none}]}]).
 
 connect_with_invalid_client_cert(Config) ->
     {Host, Port} = epgsql_ct:connection_data(Config),
@@ -399,6 +409,7 @@ connect_with_invalid_client_cert(Config) ->
            ssl_opts =>
                [{keyfile, File("bad-client.key")},
                 {certfile, File("bad-client.crt")},
+                {verify, verify_none},
                 %% TLS-1.3 seems to connect fine, but then sends alert asynchronously
                 {versions, ['tlsv1.2']}
                ]}
@@ -522,8 +533,14 @@ cursor(Config) ->
 multiple_result(Config) ->
     Module = ?config(module, Config),
     epgsql_ct:with_connection(Config, fun(C) ->
+        Module:squery(C, "delete test_table1 where id = 3;"),
         [{ok, _, [{<<"1">>}]}, {ok, _, [{<<"2">>}]}] = Module:squery(C, "select 1; select 2"),
-        [{ok, _, [{<<"1">>}]}, {error, #error{}}] = Module:squery(C, "select 1; select foo;")
+        [{ok, _, [{<<"1">>}]}, {error, #error{}}] = Module:squery(C, "select 1; select foo;"),
+        [{ok, _, [{<<"one">>}]}, {ok, 1}, {ok, 1}] =
+             Module:squery(C,
+                 "select value from test_table1 where id = 1; "
+                 "insert into test_table1 (id, value) values (3, 'three');"
+                 "delete from test_table1 where id = 3;")
     end).
 
 execute_batch(Config) ->
@@ -595,8 +612,8 @@ extended_select(Config) ->
 extended_sync_ok(Config) ->
     Module = ?config(module, Config),
     epgsql_ct:with_connection(Config, fun(C) ->
-        {ok, _Cols, [{<<"one">>}]} = Module:equery(C, "select value from test_table1 where id = $1", [1]),
-        {ok, _Cols, [{<<"two">>}]} = Module:equery(C, "select value from test_table1 where id = $1", [2])
+        {ok, Cols, [{<<"one">>}]} = Module:equery(C, "select value from test_table1 where id = $1", [1]),
+        {ok, Cols, [{<<"two">>}]} = Module:equery(C, "select value from test_table1 where id = $1", [2])
     end).
 
 extended_sync_error(Config) ->
@@ -868,10 +885,10 @@ parameter_set(Config) ->
     epgsql_ct:with_connection(Config, fun(C) ->
         {ok, [], []} = Module:squery(C, "set DateStyle = 'ISO, MDY'"),
         {ok, <<"ISO, MDY">>} = Module:get_parameter(C, "DateStyle"),
-        {ok, _Cols, [{<<"2000-01-02">>}]} = Module:squery(C, "select '2000-01-02'::date"),
+        {ok, Cols, [{<<"2000-01-02">>}]} = Module:squery(C, "select '2000-01-02'::date"),
         {ok, [], []} = Module:squery(C, "set DateStyle = 'German'"),
         {ok, <<"German, DMY">>} = Module:get_parameter(C, "DateStyle"),
-        {ok, _Cols, [{<<"02.01.2000">>}]} = Module:squery(C, "select '2000-01-02'::date")
+        {ok, Cols, [{<<"02.01.2000">>}]} = Module:squery(C, "select '2000-01-02'::date")
     end).
 
 numeric_type(Config) ->
@@ -1609,6 +1626,106 @@ pipelined_parse_batch_execute(Config) ->
                end || Ref <- CloseRefs],
               erlang:cancel_timer(Timer)
       end).
+
+incremental_sock_active_n(Config) ->
+    epgsql_incremental = ?config(module, Config),
+    Q = "SELECT *, 'Hello world' FROM generate_series(0, 10240)",
+    epgsql_ct:with_connection(Config,
+         fun(C) ->
+             Ref = epgsqli:squery(C, Q),
+             {done, NumPassive, Others, Rows} = recv_incremental_active_n(C, Ref),
+             ?assertMatch([{columns, _}, {complete, _}], Others),
+             ?assert(NumPassive > 0),
+             ?assertMatch([{<<"0">>, <<"Hello world">>},
+                           {<<"1">>, <<"Hello world">>} | _], Rows),
+             ?assertEqual(10241, length(Rows))
+         end,
+         "epgsql_test",
+         [{socket_active, 2}]).
+
+-ifdef(OTP_RELEASE).
+incremental_sock_active_n_ssl(Config) ->
+    epgsql_incremental = ?config(module, Config),
+    Q = "SELECT *, 'Hello world' FROM generate_series(0, 10240)",
+    epgsql_ct:with_connection(Config,
+         fun(C) ->
+             Ref = epgsqli:squery(C, Q),
+             {done, NumPassive, Others, Rows} = recv_incremental_active_n(C, Ref),
+             ?assertMatch([{columns, _}, {complete, _}], Others),
+             ?assert(NumPassive > 0),
+             ?assertMatch([{<<"0">>, <<"Hello world">>},
+                           {<<"1">>, <<"Hello world">>} | _], Rows),
+             ?assertEqual(10241, length(Rows))
+         end,
+         "epgsql_test",
+         [{ssl, true}, {ssl_opts, [{verify, verify_none}]}, {socket_active, 2}]).
+-else.
+%% {active, N} for SSL is only supported on OTP-21+
+incremental_sock_active_n_ssl(_Config) ->
+    noop.
+-endif.
+
+recv_incremental_active_n(C, Ref) ->
+    recv_incremental_active_n(C, Ref, 0, [], []).
+
+recv_incremental_active_n(C, Ref, NumPassive, Rows, Others) ->
+    receive
+        {C, Ref, {data, Row}} ->
+            recv_incremental_active_n(C, Ref, NumPassive, [Row | Rows], Others);
+        {epgsql, C, socket_passive} ->
+            ok = epgsql:activate(C),
+            recv_incremental_active_n(C, Ref, NumPassive + 1, Rows, Others);
+        {C, Ref, {error, _} = E} ->
+            E;
+        {C, Ref, done} ->
+            {done, NumPassive, lists:reverse(Others), lists:reverse(Rows)};
+        {C, Ref, Other} ->
+            recv_incremental_active_n(C, Ref, NumPassive, Rows, [Other | Others]);
+        Other ->
+            recv_incremental_active_n(C, Ref, NumPassive, Rows, [Other | Others])
+    after 5000 ->
+            error({timeout, NumPassive, Others, Rows})
+    end.
+
+redacted_state(Config) ->
+    case erlang:system_info(otp_release) of
+      V = [_, _] when V > "20" ->
+        redacted_state_(Config);
+      V ->
+        {skip, {"Logger facility is available starting OTP 21, running on OTP " ++ V}}
+    end.
+
+redacted_state_(Config) ->
+    _Handle = ct:timetrap({seconds, 3}),
+    try
+      logger:add_handler(?MODULE, ?MODULE, #{relay_to => self()}),
+      C = epgsql_ct:connect(Config),
+      true = unlink(C),
+      Reason = {please, ?MODULE, ?FUNCTION_NAME},
+      ok = proc_lib:stop(C, Reason, 1000),
+      receive
+        {log, Message} ->
+            ?assertMatch({report, #{label := {gen_server, terminate},
+                                    reason := Reason,
+                                    state := _}},
+                         Message),
+            {report, #{state := State}} = Message,
+            ?assertMatch(#{rows := information_redacted},
+                         epgsql_sock:state_to_map(State))
+      end
+    after
+      logger:remove_handler(?MODULE)
+    end.
+
+%% =============================================================================
+%% Logger handler
+%% ============================================================================
+
+log(#{msg := Msg}, #{relay_to := Pid}) ->
+    Pid ! {log, Msg};
+log(_, _) ->
+    ok.
+
 %% =============================================================================
 %% Internal functions
 %% ============================================================================

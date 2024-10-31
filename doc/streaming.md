@@ -139,3 +139,41 @@ handle_x_log_data(StartLSN, EndLSN, Data, CbState) ->
     
     Otherwise (if you do not load all data from tables during erlang app startup) 
     it is not recommended to set align_lsn to true. In this case to stop PG server stop epgsql replication first.
+    
+## Flow control
+
+It is possible to set `{socket_active, N}` on a [TCP](https://www.erlang.org/doc/man/inet.html#setopts-2)
+or [SSL](https://www.erlang.org/doc/man/ssl.html#setopts-2) (since OTP 21.3) socket. E.g. for SSL:
+```erlang
+Opts = #{host => "localhost",
+         username => "me",
+         password => "pwd",
+         database => "test",
+         ssl => require,
+         socket_active => 10
+        },
+{ok, Conn} = epgsql:connect(Opts).
+```
+
+Its main purpose is to control the flow of replication messages from Postgresql database.
+If a database is under a high load and a process, which
+handles the message stream, cannot keep up with it then setting this option gives the handling process
+ability to get messages on-demand.
+
+When the connection is in the asynchronous mode, a process which owns a connection will receive
+```erlang
+{epgsql, Connection, socket_passive}
+```
+as soon as underlying socket received N messages from network.
+
+The process decides when to activate connection's socket again. To do that it should call:
+```erlang
+epgsql:activate(Connection).
+```
+The `active` parameter of the socket will be set to the same value as it was configured in
+the connection's options.
+
+In the case of synchronous handler for replication messages `epgsql` will handle `socket_passive`
+messages internally.
+
+See [Active socket README section](../#active-socket) for more details.

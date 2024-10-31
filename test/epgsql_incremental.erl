@@ -40,7 +40,10 @@ await_connect(Ref, Opts0) ->
         {C, Ref, connected} ->
             {ok, C};
         {_C, Ref, Error = {error, _}} ->
-            Error
+            Error;
+        {epgsql, C, socket_passive} ->
+            ok = epgsql:activate(C),
+            await_connect(Ref, Opts0)
     after Timeout ->
             error(timeout)
     end.
@@ -200,6 +203,9 @@ receive_result(C, Ref, Cols, Rows) ->
             {ok, Cols, lists:reverse(Rows)};
         {C, Ref, done} ->
             done;
+        {epgsql, C, socket_passive} ->
+            ok = epgsql:activate(C),
+            receive_result(C, Ref, Cols, Rows);
         {'EXIT', C, _Reason} ->
             throw({error, closed})
     end.
@@ -229,6 +235,9 @@ receive_extended_result(C, Ref, Rows) ->
             {ok, lists:reverse(Rows)};
         {C, Ref, done} ->
             done;
+        {epgsql, C, socket_passive} ->
+            ok = epgsql:activate(C),
+            receive_extended_result(C, Ref, Rows);
         {'EXIT', C, _Reason} ->
             {error, closed}
     end.
@@ -243,6 +252,9 @@ receive_describe(C, Ref, Statement = #statement{}) ->
             {ok, Statement#statement{columns = []}};
         {C, Ref, Error = {error, _}} ->
             Error;
+        {epgsql, C, socket_passive} ->
+            ok = epgsql:activate(C),
+            receive_describe(C, Ref, Statement);
         {'EXIT', C, _Reason} ->
             {error, closed}
     end.
@@ -255,6 +267,9 @@ receive_describe_portal(C, Ref) ->
             {ok, []};
         {C, Ref, Error = {error, _}} ->
             Error;
+        {epgsql, C, socket_passive} ->
+            ok = epgsql:activate(C),
+            receive_describe_portal(C, Ref);
         {'EXIT', C, _Reason} ->
             {error, closed}
     end.
@@ -265,6 +280,9 @@ receive_atom(C, Ref, Receive, Return) ->
             Return;
         {C, Ref, Error = {error, _}} ->
             Error;
+        {epgsql, C, socket_passive} ->
+            ok = epgsql:activate(C),
+            receive_atom(C, Ref, Receive, Return);
         {'EXIT', C, _Reason} ->
             {error, closed}
     end.
