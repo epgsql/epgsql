@@ -188,7 +188,8 @@ connect(Host, Username, Opts) ->
 %% @returns `{ok, Connection}' otherwise `{error, Reason}'
 %% @see connect/1
 connect(Host, Username, Password, Opts) ->
-    {ok, C} = epgsql_sock:start_link(),
+    SockOpts = maps:get(sock_opts, to_map(Opts), #{}),
+    {ok, C} = epgsql_sock:start_link(SockOpts),
     connect(C, Host, Username, Password, Opts).
 
 -spec connect(connection(), host(), string(), password(), connect_opts())
