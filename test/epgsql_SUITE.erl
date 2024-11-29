@@ -113,6 +113,7 @@ groups() ->
         single_batch,
         extended_select,
         extended_sync_ok,
+        deferred_constraint_trigger,
         extended_sync_error,
         returning_from_insert,
         returning_from_update,
@@ -660,6 +661,28 @@ returning_from_delete(Config) ->
         {ok, 2, _Cols, [{1}, {2}]} = Module:equery(C, "delete from test_table1 returning id"),
         ?assertMatch({ok, 0, [#column{}], []},
                      Module:equery(C, "delete from test_table1 returning id"))
+    end).
+
+deferred_constraint_trigger(Config) ->
+    Module = ?config(module, Config),
+    epgsql_ct:with_connection(Config, fun(C) ->
+        {ok, [], []} = Module:equery(C, "create temporary table my_table (x int);", []),
+        {ok, [], []} = Module:equery(C, "
+            create or replace function my_check() returns trigger as $$
+                begin
+                    if new.x >= 10 then
+                        raise 'x must be < 10';
+                    end if;
+
+                    return null;
+                end;
+            $$ language 'plpgsql';", []),
+        {ok, [], []} = Module:equery(C, "
+            create constraint trigger my_trigger
+                after insert or update on my_table
+                initially deferred
+                for each row execute procedure my_check();", []),
+        {error, _} = epgsql:equery(C, "insert into my_table values(100)", [])
     end).
 
 parse(Config) ->

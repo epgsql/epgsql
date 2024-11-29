@@ -560,16 +560,15 @@ reply({incremental, From, Ref}, Notice, _) ->
 reply({call, From}, _, Result) ->
     gen_server:reply(From, Result).
 
-add_result(#state{results = Results, current_cmd_transport = Transport} = State, Notice, Result) ->
-    Results2 = case Transport of
-                   {incremental, From, Ref} ->
-                       From ! {self(), Ref, Notice},
-                       Results;
-                   _ ->
-                       [Result | Results]
-               end,
-    State#state{rows = [],
-                results = Results2}.
+add_result(#state{current_cmd_transport = {incremental, From, Ref}} = State, Notice, _) ->
+    From ! {self(), Ref, Notice},
+    State;
+add_result(#state{results = [{error, _}]} = State, _, _) ->
+  State;
+add_result(State, _, {error, _} = Error) ->
+    State#state{rows = [], results = [Error]};
+add_result(#state{results = Results} = State, _, Result) ->
+    State#state{rows = [], results = [Result | Results]}.
 
 add_row(#state{rows = Rows, current_cmd_transport = Transport} = State, Data) ->
     Rows2 = case Transport of
