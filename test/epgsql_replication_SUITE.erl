@@ -17,7 +17,7 @@
          replication_sync_active_n_socket/1,
          replication_async_active_n_ssl/1,
          two_replications_on_same_slot/1,
-         replacetion_handle_tcp_close/1,
+         replication_handle_tcp_close/1,
 
          %% Callbacks
          handle_x_log_data/4
@@ -39,7 +39,7 @@ all() ->
    replication_sync_active_n_socket,
    replication_async_active_n_ssl,
    two_replications_on_same_slot,
-   replacetion_handle_tcp_close
+   replication_handle_tcp_close
   ].
 
 connect_in_repl_mode(Config) ->
@@ -133,7 +133,7 @@ no_replication_slot(Config) ->
     "epgsql_test_replication",
     [{replication, "database"}]).
 
-replacetion_handle_tcp_close(Config) ->
+replication_handle_tcp_close(Config) ->
   Module = ?config(module, Config),
   User = "epgsql_test_replication",
   SlotName = "epgsql_test",
