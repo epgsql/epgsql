@@ -139,7 +139,6 @@ replication_handle_tcp_close(Config) ->
   SlotName = "epgsql_test",
   Parent = self(),
   ReqRef = make_ref(),
-  ExitRef = make_ref(),
   Pid = spawn(
     fun() ->
       epgsql_ct:with_connection(
@@ -152,7 +151,7 @@ replication_handle_tcp_close(Config) ->
           #{sock := Port} = epgsql_sock:state_to_map(SockState),
           Parent ! {ReqRef, Port},
           receive
-            ExitRef -> ok
+            _ -> ok
           after
             1000 -> ?assert(false, "The replication connection thread was not "
             "killed by a tcp_closed event within 1000 ms")
