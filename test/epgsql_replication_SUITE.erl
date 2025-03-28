@@ -17,6 +17,7 @@
          replication_sync_active_n_socket/1,
          replication_async_active_n_ssl/1,
          two_replications_on_same_slot/1,
+         replacetion_handle_tcp_close/1,
 
          %% Callbacks
          handle_x_log_data/4
@@ -37,7 +38,8 @@ all() ->
    replication_async_active_n_socket,
    replication_sync_active_n_socket,
    replication_async_active_n_ssl,
-   two_replications_on_same_slot
+   two_replications_on_same_slot,
+   replacetion_handle_tcp_close
   ].
 
 connect_in_repl_mode(Config) ->
@@ -130,6 +132,52 @@ no_replication_slot(Config) ->
     end,
     "epgsql_test_replication",
     [{replication, "database"}]).
+
+replacetion_handle_tcp_close(Config) ->
+  Module = ?config(module, Config),
+  User = "epgsql_test_replication",
+  SlotName = "epgsql_test",
+  Parent = self(),
+  ReqRef = make_ref(),
+  ExitRef = make_ref(),
+  Pid = spawn(
+    fun() ->
+      epgsql_ct:with_connection(
+        Config,
+        fun(C) ->
+          create_replication_slot(Config, C),
+          Res1 = Module:start_replication(C, SlotName, Parent, {C, Parent}, "0/0"),
+          ?assertEqual(ok, Res1),
+          SockState = sys:get_state(C),
+          #{sock := Port} = epgsql_sock:state_to_map(SockState),
+          Parent ! {ReqRef, Port},
+          receive
+            ExitRef -> ok
+          after
+            1000 -> ?assert(false, "The replication connection thread was not "
+            "killed by a tcp_closed event within 1000 ms")
+          end
+        end,
+        User,
+        [{replication, "database"}])
+    end),
+  MonRef = monitor(process, Pid),
+  %% Receive port from replication handler
+  receive
+    {ReqRef, Port} ->
+      gen_tcp:close(Port)
+  after
+    1000 -> ?assert(false, "The replication handler did not provide an active "
+    "connection port within 1000 ms")
+  end,
+  %% Wait replication connection down
+  receive
+    {'DOWN', MonRef, process, Pid, sock_closed} -> ok
+  after
+    1000 -> ?assert(false, "The replication handler was not "
+    "killed by a tcp_closed event within 1000 ms")
+  end,
+  drop_replication_slot(Config).
 
 replication_test_run(Config, Callback) ->
   replication_test_run(Config, Callback, []).
