@@ -176,10 +176,10 @@ set_net_socket(Mod, Socket, State) ->
     State1 = State#state{mod = Mod, sock = Socket},
     ok = activate_socket(State1),
     Port = case Socket of
-             {sslsocket, {_, Port, _, _}, _} ->
-               Port;
-             Port ->
-               Port
+             {sslsocket, {_, SSlPort, _, _}, _} ->
+               SSlPort;
+             TCPPort ->
+               TCPPort
          end,
     SockRef = monitor(port, Port),
     State1#state{sock_monitor = SockRef}.
