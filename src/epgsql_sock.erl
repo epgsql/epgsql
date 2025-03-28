@@ -109,7 +109,8 @@
                 txstatus :: byte() | undefined,  % $I | $T | $E,
                 complete_status :: atom() | {atom(), integer()} | undefined,
                 subproto_state :: repl_state() | copy_state() | undefined,
-                connect_opts :: epgsql:connect_opts_map() | undefined}).
+                connect_opts :: epgsql:connect_opts_map() | undefined,
+                sock_monitor :: reference() | undefined }).
 
 -opaque pg_sock() :: #state{}.
 
@@ -177,7 +178,14 @@ activate(C) ->
 set_net_socket(Mod, Socket, State) ->
     State1 = State#state{mod = Mod, sock = Socket},
     ok = activate_socket(State1),
-    State1.
+    Port = case Socket of
+             {sslsocket, {_, SSlPort, _, _}, _} ->
+               SSlPort;
+             TCPPort ->
+               TCPPort
+         end,
+    SockRef = monitor(port, Port),
+    State1#state{sock_monitor = SockRef}.
 
 -spec init_replication_state(pg_sock()) -> pg_sock().
 init_replication_state(State) ->
@@ -301,6 +309,10 @@ handle_info({Passive, Sock}, #state{sock = Sock} = State)
 handle_info({Closed, Sock}, #state{sock = Sock} = State)
   when Closed == tcp_closed; Closed == ssl_closed ->
     {stop, sock_closed, flush_queue(State#state{sock = undefined}, {error, sock_closed})};
+
+handle_info({'DOWN', SockRef, port, _, _}, #state{sock_monitor = SockRef} = State) ->
+    demonitor(SockRef),
+    {stop, sock_closed, flush_queue(State#state{sock = undefined, sock_monitor = undefined}, {error, sock_closed})};
 
 handle_info({Error, Sock, Reason}, #state{sock = Sock} = State)
   when Error == tcp_error; Error == ssl_error ->
