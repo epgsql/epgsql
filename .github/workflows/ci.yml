@@ -31,28 +31,15 @@ jobs:
           - true
         include:
           - os: "ubuntu-22.04"
-            otp: "27.0"
+            otp: "28.0"
+            rebar3: "3.25.0"
+            pg: 14
+            postgis: "3"
+          - os: "ubuntu-22.04"
+            otp: "27.3"
             rebar3: "3.23.0"
             pg: 14
             postgis: "3"
-          - os: "ubuntu-20.04"
-            otp: "23.3"
-            rebar3: "3.17.0"
-            pg: "12"
-            postgis: "3"
-            elvis: false
-          - os: "ubuntu-20.04"
-            otp: "22.3"
-            rebar3: "3.17.0"
-            pg: "12"
-            postgis: "3"
-            elvis: false
-          - os: "ubuntu-20.04"
-            otp: "21.3"
-            rebar3: "3.15.2"
-            pg: "12"
-            postgis: "3"
-            elvis: false
 
     # env:
     #   PATH: ".:/usr/lib/postgresql/12/bin:$PATH"
@@ -77,7 +64,7 @@ jobs:
         run: PATH=$PATH:/usr/lib/postgresql/${{matrix.pg}}/bin/ make test
 
       - name: Upload CT logs artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: ct_report_pg-${{matrix.pg}}_otp-${{matrix.otp}}
