@@ -64,7 +64,7 @@ jobs:
         run: PATH=$PATH:/usr/lib/postgresql/${{matrix.pg}}/bin/ make test
 
       - name: Upload CT logs artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: ct_report_pg-${{matrix.pg}}_otp-${{matrix.otp}}
