@@ -307,12 +307,6 @@ handle_info({Error, Sock, Reason}, #state{sock = Sock} = State)
     Why = {sock_error, Reason},
     {stop, Why, flush_queue(State, {error, Why})};
 
-handle_info({inet_reply, _, ok}, State) ->
-    {noreply, State};
-
-handle_info({inet_reply, _, Status}, State) ->
-    {stop, Status, flush_queue(State, {error, Status})};
-
 handle_info({io_request, From, ReplyAs, Request}, State) ->
     Response = handle_io_request(Request, State),
     io_reply(Response, From, ReplyAs),
@@ -493,32 +487,9 @@ send_multi(#state{mod = Mod, sock = Sock}, List) ->
                                  end, List)).
 
 do_send(gen_tcp, Sock, Bin) ->
-    gen_tcp_send(Sock, Bin);
+    gen_tcp:send(Sock, Bin);
 do_send(ssl, Sock, Bin) ->
     ssl:send(Sock, Bin).
-
--if(?OTP_RELEASE >= 26).
-gen_tcp_send(Sock, Bin) ->
-    gen_tcp:send(Sock, Bin).
--else.
-gen_tcp_send(Sock, Bin) ->
-    %% Why not gen_tcp:send/2?
-    %% See https://github.com/rabbitmq/rabbitmq-common/blob/v3.7.4/src/rabbit_writer.erl#L367-L384
-    %% Since `epgsql' uses `{active, true}' socket option by-default, it may potentially quickly
-    %% receive huge amount of data from the network.
-    %% With introduction of `{socket_active, N}' option it becomes less of a problem, but
-    %% `{active, true}' is still the default.
-    %%
-    %% Because we use `inet' driver directly, we also have `handle_info({inet_reply, ...`
-    %% This `gen_tcp:send/2' problem have been solved in OTP-26, so this hack is no longer needed.
-    try erlang:port_command(Sock, Bin) of
-        true ->
-            ok
-    catch
-        error:_Error ->
-            {error, einval}
-    end.
--endif.
 
 loop(#state{data = Data, handler = Handler, subproto_state = Repl} = State) ->
     case epgsql_wire:decode_message(Data) of
