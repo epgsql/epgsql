@@ -1,3 +1,11 @@
+In 4.8.0
+
+* Update rebar3 lint / elvis
+* Fix compilation for OTP-27
+* Optimize batch encoder
+* Drop OTP-21,22,23, add OTP-27,28
+* Remove gen_tcp:send hack
+
 In 4.7.1
 
 * Handle `ReadyForQuery` after `Error` in replication mode #279
