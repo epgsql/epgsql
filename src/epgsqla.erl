@@ -47,7 +47,8 @@ connect(Host, Username, Opts) ->
     connect(Host, Username, "", Opts).
 
 connect(Host, Username, Password, Opts) ->
-    {ok, C} = epgsql_sock:start_link(),
+    SockOpts = maps:get(sock_opts, epgsql:to_map(Opts), #{}),
+    {ok, C} = epgsql_sock:start_link(SockOpts),
     connect(C, Host, Username, Password, Opts).
 
 -spec connect(epgsql:connection(), inet:ip_address() | inet:hostname(),

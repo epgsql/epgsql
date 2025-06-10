@@ -44,6 +44,7 @@
 -behavior(gen_server).
 
 -export([start_link/0,
+         start_link/1,
          close/1,
          sync_command/3,
          async_command/4,
@@ -109,7 +110,8 @@
                 txstatus :: byte() | undefined,  % $I | $T | $E,
                 complete_status :: atom() | {atom(), integer()} | undefined,
                 subproto_state :: repl_state() | copy_state() | undefined,
-                connect_opts :: epgsql:connect_opts_map() | undefined}).
+                connect_opts :: epgsql:connect_opts_map() | undefined,
+                misc = #{} :: map()}).
 
 -opaque pg_sock() :: #state{}.
 
@@ -122,7 +124,10 @@
 %% -- client interface --
 
 start_link() ->
-    gen_server:start_link(?MODULE, [], []).
+    start_link(_Opts = #{}).
+
+start_link(Opts) ->
+    gen_server:start_link(?MODULE, Opts, []).
 
 close(C) when is_pid(C) ->
     catch gen_server:cast(C, stop),
@@ -229,8 +234,10 @@ get_parameter_internal(Name, #state{parameters = Parameters}) ->
 
 %% -- gen_server implementation --
 
-init([]) ->
-    {ok, #state{}}.
+init(Opts) ->
+    SilenceReasons = maps:get(silence_reasons, Opts, []),
+    Misc = #{silence_reasons => SilenceReasons},
+    {ok, #state{misc = Misc}}.
 
 handle_call({command, Command, Args}, From, State) ->
     Transport = {call, From},
@@ -300,7 +307,8 @@ handle_info({Passive, Sock}, #state{sock = Sock} = State)
 
 handle_info({Closed, Sock}, #state{sock = Sock} = State)
   when Closed == tcp_closed; Closed == ssl_closed ->
-    {stop, sock_closed, flush_queue(State#state{sock = undefined}, {error, sock_closed})};
+    Reason = maybe_silence_reason(sock_closed, State),
+    {stop, Reason, flush_queue(State#state{sock = undefined}, {error, sock_closed})};
 
 handle_info({Error, Sock, Reason}, #state{sock = Sock} = State)
   when Error == tcp_error; Error == ssl_error ->
@@ -388,8 +396,9 @@ command_exec(Transport, Command, CmdState, State) ->
         {send_multi, Packets, State1, CmdState1} when is_list(Packets) ->
             ok = send_multi(State1, Packets),
             {noreply, command_enqueue(Transport, Command, CmdState1, State1)};
-        {stop, StopReason, Response, State1} ->
+        {stop, StopReason0, Response, State1} ->
             reply(Transport, Response, Response),
+            StopReason = maybe_silence_reason(StopReason0, State1),
             {stop, StopReason, State1}
     end.
 
@@ -787,6 +796,20 @@ handle_xlog_data(StartLSN, EndLSN, WALRecord,
 
 redact_state(State) ->
     State#state{rows = information_redacted}.
+
+%% Avoid spamming logs with crash reports for potentially transient failures.
+maybe_silence_reason(Reason, State) ->
+    case is_silenced_reason(Reason, State) of
+        true ->
+            {shutdown, Reason};
+        false ->
+            Reason
+    end.
+
+is_silenced_reason(Reason, #state{misc = #{silence_reasons := SilenceReasons}}) ->
+    lists:member(Reason, SilenceReasons);
+is_silenced_reason(_Reason, _State) ->
+    false.
 
 -ifdef(TEST).
 

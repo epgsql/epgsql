@@ -457,13 +457,14 @@ connect_to_closed_port(Config) ->
     {Host, Port} = epgsql_ct:connection_data(Config),
     Module = ?config(module, Config),
     Trap = process_flag(trap_exit, true),
+    SockOpts = #{silence_reasons => [econnrefused]},
     ?assertEqual({error, econnrefused},
                  Module:connect(
                    Host,
                    "epgsql_test",
                    "epgsql_test",
-                   [{port, Port + 1}, {database, "epgsql_test_db1"}])),
-    ?assertMatch({'EXIT', _, econnrefused}, receive Stop -> Stop end),
+                   [{port, Port + 1}, {database, "epgsql_test_db1"}, {sock_opts, SockOpts}])),
+    ?assertMatch({'EXIT', _, {shutdown, econnrefused}}, receive Stop -> Stop end),
     process_flag(trap_exit, Trap).
 
 prepared_query(Config) ->
