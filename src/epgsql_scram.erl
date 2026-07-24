@@ -106,28 +106,10 @@ check_nonce(ClientNonce, ServerNonce) ->
     true.
 
 hi(Str, Salt, I) ->
-    U1 = hmac(Str, <<Salt/binary, 1:32/integer-big>>),
-    hi1(Str, U1, U1, I - 1).
+    crypto:pbkdf2_hmac(sha256, iolist_to_binary(Str), Salt, I, 32).
 
-hi1(_Str, _U, Hi, 0) ->
-    Hi;
-hi1(Str, U, Hi, I) ->
-    U2 = hmac(Str, U),
-    Hi1 = bin_xor(Hi, U2),
-    hi1(Str, U2, Hi1, I - 1).
-
--ifdef(OTP_RELEASE).
- -if(?OTP_RELEASE >= 23).
- hmac(Key, Str) ->
-     crypto:mac(hmac, sha256, Key, Str).
- -else.
- hmac(Key, Str) ->
-     crypto:hmac(sha256, Key, Str).
- -endif.
--else.
 hmac(Key, Str) ->
-    crypto:hmac(sha256, Key, Str).
--endif.
+    crypto:mac(hmac, sha256, Key, Str).
 
 h(Str) ->
     crypto:hash(sha256, Str).
