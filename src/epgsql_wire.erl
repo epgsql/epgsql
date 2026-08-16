@@ -370,14 +370,21 @@ encode_bin(Bin) ->
     <<(byte_size(Bin)):?int32, Bin/binary>>.
 
 %% @doc Encode iodata with size-prefix (used for `StartupMessage' and `SSLRequest' packets)
+-spec encode_command(iodata()) -> iodata().
 encode_command(Data) ->
     Size = iolist_size(Data),
+    %% Size+4 must fit in the int32 length prefix, or it silently truncates
+    %% and desyncs the server's message framing (protocol-level smuggling).
+    Size + 4 > 16#7fffffff andalso error({epgsql_message_too_large, Size}),
     [<<(Size + 4):?int32>> | Data].
 
 %% @doc Encode PG command with type and size prefix
 -spec encode_command(packet_type(), iodata()) -> iodata().
 encode_command(Type, Data) ->
     Size = iolist_size(Data),
+    %% Size+4 must fit in the int32 length prefix, or it silently truncates
+    %% and desyncs the server's message framing (protocol-level smuggling).
+    Size + 4 > 16#7fffffff andalso error({epgsql_message_too_large, Size}),
     [<<Type:8, (Size + 4):?int32>> | Data].
 
 %% @doc encode replication status message
