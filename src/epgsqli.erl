@@ -60,8 +60,9 @@ connect(C, Host, Username, Password, Opts) ->
 
 call_connect(C, Opts) ->
     Opts1 = epgsql_cmd_connect:opts_hide_password(epgsql:to_map(Opts)),
+    Opts2 = epgsql_cmd_connect:opts_parse_host(Opts1),
     epgsqla:complete_connect(
-      C, incremental(C, epgsql_cmd_connect, Opts1), Opts1).
+      C, incremental(C, epgsql_cmd_connect, Opts2), Opts2).
 
 
 -spec close(epgsql:connection()) -> ok.

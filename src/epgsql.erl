@@ -204,11 +204,12 @@ connect(C, Host, Username, Password, Opts) ->
        -> {ok, Connection :: connection()} | {error, Reason :: connect_error()}.
 call_connect(C, Opts) ->
     Opts1 = epgsql_cmd_connect:opts_hide_password(to_map(Opts)),
+    Opts2 = epgsql_cmd_connect:opts_parse_host(Opts1),
     case epgsql_sock:sync_command(
-           C, epgsql_cmd_connect, Opts1) of
+           C, epgsql_cmd_connect, Opts2) of
         connected ->
             %% If following call fails for you, try to add {codecs, []} connect option
-            {ok, _} = maybe_update_typecache(C, Opts1),
+            {ok, _} = maybe_update_typecache(C, Opts2),
             {ok, C};
         Error = {error, _} ->
             Error
